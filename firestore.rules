@@ -188,9 +188,10 @@ service cloud.firestore {
           && request.resource.data.memberId == myMemberId(cid)
           && request.resource.data.status == 'claimed'
           && request.resource.data.claimedBy == request.auth.uid
-          && request.resource.data.method in ['cash', 'instapay', 'vodafone_cash']
           // Transfers must come with a screenshot written in the same batch.
-          && (request.resource.data.method == 'cash'
+          // (No method = cash, for app versions before payment methods.)
+          && (!('method' in request.resource.data)
+              || request.resource.data.method == 'cash'
               || (request.resource.data.hasReceipt == true
                   && existsAfter(/databases/$(database)/documents/circles/$(cid)/receipts/$(pid))));
 
