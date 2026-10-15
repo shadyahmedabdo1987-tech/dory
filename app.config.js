@@ -22,12 +22,16 @@ module.exports = ({ config }) => {
 
   const plugins = [...(config.plugins ?? [])];
   if (nativeFirebase) {
-    plugins.push(
-      '@react-native-firebase/app',
-      '@react-native-firebase/app-check',
-      ['expo-build-properties', { ios: { useFrameworks: 'static' } }],
-    );
+    plugins.push('@react-native-firebase/app', '@react-native-firebase/app-check');
   }
+  plugins.push([
+    'expo-build-properties',
+    {
+      // Smaller, faster release builds (R8 code shrinking + unused resource removal).
+      android: { enableMinifyInReleaseBuilds: true, enableShrinkResourcesInReleaseBuilds: true },
+      ...(nativeFirebase ? { ios: { useFrameworks: 'static' } } : {}),
+    },
+  ]);
 
   return {
     ...config,
