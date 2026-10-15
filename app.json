@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "الجمعية",
-    "slug": "gam3eya",
-    "scheme": "gam3eya",
-    "version": "1.0.0",
+    "name": "دوري",
+    "slug": "dory",
+    "scheme": "dory",
+    "version": "2.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "primaryColor": "#0F5C4D",
     "backgroundColor": "#F6F3EC",
     "ios": {
-      "bundleIdentifier": "com.alabdo.gam3eya",
+      "bundleIdentifier": "com.alabdo.dory",
       "supportsTablet": true,
       "infoPlist": {
         "CFBundleDevelopmentRegion": "ar",
@@ -20,7 +20,7 @@
       }
     },
     "android": {
-      "package": "com.alabdo.gam3eya",
+      "package": "com.alabdo.dory",
       "adaptiveIcon": {
         "backgroundColor": "#0F5C4D",
         "foregroundImage": "./assets/adaptive-icon.png"
@@ -35,7 +35,6 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-localization",
       [
         "expo-splash-screen",
         {
@@ -44,7 +43,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#0F5C4D"
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true

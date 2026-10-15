@@ -1,0 +1,209 @@
+rules_version = '2';
+
+// Security model for "دوري"
+// ---------------------------------------------------------------------------
+// circles/{cid}                      settings + timeline; written only by the admin
+//   members/{mid}                    roster (names only); admin writes, a member may claim/release their own row
+//   contacts/{mid}                   members' phone numbers — admin only, never visible to other members
+//   phones/{normalizedPhone}         phone -> memberId lookup used when joining
+//   memberships/{uid}                links a signed-in device to a member row
+//   payments/{periodId_memberId}     member may *claim* their own payment; only admin confirms
+// invites/{code}                     invite code -> circle id
+//
+// Admins must have a real (email) account. Members join anonymously with the
+// invite code + the phone number the admin registered for them.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isAccount() {
+      return signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+    function circlePath(cid) {
+      return /databases/$(database)/documents/circles/$(cid);
+    }
+    function membershipPath(cid, uid) {
+      return /databases/$(database)/documents/circles/$(cid)/memberships/$(uid);
+    }
+    function isAdmin(cid) {
+      return signedIn() && get(circlePath(cid)).data.adminUid == request.auth.uid;
+    }
+    // For writes batched together with the circle itself (creation).
+    function isAdminAfter(cid) {
+      return signedIn() && getAfter(circlePath(cid)).data.adminUid == request.auth.uid;
+    }
+    function isMember(cid) {
+      return signedIn() && exists(membershipPath(cid, request.auth.uid));
+    }
+    function myMemberId(cid) {
+      return get(membershipPath(cid, request.auth.uid)).data.memberId;
+    }
+    function optionalString(d, key, max) {
+      return !(key in d) || d[key] == null || (d[key] is string && d[key].size() <= max);
+    }
+
+    // ---------- validation ----------
+    function validCircle(d) {
+      return d.keys().hasAll(['name', 'installment', 'currency', 'frequency', 'startDate', 'adminUid',
+                              'inviteCode', 'periods', 'memberCount', 'createdAt', 'updatedAt', 'schemaVersion'])
+        && d.keys().hasOnly(['name', 'installment', 'currency', 'frequency', 'startDate', 'adminUid',
+                             'inviteCode', 'periods', 'memberCount', 'createdAt', 'updatedAt', 'schemaVersion'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.installment is number && d.installment > 0 && d.installment <= 100000000
+        && d.currency == 'EGP'
+        && d.frequency in ['weekly', 'monthly', 'quarterly']
+        && d.startDate is string && d.startDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.inviteCode is string && d.inviteCode.matches('^[A-Z2-9]{6}$')
+        && d.periods is list && d.periods.size() <= 240
+        && d.memberCount is int && d.memberCount >= 0 && d.memberCount <= 120
+        && d.schemaVersion == 1
+        && d.updatedAt == request.time;
+    }
+
+    function validMember(d) {
+      return d.keys().hasAll(['name', 'order', 'uid'])
+        && d.keys().hasOnly(['name', 'uid', 'order', 'createdAt'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && (d.uid == null || d.uid is string)
+        && d.order is int && d.order >= 0 && d.order < 1000;
+    }
+
+    function validPayment(pid, d) {
+      return d.keys().hasAll(['periodId', 'memberId', 'status'])
+        && d.keys().hasOnly(['periodId', 'memberId', 'status', 'claimedAt', 'claimedBy',
+                             'confirmedAt', 'confirmedBy', 'note'])
+        && d.periodId is string && d.memberId is string
+        && pid == d.periodId + '_' + d.memberId
+        && d.status in ['claimed', 'confirmed']
+        && optionalString(d, 'claimedAt', 40) && optionalString(d, 'confirmedAt', 40)
+        && optionalString(d, 'claimedBy', 128) && optionalString(d, 'confirmedBy', 128)
+        && optionalString(d, 'note', 200);
+    }
+
+    // ---------- circles ----------
+    match /circles/{cid} {
+      allow get: if signedIn() && (resource.data.adminUid == request.auth.uid || isMember(cid));
+      allow list: if signedIn() && resource.data.adminUid == request.auth.uid;
+
+      allow create: if isAccount()
+        && request.resource.data.adminUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && validCircle(request.resource.data);
+
+      allow update: if signedIn()
+        && resource.data.adminUid == request.auth.uid
+        && request.resource.data.adminUid == resource.data.adminUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && validCircle(request.resource.data);
+
+      allow delete: if signedIn() && resource.data.adminUid == request.auth.uid;
+
+      // ---------- members ----------
+      match /members/{mid} {
+        allow read: if isAdmin(cid) || isMember(cid);
+        allow create: if isAdminAfter(cid) && validMember(request.resource.data);
+        allow delete: if isAdmin(cid);
+
+        // Admin edits (including resetting a member's device link).
+        allow update: if isAdminAfter(cid) && validMember(request.resource.data);
+
+        // A member claims their row while joining (batched with the membership doc).
+        allow update: if signedIn()
+          && resource.data.uid == null
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid'])
+          && getAfter(membershipPath(cid, request.auth.uid)).data.memberId == mid;
+
+        // A member releases their own row when leaving.
+        allow update: if signedIn()
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.uid == null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid']);
+      }
+
+      // ---------- private contact details (admin only) ----------
+      match /contacts/{mid} {
+        allow read: if isAdmin(cid);
+        allow create, update: if isAdminAfter(cid)
+          && request.resource.data.keys().hasOnly(['phone'])
+          && (request.resource.data.phone == null
+              || (request.resource.data.phone is string && request.resource.data.phone.matches('^[0-9]{8,15}$')));
+        allow delete: if isAdmin(cid);
+      }
+
+      // ---------- phone lookup ----------
+      match /phones/{phone} {
+        allow get: if signedIn();
+        allow list: if isAdmin(cid);
+        allow create, update: if isAdminAfter(cid)
+          && request.resource.data.keys().hasOnly(['memberId'])
+          && request.resource.data.memberId is string;
+        allow delete: if isAdmin(cid);
+      }
+
+      // ---------- device links ----------
+      match /memberships/{uid} {
+        allow get: if signedIn() && (request.auth.uid == uid || isAdmin(cid));
+        allow list: if isAdmin(cid);
+
+        allow create: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['uid', 'circleId', 'memberId', 'inviteCode', 'joinedAt'])
+          && request.resource.data.uid == uid
+          && request.resource.data.circleId == cid
+          && request.resource.data.memberId is string
+          && request.resource.data.inviteCode == get(circlePath(cid)).data.inviteCode
+          && request.resource.data.joinedAt == request.time
+          && getAfter(/databases/$(database)/documents/circles/$(cid)/members/$(request.resource.data.memberId)).data.uid == uid;
+
+        allow delete: if signedIn() && (request.auth.uid == uid || isAdmin(cid));
+      }
+
+      // ---------- payments ----------
+      match /payments/{pid} {
+        allow read: if isAdmin(cid) || isMember(cid);
+
+        // Admin records, confirms and removes payments.
+        allow create, update: if isAdmin(cid) && validPayment(pid, request.resource.data);
+        allow delete: if isAdmin(cid);
+
+        // Member says "I paid" for themselves only; can't confirm.
+        allow create: if isMember(cid)
+          && validPayment(pid, request.resource.data)
+          && request.resource.data.memberId == myMemberId(cid)
+          && request.resource.data.status == 'claimed'
+          && request.resource.data.claimedBy == request.auth.uid;
+
+        // Member withdraws a claim that the admin hasn't confirmed yet.
+        allow delete: if isMember(cid)
+          && resource.data.memberId == myMemberId(cid)
+          && resource.data.status == 'claimed';
+      }
+    }
+
+    // "Circles I belong to" — collection-group query on my own memberships.
+    match /{path=**}/memberships/{uid} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // ---------- invites ----------
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['circleId', 'createdAt'])
+        && request.resource.data.createdAt == request.time
+        && getAfter(circlePath(request.resource.data.circleId)).data.adminUid == request.auth.uid
+        && getAfter(circlePath(request.resource.data.circleId)).data.inviteCode == code;
+      allow delete: if signedIn() && get(circlePath(resource.data.circleId)).data.adminUid == request.auth.uid;
+    }
+
+    // Everything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

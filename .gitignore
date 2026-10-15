@@ -8,17 +8,23 @@ expo-env.d.ts
 /ios
 /android
 
+# Local env (Firebase keys live in EAS env vars for store builds)
+.env
+.env*.local
+
+# Firebase emulator / debug output
+*-debug.log
+.firebase/
+
 # Build artifacts & secrets
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
-*.orig.*
 *.apk
 *.aab
 *.ipa
-.env*.local
 
 # OS / editor
 .DS_Store

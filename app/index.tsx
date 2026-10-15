@@ -1,38 +1,102 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Link, router } from 'expo-router';
-import { useMemo } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
+import type { ComponentProps, ReactNode } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
+  FREQUENCY_LABEL,
   formatDate,
   formatMoney,
   formatNumber,
-  potSize,
-  progress,
-  summarizeCycle,
-  todayISO,
-  type Circle,
+  memberAccount,
+  overview,
+  payoutPot,
+  relativeDays,
 } from '@/core';
-import { useCircles } from '@/store/circles';
+import { signOut, useCircleData, useMyCircles, type CircleRef } from '@/data';
+import { useAppSession } from '@/data/session';
 import { Badge, Button, Card, EmptyState, ProgressBar, Row, Text } from '@/ui/components';
+import { confirm, ErrorScreen } from '@/ui/feedback';
 import { colors, radius, shadow, space } from '@/ui/theme';
 
-export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
-  const circles = useCircles((s) => s.circles);
-  const today = todayISO();
+export default function Index() {
+  const { user } = useAppSession();
+  return user ? <Home uid={user.uid} /> : <Welcome />;
+}
 
-  const totals = useMemo(() => {
-    let overdue = 0;
-    let active = 0;
-    for (const c of circles) {
-      const p = progress(c, today);
-      overdue += p.overdueAmount;
-      if (p.status === 'active') active++;
-    }
-    return { overdue, active };
-  }, [circles, today]);
+// ---------------------------------------------------------------------------
+
+function Welcome() {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={[styles.welcome, { paddingTop: insets.top + space.xxl, paddingBottom: insets.bottom + space.xl }]}>
+      <View style={{ alignItems: 'center', gap: space.sm }}>
+        <View style={styles.logoBig}>
+          <Ionicons name="sync-circle" size={64} color={colors.primary} />
+        </View>
+        <Text variant="title" color={colors.white} style={{ fontSize: 40, lineHeight: 60 }}>
+          دوري
+        </Text>
+        <Text color="rgba(255,255,255,0.85)" center>
+          جمعيتك في جيبك.. ودورك مضمون
+        </Text>
+      </View>
+
+      <View style={{ gap: space.md, alignSelf: 'stretch' }}>
+        <Feature icon="calendar-outline" text="جدول أدوار شهري أو كل ٣ شهور، مع تأجيل وأقساط إضافية" />
+        <Feature icon="shield-checkmark-outline" text="كل عضو يشوف دوره وحسابه، وصاحب الجمعية يأكد الدفع" />
+        <Feature icon="logo-whatsapp" text="دعوات وتذكير بالأقساط على واتساب" />
+      </View>
+
+      <View style={{ gap: space.sm, alignSelf: 'stretch' }}>
+        <Button label="أنا صاحب جمعية" icon="person-circle-outline" variant="secondary" onPress={() => router.push('/auth')} />
+        <Button label="عندي كود دعوة" icon="key-outline" onPress={() => router.push('/join')} style={styles.goldButton} />
+      </View>
+    </View>
+  );
+}
+
+function Feature({ icon, text }: { icon: ComponentProps<typeof Ionicons>['name']; text: string }) {
+  return (
+    <Row gap={space.md}>
+      <View style={styles.featureIcon}>
+        <Ionicons name={icon} size={20} color={colors.gold} />
+      </View>
+      <Text color={colors.white} style={{ flex: 1 }}>
+        {text}
+      </Text>
+    </Row>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+function Home({ uid }: { uid: string }) {
+  const insets = useSafeAreaInsets();
+  const { user, isAccount } = useAppSession();
+  const { refs, error, loading } = useMyCircles(uid);
+
+  const menu = async () => {
+    const ok = await confirm(
+      'تسجيل الخروج',
+      isAccount
+        ? `مسجّل بـ ${user?.email ?? ''}. تقدر ترجع تدخل بنفس الإيميل في أي وقت.`
+        : 'إنت داخل كعضو من غير حساب. لو خرجت هتحتاج كود الدعوة ورقمك تاني.',
+      'خروج',
+      true,
+    );
+    if (ok) await signOut();
+  };
+
+  if (error) return <ErrorScreen message={error} />;
+
+  const admin = refs?.filter((r) => r.role === 'admin') ?? [];
+  const member = refs?.filter((r) => r.role === 'member') ?? [];
+  const sections: (CircleRef | { header: string })[] = [
+    ...(member.length ? [{ header: 'جمعيات أنا فيها' }, ...member] : []),
+    ...(admin.length ? [{ header: 'جمعيات بديرها' }, ...admin] : []),
+  ];
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -40,118 +104,183 @@ export default function HomeScreen() {
         <Row style={{ justifyContent: 'space-between' }}>
           <View>
             <Text variant="caption" color="rgba(255,255,255,0.75)">
-              أهلًا بيك في
+              {user?.displayName ? `أهلًا يا ${user.displayName}` : 'أهلًا بيك في'}
             </Text>
             <Text variant="title" color={colors.white}>
-              الجمعية
+              دوري
             </Text>
           </View>
-          <View style={styles.logo}>
-            <Ionicons name="people" size={26} color={colors.primary} />
-          </View>
-        </Row>
-        <Row gap={space.md} style={{ marginTop: space.lg }}>
-          <Stat label="جمعيات شغالة" value={formatNumber(totals.active)} />
-          <Stat label="متأخرات" value={formatMoney(totals.overdue)} warn={totals.overdue > 0} />
+          <Pressable onPress={menu} accessibilityLabel="الحساب" hitSlop={10} style={styles.avatar}>
+            <Ionicons name="person" size={22} color={colors.primary} />
+          </Pressable>
         </Row>
       </View>
 
-      <FlatList
-        data={circles}
-        keyExtractor={(c) => c.id}
-        contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: insets.bottom + 110 }}
-        ListEmptyComponent={
-          <EmptyState
-            icon="wallet-outline"
-            title="لسه مفيش جمعيات"
-            body="اعمل أول جمعية في دقيقة: حدد القسط، ضيف الأعضاء، واعمل القرعة على الأدوار."
-          />
-        }
-        renderItem={({ item }) => <CircleCard circle={item} today={today} />}
-      />
-
-      <View style={[styles.fabWrap, { paddingBottom: insets.bottom + space.lg }]}>
-        <Button label="جمعية جديدة" icon="add-circle" onPress={() => router.push('/new')} />
-      </View>
-    </View>
-  );
-}
-
-function Stat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
-  return (
-    <View style={styles.stat}>
-      <Text variant="caption" color="rgba(255,255,255,0.75)">
-        {label}
-      </Text>
-      <Text variant="heading" weight="bold" color={warn ? '#FFD6A5' : colors.white}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-function CircleCard({ circle, today }: { circle: Circle; today: string }) {
-  const p = progress(circle, today);
-  const cycle = Math.max(0, Math.min(p.currentCycle, circle.members.length - 1));
-  const summary = summarizeCycle(circle, p.status === 'upcoming' ? 0 : cycle);
-
-  const status =
-    p.status === 'finished'
-      ? { label: 'خلصت', tone: 'success' as const }
-      : p.status === 'upcoming'
-        ? { label: `تبدأ ${formatDate(circle.startDate, false)}`, tone: 'gold' as const }
-        : p.overdueCount > 0
-          ? { label: `${formatNumber(p.overdueCount)} متأخر`, tone: 'danger' as const }
-          : { label: 'منتظمة', tone: 'success' as const };
-
-  return (
-    <Link href={{ pathname: '/circle/[id]', params: { id: circle.id } }} asChild>
-      <Pressable accessibilityRole="button" style={({ pressed }) => pressed && { opacity: 0.9 }}>
-        <Card>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Text variant="heading" numberOfLines={1} style={{ flex: 1 }}>
-              {circle.name}
-            </Text>
-            <Badge label={status.label} tone={status.tone} />
-          </Row>
-
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Info label="القسط" value={formatMoney(circle.installment, circle.currency)} />
-            <Info label="القبض" value={formatMoney(potSize(circle), circle.currency)} />
-            <Info label="الأعضاء" value={formatNumber(circle.members.length)} />
-          </Row>
-
-          {p.status !== 'finished' && (
-            <Row style={styles.turn}>
-              <Ionicons name="gift-outline" size={18} color={colors.primary} />
-              <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
-                الدور على <Text weight="bold">{summary.recipient.name}</Text> — {formatDate(summary.date)}
+      {loading ? (
+        <ActivityIndicator style={{ marginTop: space.xxl }} color={colors.primary} />
+      ) : (
+        <FlatList
+          data={sections}
+          keyExtractor={(item) => ('header' in item ? item.header : `${item.role}-${item.id}`)}
+          contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: insets.bottom + 160 }}
+          ListEmptyComponent={
+            <EmptyState
+              icon="wallet-outline"
+              title="لسه مفيش جمعيات"
+              body={
+                isAccount
+                  ? 'اعمل أول جمعية: حدد القسط وميعاد الدفع، ضيف الأعضاء، وابعتلهم الدعوة على واتساب.'
+                  : 'ادخل بكود الدعوة اللي وصلك من صاحب الجمعية.'
+              }
+            />
+          }
+          renderItem={({ item }) =>
+            'header' in item ? (
+              <Text variant="heading" style={{ marginTop: space.sm }}>
+                {item.header}
               </Text>
-            </Row>
-          )}
+            ) : item.role === 'admin' ? (
+              <AdminCard id={item.id} uid={uid} />
+            ) : (
+              <MemberCard id={item.id} uid={uid} />
+            )
+          }
+        />
+      )}
 
-          <View style={{ gap: space.xs }}>
-            <ProgressBar value={p.ratio} />
-            <Text variant="caption">
-              قبض {formatNumber(p.paidOut)} من {formatNumber(p.totalCycles)}
-            </Text>
-          </View>
-        </Card>
-      </Pressable>
-    </Link>
+      <View style={[styles.actions, { paddingBottom: insets.bottom + space.lg }]}>
+        <Button label="انضم بكود" icon="key-outline" variant="secondary" style={{ flex: 1 }} onPress={() => router.push('/join')} />
+        <Button
+          label="جمعية جديدة"
+          icon="add-circle"
+          style={{ flex: 1.3 }}
+          onPress={() => router.push(isAccount ? '/new' : '/auth')}
+        />
+      </View>
+    </View>
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function CardShell({ id, children }: { id: string; children: ReactNode }) {
   return (
-    <View>
-      <Text variant="caption">{label}</Text>
-      <Text weight="bold">{value}</Text>
-    </View>
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => router.push({ pathname: '/circle/[id]', params: { id } })}
+      style={({ pressed }) => pressed && { opacity: 0.9 }}
+    >
+      <Card>{children}</Card>
+    </Pressable>
+  );
+}
+
+function AdminCard({ id, uid }: { id: string; uid: string }) {
+  const { data } = useCircleData(id, uid);
+  if (!data) return <SkeletonCard />;
+  const { circle, payments } = data;
+  const o = overview(circle, payments);
+  return (
+    <CardShell id={id}>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <Text variant="heading" numberOfLines={1} style={{ flex: 1 }}>
+          {circle.name}
+        </Text>
+        {o.pendingCount > 0 ? (
+          <Badge label={`${formatNumber(o.pendingCount)} مستني تأكيد`} tone="gold" />
+        ) : o.overdueCount > 0 ? (
+          <Badge label={`${formatNumber(o.overdueCount)} متأخر`} tone="danger" />
+        ) : o.status === 'finished' ? (
+          <Badge label="خلصت" tone="success" />
+        ) : (
+          <Badge label="منتظمة" tone="success" />
+        )}
+      </Row>
+      <Text variant="caption">
+        {formatNumber(circle.members.length)} عضو • {formatMoney(circle.installment)} {FREQUENCY_LABEL[circle.frequency].every} • القبض{' '}
+        {formatMoney(payoutPot(circle))}
+      </Text>
+      {o.nextPayoutEntry && (
+        <Row style={styles.note}>
+          <Ionicons name="gift-outline" size={16} color={colors.primary} />
+          <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
+            القبض الجاي: <Text weight="bold">{o.nextPayoutEntry.recipient?.name}</Text> — {formatDate(o.nextPayoutEntry.date)}
+          </Text>
+        </Row>
+      )}
+      <ProgressBar value={o.ratio} />
+    </CardShell>
+  );
+}
+
+function MemberCard({ id, uid }: { id: string; uid: string }) {
+  const { data, myMemberId } = useCircleData(id, uid);
+  if (!data || !myMemberId || !data.circle.members.some((m) => m.id === myMemberId)) return <SkeletonCard />;
+  const acc = memberAccount(data.circle, data.payments, myMemberId);
+  const next = acc.nextDue;
+  return (
+    <CardShell id={id}>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <Text variant="heading" numberOfLines={1} style={{ flex: 1 }}>
+          {data.circle.name}
+        </Text>
+        {acc.overdueAmount > 0 ? (
+          <Badge label="عليك متأخرات" tone="danger" />
+        ) : acc.totalPending > 0 ? (
+          <Badge label="مستني تأكيد" tone="gold" />
+        ) : (
+          <Badge label="حسابك تمام" tone="success" />
+        )}
+      </Row>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <View>
+          <Text variant="caption">القسط الجاي</Text>
+          <Text weight="bold">{next ? formatMoney(next.entry.due) : '—'}</Text>
+          {next && <Text variant="caption">{formatDate(next.entry.date)}</Text>}
+        </View>
+        <View>
+          <Text variant="caption">دورك في القبض</Text>
+          <Text weight="bold">{acc.nextPayout ? formatDate(acc.nextPayout.entry.date, false) : 'قبضت ✓'}</Text>
+          {acc.nextPayout && <Text variant="caption">{relativeDays(acc.nextPayout.inDays)}</Text>}
+        </View>
+      </Row>
+      <ProgressBar value={acc.totalCommitment ? acc.totalPaid / acc.totalCommitment : 0} color={colors.success} />
+    </CardShell>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <Card>
+      <View style={styles.skeletonLine} />
+      <View style={[styles.skeletonLine, { width: '60%' }]} />
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
+  welcome: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    paddingHorizontal: space.xl,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  logoBig: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: colors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goldButton: { backgroundColor: colors.gold, borderColor: colors.gold },
   hero: {
     backgroundColor: colors.primary,
     paddingHorizontal: space.xl,
@@ -159,30 +288,23 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: radius.lg + 6,
     borderBottomRightRadius: radius.lg + 6,
   },
-  logo: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: colors.gold,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stat: {
-    flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: radius.md,
-    padding: space.md,
-  },
-  turn: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.sm,
-    padding: space.sm,
-  },
-  fabWrap: {
+  note: { backgroundColor: colors.primarySoft, borderRadius: radius.sm, padding: space.sm },
+  actions: {
     position: 'absolute',
     left: space.lg,
     right: space.lg,
     bottom: 0,
+    flexDirection: 'row',
+    gap: space.sm,
     ...shadow,
   },
+  skeletonLine: { height: 14, borderRadius: 7, backgroundColor: colors.border, width: '85%' },
 });

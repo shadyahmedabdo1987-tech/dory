@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -5,13 +6,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addMonths,
   daysInMonth,
-  drawTurns,
+  FREQUENCY_LABEL,
   formatDate,
   formatMoney,
   formatNumber,
+  monthName,
   moveItem,
-  ordinalTurn,
+  newId,
+  normalizePhone,
+  ordinal,
+  parseAmount,
   parseISODate,
+  shuffle,
   todayISO,
   toISODate,
   validateDraft,
@@ -20,14 +26,8 @@ import {
   type Frequency,
   type Member,
 } from '@/core';
-import { newId } from '@/store/circles';
 import { Button, Card, Chip, Field, IconButton, Row, Segmented, Text } from '@/ui/components';
 import { colors, fonts, radius, space } from '@/ui/theme';
-
-const MONTH_NAMES = [
-  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
-];
 
 const ERRORS: Record<DraftError, string> = {
   name: 'اكتب اسم للجمعية',
@@ -35,25 +35,26 @@ const ERRORS: Record<DraftError, string> = {
   startDate: 'التاريخ مش صحيح',
   members: 'محتاج عضوين على الأقل',
   memberName: 'في عضو من غير اسم',
+  duplicatePhone: 'في رقم موبايل متكرر لعضوين',
 };
 
-/** Accepts Arabic-Indic digits and thousands separators. */
-function parseAmount(text: string): number {
-  const ascii = text.replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660)).replace(/[^\d.]/g, '');
-  return ascii ? Number(ascii) : NaN;
-}
+const blankMember = (): Member => ({ id: newId('new_'), name: '', phone: '' });
 
-function blankMember(): Member {
-  return { id: newId(), name: '', phone: '' };
-}
-
+/**
+ * Create mode: member order is the payout order (with a draw button).
+ * Edit mode: the roster only — turn order is managed from the schedule tab.
+ */
 export function CircleForm({
+  mode,
   initial,
   submitLabel,
+  busy,
   onSubmit,
 }: {
+  mode: 'create' | 'edit';
   initial?: CircleDraft;
   submitLabel: string;
+  busy?: boolean;
   onSubmit: (draft: CircleDraft) => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -65,43 +66,40 @@ export function CircleForm({
   const [frequency, setFrequency] = useState<Frequency>(initial?.frequency ?? 'monthly');
   const [monthKey, setMonthKey] = useState(`${start.y}-${start.m}`);
   const [day, setDay] = useState(String(start.d));
-  const [members, setMembers] = useState<Member[]>(
-    initial?.members ?? [blankMember(), blankMember(), blankMember()],
-  );
+  const [members, setMembers] = useState<Member[]>(initial?.members ?? [blankMember(), blankMember(), blankMember()]);
   const [showErrors, setShowErrors] = useState(false);
 
-  // Next 12 months (plus the initial month when editing an older circle).
   const months = useMemo(() => {
     const list: { key: string; y: number; m: number }[] = [];
-    const base = today.slice(0, 8) + '01';
-    for (let i = 0; i < 12; i++) {
+    const base = `${today.slice(0, 8)}01`;
+    for (let i = -1; i < 12; i++) {
       const { y, m } = parseISODate(addMonths(base, i));
       list.push({ key: `${y}-${m}`, y, m });
     }
-    if (!list.some((x) => x.key === `${start.y}-${start.m}`)) {
-      list.unshift({ key: `${start.y}-${start.m}`, y: start.y, m: start.m });
-    }
+    if (!list.some((x) => x.key === `${start.y}-${start.m}`)) list.unshift({ key: `${start.y}-${start.m}`, y: start.y, m: start.m });
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const selectedMonth = months.find((x) => x.key === monthKey) ?? months[0];
-  const dayNum = Math.max(1, Math.min(Number(parseAmount(day)) || 1, daysInMonth(selectedMonth.y, selectedMonth.m)));
-  const startDate = toISODate({ y: selectedMonth.y, m: selectedMonth.m, d: dayNum });
+  const selected = months.find((x) => x.key === monthKey) ?? months[1];
+  const dayNum = Math.max(1, Math.min(parseAmount(day) || 1, daysInMonth(selected.y, selected.m)));
+  const startDate = toISODate({ y: selected.y, m: selected.m, d: dayNum });
   const installment = parseAmount(amount);
-
   const draft: CircleDraft = { name, installment, frequency, startDate, members };
-  const errors = validateDraft(draft);
+  const errors = validateDraft(draft, normalizePhone);
   const has = (e: DraftError) => showErrors && errors.includes(e);
 
-  const updateMember = (id: string, patch: Partial<Member>) =>
+  const update = (id: string, patch: Partial<Member>) =>
     setMembers((list) => list.map((m) => (m.id === id ? { ...m, ...patch } : m)));
 
-  const removeMember = (id: string) => setMembers((list) => list.filter((m) => m.id !== id));
-
-  const draw = () => {
-    if (members.length < 2) return;
-    setMembers((list) => drawTurns(list));
+  const remove = (m: Member) => {
+    const doRemove = () => setMembers((list) => list.filter((x) => x.id !== m.id));
+    if (mode === 'edit' && !m.id.startsWith('new_')) {
+      Alert.alert('حذف العضو؟', `هيتشال "${m.name}" ودوره في القبض. مدفوعاته القديمة مش هتظهر.`, [
+        { text: 'إلغاء', style: 'cancel' },
+        { text: 'احذف', style: 'destructive', onPress: doRemove },
+      ]);
+    } else doRemove();
   };
 
   const submit = () => {
@@ -110,10 +108,11 @@ export function CircleForm({
       Alert.alert('ناقص شوية بيانات', errors.map((e) => `• ${ERRORS[e]}`).join('\n'));
       return;
     }
-    onSubmit(draft);
+    onSubmit({ ...draft, members: members.map((m) => ({ ...m, name: m.name.trim() })) });
   };
 
   const pot = Number.isFinite(installment) ? installment * members.length : 0;
+  const thisYear = Number(today.slice(0, 4));
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -128,8 +127,8 @@ export function CircleForm({
             placeholder="مثلًا: جمعية الشغل"
             value={name}
             onChangeText={setName}
+            maxLength={60}
             error={has('name') ? ERRORS.name : undefined}
-            returnKeyType="next"
           />
           <Field
             label="القسط اللي بيدفعه كل عضو"
@@ -141,13 +140,14 @@ export function CircleForm({
             hint="بالجنيه المصري"
           />
           <View style={{ gap: space.xs }}>
-            <Text weight="semibold">كل قد إيه؟</Text>
+            <Text weight="semibold">ميعاد الدفع</Text>
             <Segmented
               value={frequency}
               onChange={setFrequency}
               options={[
-                { value: 'monthly', label: 'كل شهر' },
-                { value: 'weekly', label: 'كل أسبوع' },
+                { value: 'monthly', label: 'شهري' },
+                { value: 'quarterly', label: 'كل ٣ شهور' },
+                { value: 'weekly', label: 'أسبوعي' },
               ]}
             />
           </View>
@@ -159,11 +159,7 @@ export function CircleForm({
             {months.map((mo) => (
               <Chip
                 key={mo.key}
-                label={
-                  mo.y === Number(today.slice(0, 4))
-                    ? MONTH_NAMES[mo.m - 1]
-                    : `${MONTH_NAMES[mo.m - 1]} ${formatNumber(mo.y).replace(/[٬,]/g, '')}`
-                }
+                label={mo.y === thisYear ? monthName(mo.m) : `${monthName(mo.m)} ${formatNumber(mo.y).replace(/[٬,]/g, '')}`}
                 active={mo.key === monthKey}
                 onPress={() => setMonthKey(mo.key)}
               />
@@ -183,57 +179,75 @@ export function CircleForm({
               أول قسط: {formatDate(startDate)}
             </Text>
           </Row>
+          {mode === 'edit' && (
+            <Text variant="caption" color={colors.danger}>
+              تغيير الميعاد بيحرّك مواعيد كل الأدوار.
+            </Text>
+          )}
         </Card>
 
         <Card>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Text variant="heading">الأعضاء وترتيب القبض</Text>
+            <Text variant="heading">{mode === 'create' ? 'الأعضاء وترتيب القبض' : 'الأعضاء'}</Text>
             <Text variant="caption">{formatNumber(members.length)} عضو</Text>
           </Row>
           <Text variant="caption">
-            الترتيب هنا هو ترتيب القبض. رتّب بالأسهم أو اعمل قرعة عشوائية.
+            {mode === 'create'
+              ? 'الترتيب هنا هو ترتيب القبض. رقم الموبايل مهم علشان العضو يدخل ويتابع حسابه.'
+              : 'الأعضاء الجداد بيتضاف دورهم في آخر الجدول. ترتيب الأدوار من تبويب "الجدول".'}
           </Text>
           {has('members') && <Text variant="caption" color={colors.danger}>{ERRORS.members}</Text>}
+          {has('duplicatePhone') && <Text variant="caption" color={colors.danger}>{ERRORS.duplicatePhone}</Text>}
 
           {members.map((m, i) => (
             <View key={m.id} style={styles.member}>
               <Row style={{ justifyContent: 'space-between' }}>
-                <View style={styles.turnPill}>
-                  <Text variant="caption" weight="bold" color={colors.primary}>
-                    الدور {ordinalTurn(i)}
-                  </Text>
-                </View>
                 <Row gap={space.xs}>
-                  <IconButton icon="arrow-up" label="لفوق" disabled={i === 0} onPress={() => setMembers((l) => moveItem(l, i, i - 1))} />
-                  <IconButton
-                    icon="arrow-down"
-                    label="لتحت"
-                    disabled={i === members.length - 1}
-                    onPress={() => setMembers((l) => moveItem(l, i, i + 1))}
-                  />
-                  <IconButton
-                    icon="trash-outline"
-                    label="حذف"
-                    color={colors.danger}
-                    bg={colors.dangerSoft}
-                    onPress={() => removeMember(m.id)}
-                  />
+                  {mode === 'create' ? (
+                    <View style={styles.pill}>
+                      <Text variant="caption" weight="bold" color={colors.primary}>
+                        الدور {ordinal(i)}
+                      </Text>
+                    </View>
+                  ) : m.uid ? (
+                    <Row gap={4}>
+                      <Ionicons name="phone-portrait-outline" size={14} color={colors.success} />
+                      <Text variant="caption" color={colors.success}>
+                        داخل من موبايله
+                      </Text>
+                    </Row>
+                  ) : null}
+                </Row>
+                <Row gap={space.xs}>
+                  {mode === 'create' && (
+                    <>
+                      <IconButton icon="arrow-up" label="لفوق" disabled={i === 0} onPress={() => setMembers((l) => moveItem(l, i, i - 1))} />
+                      <IconButton
+                        icon="arrow-down"
+                        label="لتحت"
+                        disabled={i === members.length - 1}
+                        onPress={() => setMembers((l) => moveItem(l, i, i + 1))}
+                      />
+                    </>
+                  )}
+                  <IconButton icon="trash-outline" label="حذف" color={colors.danger} bg={colors.dangerSoft} onPress={() => remove(m)} />
                 </Row>
               </Row>
               <TextInput
                 placeholder="الاسم"
                 placeholderTextColor={colors.muted}
                 value={m.name}
-                onChangeText={(t) => updateMember(m.id, { name: t })}
+                maxLength={60}
+                onChangeText={(t) => update(m.id, { name: t })}
                 style={[styles.input, showErrors && !m.name.trim() && { borderColor: colors.danger }]}
               />
               <TextInput
-                placeholder="رقم الموبايل (للتذكير على واتساب)"
+                placeholder="رقم الموبايل"
                 placeholderTextColor={colors.muted}
                 keyboardType="phone-pad"
                 value={m.phone ?? ''}
-                onChangeText={(t) => updateMember(m.id, { phone: t })}
-                style={styles.input}
+                onChangeText={(t) => update(m.id, { phone: t })}
+                style={[styles.input, !!m.phone && !normalizePhone(m.phone) && { borderColor: colors.danger }]}
               />
             </View>
           ))}
@@ -246,30 +260,32 @@ export function CircleForm({
               style={{ flex: 1 }}
               onPress={() => setMembers((l) => [...l, blankMember()])}
             />
-            <Button
-              label="قرعة"
-              icon="shuffle"
-              variant="secondary"
-              style={{ flex: 1 }}
-              disabled={members.length < 2}
-              onPress={draw}
-            />
+            {mode === 'create' && (
+              <Button
+                label="قرعة"
+                icon="shuffle"
+                variant="secondary"
+                style={{ flex: 1 }}
+                disabled={members.length < 2}
+                onPress={() => setMembers((l) => shuffle(l))}
+              />
+            )}
           </Row>
         </Card>
 
         <View style={styles.summary}>
-          <Text color={colors.white}>
-            كل عضو يدفع {Number.isFinite(installment) ? formatMoney(installment) : '—'} ويقبض
+          <Text color={colors.white} center>
+            كل عضو يدفع {Number.isFinite(installment) ? formatMoney(installment) : '—'} {FREQUENCY_LABEL[frequency].every}، ويقبض
           </Text>
           <Text variant="number" color={colors.gold}>
             {formatMoney(pot)}
           </Text>
           <Text variant="caption" color="rgba(255,255,255,0.75)">
-            على {formatNumber(members.length)} {frequency === 'monthly' ? 'شهور' : 'أسابيع'}
+            على {formatNumber(members.length)} {FREQUENCY_LABEL[frequency].units}
           </Text>
         </View>
 
-        <Button label={submitLabel} icon="checkmark-circle" onPress={submit} />
+        <Button label={submitLabel} icon="checkmark-circle" loading={busy} onPress={submit} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -284,12 +300,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  turnPill: {
-    backgroundColor: colors.primarySoft,
-    paddingHorizontal: space.md,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-  },
+  pill: { backgroundColor: colors.primarySoft, paddingHorizontal: space.md, paddingVertical: 2, borderRadius: radius.pill },
   input: {
     minHeight: 46,
     borderRadius: radius.sm,
@@ -314,11 +325,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.text,
   },
-  summary: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.lg,
-    padding: space.xl,
-    alignItems: 'center',
-    gap: space.xs,
-  },
+  summary: { backgroundColor: colors.primary, borderRadius: radius.lg, padding: space.xl, alignItems: 'center', gap: space.xs },
 });

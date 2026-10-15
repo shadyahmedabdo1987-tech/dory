@@ -1,18 +1,6 @@
-import type { Circle, Member } from './types';
+import type { Circle, Frequency, Member, TimelineEntry } from './types';
 
 const LOCALE = 'ar-EG';
-
-export function formatMoney(amount: number, currency = 'EGP'): string {
-  try {
-    return new Intl.NumberFormat(LOCALE, {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
-    }).format(amount);
-  } catch {
-    return `${amount} ${currency}`;
-  }
-}
 
 export function formatNumber(n: number): string {
   try {
@@ -22,12 +10,28 @@ export function formatNumber(n: number): string {
   }
 }
 
+export function formatMoney(amount: number, currency = 'EGP'): string {
+  try {
+    return new Intl.NumberFormat(LOCALE, {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    }).format(amount);
+  } catch {
+    return `${amount} ${currency}`;
+  }
+}
+
 const MONTHS = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
   'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
 ];
 
-/** "15 أكتوبر 2026" — stable across devices (no ICU calendar quirks). */
+export function monthName(m: number): string {
+  return MONTHS[m - 1];
+}
+
+/** "15 أكتوبر 2026" — independent of device ICU calendar settings. */
 export function formatDate(iso: string, withYear = true): string {
   const [y, m, d] = iso.split('-').map(Number);
   const parts = [formatNumber(d), MONTHS[m - 1]];
@@ -35,27 +39,61 @@ export function formatDate(iso: string, withYear = true): string {
   return parts.join(' ');
 }
 
-export function ordinalTurn(cycle: number): string {
-  const ordinals = [
+export const FREQUENCY_LABEL: Record<Frequency, { every: string; unit: string; units: string }> = {
+  weekly: { every: 'كل أسبوع', unit: 'أسبوع', units: 'أسابيع' },
+  monthly: { every: 'كل شهر', unit: 'شهر', units: 'شهور' },
+  quarterly: { every: 'كل ٣ شهور', unit: 'قسط ربع سنوي', units: 'أقساط ربع سنوية' },
+};
+
+export function ordinal(n: number): string {
+  const words = [
     'الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس',
-    'السابع', 'الثامن', 'التاسع', 'العاشر',
+    'السابع', 'الثامن', 'التاسع', 'العاشر', 'الحادي عشر', 'الثاني عشر',
   ];
-  return ordinals[cycle] ?? `رقم ${formatNumber(cycle + 1)}`;
+  return words[n] ?? `رقم ${formatNumber(n + 1)}`;
+}
+
+export function periodTitle(entry: TimelineEntry): string {
+  switch (entry.period.kind) {
+    case 'skip':
+      return 'تأجيل';
+    case 'extra':
+      return 'قسط إضافي';
+    default:
+      return entry.recipient ? `قبض ${entry.recipient.name}` : 'قبض';
+  }
+}
+
+export function relativeDays(days: number): string {
+  if (days === 0) return 'النهارده';
+  if (days === 1) return 'بكرة';
+  if (days === -1) return 'امبارح';
+  if (days > 0) return `بعد ${formatNumber(days)} يوم`;
+  return `من ${formatNumber(-days)} يوم`;
+}
+
+/** Converts Arabic-Indic digits to ASCII. */
+export function toAsciiDigits(text: string): string {
+  return text.replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 0x06f0));
+}
+
+export function parseAmount(text: string): number {
+  const ascii = toAsciiDigits(text).replace(/[^\d.]/g, '');
+  return ascii ? Number(ascii) : NaN;
 }
 
 /**
- * Normalizes a phone number to international digits for wa.me links.
- * Egyptian local numbers (01xxxxxxxxx) get the 20 country code.
+ * Normalizes a phone to international digits (used for WhatsApp links and
+ * for matching a member's phone when they join). Egyptian local numbers
+ * (01xxxxxxxxx) get the 20 country code.
  */
 export function normalizePhone(raw: string, defaultCountryCode = '20'): string | null {
-  // Arabic-Indic digits → ASCII, then keep digits and a leading +
-  let digits = raw
-    .replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660))
-    .replace(/[^\d+]/g, '');
+  let digits = toAsciiDigits(raw).replace(/[^\d+]/g, '');
   if (!digits) return null;
   if (digits.startsWith('+')) digits = digits.slice(1);
   else if (digits.startsWith('00')) digits = digits.slice(2);
   else if (digits.startsWith('0')) digits = defaultCountryCode + digits.slice(1);
+  digits = digits.replace(/\D/g, '');
   return digits.length >= 8 && digits.length <= 15 ? digits : null;
 }
 
@@ -65,31 +103,38 @@ export function whatsappUrl(phone: string | undefined, text: string): string {
   return normalized ? `https://wa.me/${normalized}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
 }
 
-export function reminderMessage(circle: Circle, member: Member, cycle: number, date: string): string {
+export function reminderMessage(circle: Circle, member: Member, entry: TimelineEntry): string {
   return [
     `السلام عليكم يا ${member.name} 👋`,
-    `تذكير بقسط جمعية "${circle.name}" للدور ${ordinalTurn(cycle)}.`,
-    `المبلغ: ${formatMoney(circle.installment, circle.currency)}`,
-    `الميعاد: ${formatDate(date)}`,
-    `شكرًا ليك 🌷`,
+    `تذكير بقسط جمعية "${circle.name}"${entry.period.kind === 'extra' ? ' (قسط إضافي)' : ''}.`,
+    `المبلغ: ${formatMoney(entry.due, circle.currency)}`,
+    `الميعاد: ${formatDate(entry.date)}`,
+    `تقدر تتابع حسابك وتبلّغ بالدفع من تطبيق دوري 📱`,
+  ].join('\n');
+}
+
+export function inviteMessage(circle: Circle, member: Member, link: string): string {
+  return [
+    `أهلًا يا ${member.name} 👋`,
+    `انضم لجمعية "${circle.name}" على تطبيق دوري، وتابع دورك وأقساطك زي تطبيق البنك.`,
+    ``,
+    `كود الجمعية: ${circle.inviteCode}`,
+    `ادخل برقم موبايلك المسجل عندي.`,
+    link,
   ].join('\n');
 }
 
 export function groupSummaryMessage(
   circle: Circle,
-  cycle: number,
-  date: string,
-  recipient: Member,
+  entry: TimelineEntry,
   unpaid: Member[],
 ): string {
-  const lines = [
-    `📌 جمعية "${circle.name}" — الدور ${ordinalTurn(cycle)}`,
-    `القبض: ${recipient.name} — ${formatMoney(circle.installment * circle.members.length, circle.currency)}`,
-    `الميعاد: ${formatDate(date)}`,
-  ];
-  if (unpaid.length === 0) {
-    lines.push('✅ الكل دفع، شكرًا يا جماعة!');
-  } else {
+  const lines = [`📌 جمعية "${circle.name}" — ${periodTitle(entry)}`, `الميعاد: ${formatDate(entry.date)}`];
+  if (entry.period.kind === 'payout') {
+    lines.push(`القبض: ${formatMoney(entry.due * circle.members.length, circle.currency)}`);
+  }
+  if (unpaid.length === 0) lines.push('✅ الكل دفع، شكرًا يا جماعة!');
+  else {
     lines.push('', `لسه ما دفعوش (${formatNumber(unpaid.length)}):`);
     unpaid.forEach((m) => lines.push(`• ${m.name}`));
   }

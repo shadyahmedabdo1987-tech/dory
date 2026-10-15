@@ -1,59 +1,80 @@
 /**
- * Domain model for a rotating savings circle (جمعية / ROSCA).
+ * Domain model for "دوري" — a rotating savings circle (جمعية / ROSCA).
  *
- * Every member pays `installment` each cycle; in cycle N the whole pot
- * goes to the member whose turn is N (members are stored in payout order).
+ * The circle runs on a timeline of *periods*, one per step of its frequency
+ * (week, month or quarter). Each period is one of:
+ *   - payout: every member pays the installment and one member receives the pot
+ *   - extra:  every member pays an extra installment; nobody receives it
+ *   - skip:   a postponed step (holiday, hardship) — nothing is due
+ *
+ * Inserting a `skip` pushes every later period one step forward, which is how
+ * the admin "adds a month". Periods have stable ids, so payments keep pointing
+ * at the right period no matter how the timeline is edited.
  */
 
-export type Frequency = 'monthly' | 'weekly';
+export type Frequency = 'weekly' | 'monthly' | 'quarterly';
+
+export type PeriodKind = 'payout' | 'extra' | 'skip';
+
+export interface Period {
+  id: string;
+  kind: PeriodKind;
+  /** Member receiving the pot (payout periods only). */
+  recipientId?: string;
+  /** Per-member amount for extra periods (defaults to the circle installment). */
+  amount?: number;
+  /** Payout handed to the recipient. */
+  paidOut?: boolean;
+  note?: string;
+}
 
 export interface Member {
   id: string;
   name: string;
-  /** Local or international phone number, used for WhatsApp reminders. */
   phone?: string;
+  /** Firebase uid once the member joined from their own phone. */
+  uid?: string | null;
 }
 
+export type PaymentStatus = 'claimed' | 'confirmed';
+
 export interface Payment {
+  /** `${periodId}_${memberId}` — one payment per member per period. */
+  id: string;
+  periodId: string;
   memberId: string;
-  /** Zero-based cycle index. */
-  cycle: number;
-  /** ISO timestamp of when the payment was recorded. */
-  paidAt: string;
+  status: PaymentStatus;
+  /** Member said "I paid" (ISO timestamp). */
+  claimedAt?: string;
+  /** Admin confirmed receipt (ISO timestamp). */
+  confirmedAt?: string;
+  note?: string;
 }
 
 export interface Circle {
   id: string;
   name: string;
-  /** Amount each member pays per cycle. */
+  /** Amount each member pays per payout period. */
   installment: number;
   currency: string;
   frequency: Frequency;
-  /** ISO date (YYYY-MM-DD) of the first collection. */
+  /** ISO date (YYYY-MM-DD) of the first period. */
   startDate: string;
-  /** Members in payout order: members[0] receives the pot in cycle 0. */
+  adminUid: string;
+  inviteCode: string;
   members: Member[];
-  payments: Payment[];
-  /** Cycles whose pot has been handed to the recipient. */
-  paidOutCycles: number[];
+  periods: Period[];
   createdAt: string;
 }
 
-export interface ScheduleEntry {
-  cycle: number;
+export interface TimelineEntry {
+  index: number;
+  period: Period;
   /** ISO date (YYYY-MM-DD). */
   date: string;
-  recipient: Member;
+  /** What each member owes in this period (0 for skips). */
+  due: number;
+  recipient?: Member;
 }
 
-export interface CycleSummary {
-  cycle: number;
-  date: string;
-  recipient: Member;
-  pot: number;
-  collected: number;
-  paidMembers: Member[];
-  unpaidMembers: Member[];
-  isComplete: boolean;
-  isPaidOut: boolean;
-}
+export type MemberPaymentState = 'confirmed' | 'claimed' | 'overdue' | 'due' | 'upcoming' | 'none';

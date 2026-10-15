@@ -1,17 +1,27 @@
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 
+import { createCircle } from '@/data';
+import { useAppSession } from '@/data/session';
 import { CircleForm } from '@/features/CircleForm';
-import { useCircles } from '@/store/circles';
+import { useAction } from '@/ui/feedback';
 
 export default function NewCircleScreen() {
-  const createCircle = useCircles((s) => s.createCircle);
+  const { user, isAccount } = useAppSession();
+  const { busy, run } = useAction();
+
+  if (!user || !isAccount) return <Redirect href="/auth" />;
+
   return (
     <CircleForm
+      mode="create"
       submitLabel="ابدأ الجمعية"
-      onSubmit={(draft) => {
-        const circle = createCircle(draft);
-        router.replace({ pathname: '/circle/[id]', params: { id: circle.id } });
-      }}
+      busy={busy}
+      onSubmit={(draft) =>
+        run(async () => {
+          const id = await createCircle(draft, user.uid);
+          router.replace({ pathname: '/circle/[id]', params: { id, tab: 'members' } });
+        })
+      }
     />
   );
 }
