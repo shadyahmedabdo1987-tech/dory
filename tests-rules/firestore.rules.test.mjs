@@ -264,3 +264,94 @@ describe('push tokens', () => {
     await assertFails(setDoc(doc(anon('u1'), 'users', 'u1', 'devices', 'd1'), { ...device(), extra: 1 }));
   });
 });
+
+describe('payment methods & receipts', () => {
+  const claimDoc = (memberId, by, method, extra = {}) => ({
+    periodId: 'p0',
+    memberId,
+    status: 'claimed',
+    claimedAt: new Date().toISOString(),
+    claimedBy: by,
+    method,
+    ...extra,
+  });
+  const receipt = (memberId, by) => ({
+    image: 'data',
+    memberId,
+    periodId: 'p0',
+    uploadedBy: by,
+    createdAt: serverTimestamp(),
+  });
+
+  it('accepts a cash claim without a receipt', async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    await assertSucceeds(setDoc(doc(db, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'cash')));
+  });
+
+  it('rejects a transfer claim without a screenshot', async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    await assertFails(
+      setDoc(doc(db, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'instapay', { hasReceipt: true })),
+    );
+  });
+
+  it('accepts a transfer claim with its screenshot in the same batch', async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'u1'));
+    batch.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'vodafone_cash', { hasReceipt: true }));
+    await assertSucceeds(batch.commit());
+
+    // Owner and admin can see it; another member can't.
+    await assertSucceeds(getDoc(doc(db, 'circles', CID, 'receipts', 'p0_m1')));
+    await assertSucceeds(getDoc(doc(admin(), 'circles', CID, 'receipts', 'p0_m1')));
+  });
+
+  it("blocks reading or forging someone else's screenshot", async () => {
+    const owner = anon('u1');
+    await joinBatch(owner, 'u1');
+    const batch = writeBatch(owner);
+    batch.set(doc(owner, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'u1'));
+    batch.set(doc(owner, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'instapay', { hasReceipt: true }));
+    await batch.commit();
+
+    const other = anon('u2');
+    await joinBatch(other, 'u2', 'm2');
+    await assertFails(getDoc(doc(other, 'circles', CID, 'receipts', 'p0_m1')));
+    await assertFails(setDoc(doc(other, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'u2')));
+  });
+
+  it('lets the member withdraw a claim together with its screenshot', async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    const create = writeBatch(db);
+    create.set(doc(db, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'u1'));
+    create.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'instapay', { hasReceipt: true }));
+    await create.commit();
+
+    const undo = writeBatch(db);
+    undo.delete(doc(db, 'circles', CID, 'payments', 'p0_m1'));
+    undo.delete(doc(db, 'circles', CID, 'receipts', 'p0_m1'));
+    await assertSucceeds(undo.commit());
+  });
+
+  it('rejects unknown methods and oversized images', async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    await assertFails(setDoc(doc(db, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'bitcoin')));
+    await assertFails(
+      setDoc(doc(db, 'circles', CID, 'receipts', 'p0_m1'), { ...receipt('m1', 'u1'), image: 'x'.repeat(900001) }),
+    );
+  });
+
+  it('stores the admin transfer details on the circle', async () => {
+    const ref = doc(admin(), 'circles', CID);
+    await assertSucceeds(
+      updateDoc(ref, { payInfo: { instapay: 'shady@instapay', vodafoneCash: '01012345678' }, updatedAt: serverTimestamp() }),
+    );
+    await assertFails(updateDoc(ref, { payInfo: { bank: 'x' }, updatedAt: serverTimestamp() }));
+  });
+});

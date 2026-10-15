@@ -375,3 +375,33 @@ export function generateInviteCode(random: () => number = Math.random): string {
   for (let i = 0; i < 6; i++) code += alphabet[Math.floor(random() * alphabet.length)];
   return code;
 }
+
+/**
+ * Applies a drawn order (e.g. from the wheel) to the payout periods, in
+ * timeline order. Skips/extras keep their slots; payout flags reset.
+ * `recipientIds` must contain exactly the current payout recipients.
+ */
+export function applyTurnOrder(periods: Period[], recipientIds: string[]): Period[] {
+  const current = periods.filter((p) => p.kind === 'payout').map((p) => p.recipientId ?? '');
+  const sorted = (xs: string[]) => [...xs].sort().join('|');
+  if (current.length !== recipientIds.length || sorted(current) !== sorted(recipientIds)) {
+    throw new Error('Turn order does not match the payout recipients');
+  }
+  let k = 0;
+  return periods.map((p) => (p.kind === 'payout' ? { ...p, recipientId: recipientIds[k++], paidOut: false } : p));
+}
+
+/** Slice whose center sits under the pointer (top) after rotating `rotationDeg` clockwise. */
+export function sliceAtPointer(count: number, rotationDeg: number): number {
+  const slice = 360 / count;
+  const pointer = (((-rotationDeg % 360) + 360) % 360); // wheel-space angle now at the top
+  return Math.floor(pointer / slice) % count;
+}
+
+/** Clockwise rotation (from `fromDeg`) that lands slice `index` under the pointer after `turns` full spins. */
+export function spinTarget(count: number, index: number, fromDeg: number, turns = 6): number {
+  const slice = 360 / count;
+  const center = (index + 0.5) * slice;
+  const base = fromDeg - (((fromDeg % 360) + 360) % 360);
+  return base + turns * 360 + (360 - center);
+}

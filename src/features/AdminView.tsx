@@ -9,7 +9,7 @@ import {
   addExtraInstallment,
   addExtraTurn,
   currentIndex,
-  drawTurns,
+  applyTurnOrder,
   FREQUENCY_LABEL,
   formatDate,
   formatMoney,
@@ -31,6 +31,9 @@ import {
   todayISO,
   whatsappUrl,
   findPayment,
+  METHOD_LABEL,
+  methodOf,
+  PAYMENT_METHODS,
   type Circle,
   type Member,
   type Payment,
@@ -43,10 +46,14 @@ import {
   removePayment,
   rotateInviteCode,
   unlinkMember,
+  updatePayInfo,
 } from '@/data';
 import { Badge, Button, Card, Field, IconButton, ProgressBar, Row, Segmented, Text, tap } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
+
+import { DrawWheel } from './DrawWheel';
+import { ReceiptViewer } from './ReceiptViewer';
 
 export type AdminTab = 'collect' | 'schedule' | 'members';
 
@@ -128,15 +135,42 @@ function CollectTab({ circle, payments, uid }: { circle: Circle; payments: Payme
       Alert.alert('واتساب مش متاح', 'اتأكد إن واتساب متسطّب على الموبايل.'),
     );
 
+  const [review, setReview] = useState<{ payment: Payment; member: Member; entry: TimelineEntry } | null>(null);
+
+  const approve = (p: Payment) => run(() => confirmPayment(circle.id, p.periodId, p.memberId, uid));
+  const reject = async (p: Payment, member: Member) => {
+    if (await confirm('رفض الدفع؟', `هيتشال بلاغ ${member.name}${p.hasReceipt ? ' وصورة التحويل' : ''}، ويرجع القسط "لسه".`, 'رفض', true)) {
+      run(() => removePayment(circle.id, p));
+    }
+  };
+
+  /** Admin records a payment received directly: ask how it was paid. */
+  const record = (m: Member) =>
+    Alert.alert(`${m.name} دفع إزاي؟`, `${formatMoney(entry.due)} • ${periodTitle(entry)}`, [
+      ...PAYMENT_METHODS.map((method) => ({
+        text: METHOD_LABEL[method],
+        onPress: () => run(() => confirmPayment(circle.id, entry.period.id, m.id, uid, method)),
+      })),
+      { text: 'إلغاء', style: 'cancel' as const },
+    ]);
+
   const toggle = (m: Member) => {
     tap();
     const p = findPayment(payments, entry.period.id, m.id);
-    if (p?.status === 'confirmed') {
-      Alert.alert('إلغاء الدفع؟', `هتشيل دفع ${m.name} للفترة دي.`, [
-        { text: 'لأ', style: 'cancel' },
-        { text: 'شيل', style: 'destructive', onPress: () => run(() => removePayment(circle.id, entry.period.id, m.id)) },
+    if (!p) return record(m);
+    if (p.status === 'claimed') {
+      if (p.hasReceipt) return setReview({ payment: p, member: m, entry });
+      return Alert.alert(`${m.name} بيقول إنه دفع ${METHOD_LABEL[methodOf(p)]}`, `${formatMoney(entry.due)} • ${periodTitle(entry)}`, [
+        { text: 'إلغاء', style: 'cancel' },
+        { text: 'رفض', style: 'destructive', onPress: () => reject(p, m) },
+        { text: 'استلمت ✓', onPress: () => approve(p) },
       ]);
-    } else run(() => confirmPayment(circle.id, entry.period.id, m.id, uid));
+    }
+    Alert.alert('إلغاء الدفع؟', `هتشيل دفع ${m.name} (${METHOD_LABEL[methodOf(p)]}) للفترة دي.`, [
+      { text: 'لأ', style: 'cancel' },
+      ...(p.hasReceipt ? [{ text: 'عرض الصورة', onPress: () => setReview({ payment: p, member: m, entry }) }] : []),
+      { text: 'شيل', style: 'destructive' as const, onPress: () => run(() => removePayment(circle.id, p)) },
+    ]);
   };
 
   const togglePayout = async () => {
@@ -157,27 +191,28 @@ function CollectTab({ circle, payments, uid }: { circle: Circle; payments: Payme
           </Row>
           {pending.map(({ payment, entry: e, member }) => (
             <Row key={payment.id} style={styles.pendingRow}>
-              <View style={{ flex: 1 }}>
-                <Text weight="semibold">{member.name}</Text>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Row gap={space.xs}>
+                  <Text weight="semibold">{member.name}</Text>
+                  <Badge label={METHOD_LABEL[methodOf(payment)]} tone={methodOf(payment) === 'cash' ? 'neutral' : 'gold'} />
+                </Row>
                 <Text variant="caption">
                   {formatMoney(e.due)} • {periodTitle(e)} • {formatDate(e.date, false)}
                 </Text>
                 {payment.note ? <Text variant="caption">“{payment.note}”</Text> : null}
+                {payment.hasReceipt ? (
+                  <Text
+                    variant="caption"
+                    weight="bold"
+                    color={colors.primary}
+                    onPress={() => setReview({ payment, member, entry: e })}
+                  >
+                    🧾 عرض صورة التحويل
+                  </Text>
+                ) : null}
               </View>
-              <IconButton
-                icon="close"
-                label="رفض"
-                color={colors.danger}
-                bg={colors.dangerSoft}
-                onPress={() => run(() => removePayment(circle.id, payment.periodId, payment.memberId))}
-              />
-              <IconButton
-                icon="checkmark"
-                label="تأكيد"
-                color={colors.white}
-                bg={colors.success}
-                onPress={() => run(() => confirmPayment(circle.id, payment.periodId, payment.memberId, uid))}
-              />
+              <IconButton icon="close" label="رفض" color={colors.danger} bg={colors.dangerSoft} onPress={() => reject(payment, member)} />
+              <IconButton icon="checkmark" label="تأكيد" color={colors.white} bg={colors.success} onPress={() => approve(payment)} />
             </Row>
           ))}
         </Card>
@@ -245,7 +280,11 @@ function CollectTab({ circle, payments, uid }: { circle: Circle; payments: Payme
                       {m.name}
                     </Text>
                     <Text variant="caption" color={state === 'confirmed' ? colors.success : colors.muted}>
-                      {state === 'confirmed' ? 'دفع' : state === 'claimed' ? 'بيقول إنه دفع — دوس للتأكيد' : 'لسه'}
+                      {state === 'confirmed'
+                        ? `دفع • ${METHOD_LABEL[methodOf(p)]}`
+                        : state === 'claimed'
+                          ? `بيقول إنه دفع ${METHOD_LABEL[methodOf(p)]} — دوس للمراجعة`
+                          : 'لسه'}
                     </Text>
                   </View>
                   {!state && (
@@ -280,6 +319,39 @@ function CollectTab({ circle, payments, uid }: { circle: Circle; payments: Payme
           </Row>
         </>
       )}
+      <ReceiptViewer
+        circleId={circle.id}
+        paymentId={review?.payment.id ?? null}
+        title={review ? `${review.member.name} • ${METHOD_LABEL[methodOf(review.payment)]}` : ''}
+        subtitle={review ? `${formatMoney(review.entry.due)} • ${formatDate(review.entry.date)}` : undefined}
+        onClose={() => setReview(null)}
+        footer={
+          review?.payment.status === 'claimed' ? (
+            <>
+              <Button
+                label="رفض"
+                icon="close"
+                variant="danger"
+                style={{ flex: 1 }}
+                onPress={() => {
+                  const r = review;
+                  setReview(null);
+                  reject(r.payment, r.member);
+                }}
+              />
+              <Button
+                label="استلمت ✓"
+                icon="checkmark-done"
+                style={{ flex: 2, backgroundColor: colors.success, borderColor: colors.success }}
+                onPress={() => {
+                  approve(review.payment);
+                  setReview(null);
+                }}
+              />
+            </>
+          ) : null
+        }
+      />
     </View>
   );
 }
@@ -295,6 +367,10 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
   const { run } = useAction();
   const [extraOpen, setExtraOpen] = useState(false);
   const [turnOpen, setTurnOpen] = useState(false);
+  const [wheelOpen, setWheelOpen] = useState(false);
+  const wheelEntries = entries
+    .filter((e) => e.period.kind === 'payout')
+    .map((e) => ({ key: e.period.id, value: e.period.recipientId ?? '', name: e.recipient?.name ?? '—' }));
   const [amount, setAmount] = useState(String(circle.installment));
   const [note, setNote] = useState('');
 
@@ -346,19 +422,17 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         <Row gap={space.sm}>
           <Button label="دور إضافي" icon="person-add-outline" variant="secondary" style={{ flex: 1 }} onPress={() => setTurnOpen(true)} />
           <Button
-            label="قرعة"
-            icon="shuffle"
+            label="عجلة القرعة"
+            icon="sync-circle-outline"
             variant="secondary"
             style={{ flex: 1 }}
             disabled={anyPayout || current >= 0}
-            onPress={async () => {
-              if (await confirm('قرعة جديدة؟', 'ترتيب القبض هيتغير عشوائيًا لكل الأعضاء.', 'اعمل القرعة')) {
-                run(() => mutatePeriods(circle.id, (ps) => drawTurns(ps)));
-              }
-            }}
+            onPress={() => setWheelOpen(true)}
           />
         </Row>
-        <Text variant="caption">دوس على أي فترة لتأجيلها، أو تحريكها، أو حذفها.</Text>
+        <Text variant="caption">
+          دوس على أي فترة لتأجيلها، أو تحريكها، أو حذفها.{current >= 0 || anyPayout ? ' (القرعة بتتقفل بعد ما الجمعية تبدأ.)' : ''}
+        </Text>
       </Card>
 
       <Card style={{ gap: 0, paddingVertical: space.sm }}>
@@ -420,6 +494,16 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         />
       </Sheet>
 
+      <DrawWheel
+        visible={wheelOpen}
+        entries={wheelEntries}
+        onClose={() => setWheelOpen(false)}
+        onDone={(order) => {
+          setWheelOpen(false);
+          run(() => mutatePeriods(circle.id, (ps) => applyTurnOrder(ps, order)), { success: 'اتسجّل ترتيب القبض الجديد.' });
+        }}
+      />
+
       <Sheet visible={turnOpen} title="دور إضافي لمين؟" onClose={() => setTurnOpen(false)}>
         <Text variant="caption">هيتضاف دور قبض جديد في آخر الجدول للعضو اللي تختاره (سهم تاني، أو عمولة صاحب الجمعية).</Text>
         <ScrollView style={{ maxHeight: 360 }}>
@@ -465,6 +549,7 @@ function MembersTab({ circle }: { circle: Circle }) {
 
   return (
     <View style={{ gap: space.md }}>
+      <PayInfoCard circle={circle} />
       <Card style={{ alignItems: 'center' }}>
         <Text variant="caption">كود الجمعية</Text>
         <Pressable
@@ -525,6 +610,64 @@ function MembersTab({ circle }: { circle: Circle }) {
         ))}
       </Card>
     </View>
+  );
+}
+
+/** Where members send InstaPay / Vodafone Cash transfers — shown in their pay sheet. */
+function PayInfoCard({ circle }: { circle: Circle }) {
+  const [open, setOpen] = useState(false);
+  const [instapay, setInstapay] = useState(circle.payInfo?.instapay ?? '');
+  const [vodafone, setVodafone] = useState(circle.payInfo?.vodafoneCash ?? '');
+  const { busy, run } = useAction();
+  const info = circle.payInfo;
+  const empty = !info?.instapay && !info?.vodafoneCash;
+
+  return (
+    <Card>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <Text variant="heading">بيانات التحويل</Text>
+        <Button
+          label={empty ? 'إضافة' : 'تعديل'}
+          icon="create-outline"
+          variant="ghost"
+          onPress={() => {
+            setInstapay(info?.instapay ?? '');
+            setVodafone(info?.vodafoneCash ?? '');
+            setOpen(true);
+          }}
+        />
+      </Row>
+      {empty ? (
+        <Text variant="caption">ضيف حساب إنستاباي ورقم فودافون كاش علشان الأعضاء يعرفوا يحوّلوا على فين.</Text>
+      ) : (
+        <View style={{ gap: space.xs }}>
+          {info?.instapay ? <Text>⚡ إنستاباي: <Text weight="bold">{info.instapay}</Text></Text> : null}
+          {info?.vodafoneCash ? <Text>📱 فودافون كاش: <Text weight="bold">{info.vodafoneCash}</Text></Text> : null}
+        </View>
+      )}
+      <Sheet visible={open} title="بيانات التحويل" onClose={() => setOpen(false)}>
+        <Field
+          label="عنوان إنستاباي"
+          value={instapay}
+          onChangeText={setInstapay}
+          autoCapitalize="none"
+          placeholder="name@instapay أو رقم الموبايل"
+          maxLength={60}
+        />
+        <Field label="رقم فودافون كاش" value={vodafone} onChangeText={setVodafone} keyboardType="phone-pad" placeholder="010xxxxxxxx" maxLength={20} />
+        <Button
+          label="حفظ"
+          icon="checkmark"
+          loading={busy}
+          onPress={() =>
+            run(async () => {
+              await updatePayInfo(circle.id, { instapay, vodafoneCash: vodafone });
+              setOpen(false);
+            })
+          }
+        />
+      </Sheet>
+    </Card>
   );
 }
 

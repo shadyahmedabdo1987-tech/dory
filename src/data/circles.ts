@@ -28,8 +28,12 @@ import {
   type Circle,
   type CircleDraft,
   type Frequency,
+  requiresReceipt,
+  validateClaim,
   type Member,
+  type PayInfo,
   type Payment,
+  type PaymentMethod,
   type Period,
 } from '@/core';
 
@@ -84,6 +88,7 @@ function circleFromDoc(id: string, data: DocumentData, members: Member[]): Circl
     startDate: d.startDate,
     adminUid: d.adminUid,
     inviteCode: d.inviteCode,
+    payInfo: d.payInfo ?? undefined,
     periods: Array.isArray(d.periods) ? d.periods : [],
     members,
     createdAt: d.createdAt?.toDate?.().toISOString() ?? new Date().toISOString(),
@@ -100,6 +105,8 @@ function paymentFromDoc(id: string, data: DocumentData): Payment {
     periodId: data.periodId,
     memberId: data.memberId,
     status: data.status,
+    method: data.method ?? undefined,
+    hasReceipt: data.hasReceipt === true,
     claimedAt: data.claimedAt ?? undefined,
     confirmedAt: data.confirmedAt ?? undefined,
     note: data.note ?? undefined,
@@ -423,14 +430,14 @@ async function deleteInChunks(db: Firestore, refs: DocumentReference[]) {
 export async function deleteCircle(circle: Circle): Promise<void> {
   const db = firestore();
   const cid = circle.id;
-  const [payments, memberships, phones, contacts, members] = await Promise.all(
-    ['payments', 'memberships', 'phones', 'contacts', 'members'].map((c) =>
+  const [receipts, payments, memberships, phones, contacts, members] = await Promise.all(
+    ['receipts', 'payments', 'memberships', 'phones', 'contacts', 'members'].map((c) =>
       retry(() => getDocs(collection(db, 'circles', cid, c))),
     ),
   );
   await deleteInChunks(
     db,
-    [payments, memberships, phones, contacts, members].flatMap((s) => s.docs.map((d) => d.ref)),
+    [receipts, payments, memberships, phones, contacts, members].flatMap((s) => s.docs.map((d) => d.ref)),
   );
   const batch = writeBatch(db);
   batch.delete(inviteRef(db, circle.inviteCode));
@@ -445,27 +452,75 @@ export async function deleteCircle(circle: Circle): Promise<void> {
 const paymentRef = (cid: string, periodId: string, memberId: string) =>
   doc(paymentsCol(firestore(), cid), paymentId(periodId, memberId));
 
-/** Member: "I paid". */
-export async function claimPayment(cid: string, periodId: string, memberId: string, uid: string, note?: string) {
-  await withTimeout(
-    setDoc(paymentRef(cid, periodId, memberId), {
-      periodId,
+const receiptRef = (cid: string, pid: string) => doc(firestore(), 'circles', cid, 'receipts', pid);
+
+/**
+ * Member: "I paid". Transfers (InstaPay / Vodafone Cash) carry a compressed
+ * screenshot, written in the same batch so a claim never exists without it.
+ */
+export async function claimPayment(
+  cid: string,
+  periodId: string,
+  memberId: string,
+  uid: string,
+  input: { method: PaymentMethod; receiptBase64?: string; note?: string },
+) {
+  const problem = validateClaim(input);
+  if (problem) throw new AppError(`dory/${problem}`, arabicError({ code: `dory/${problem}` }));
+
+  const db = firestore();
+  const pid = paymentId(periodId, memberId);
+  const withReceipt = requiresReceipt(input.method);
+  const batch = writeBatch(db);
+  if (withReceipt) {
+    batch.set(receiptRef(cid, pid), {
+      image: input.receiptBase64,
       memberId,
-      status: 'claimed',
-      claimedAt: new Date().toISOString(),
-      claimedBy: uid,
-      ...(note?.trim() ? { note: note.trim().slice(0, 200) } : {}),
-    }),
-  );
+      periodId,
+      uploadedBy: uid,
+      createdAt: serverTimestamp(),
+    });
+  }
+  batch.set(paymentRef(cid, periodId, memberId), {
+    periodId,
+    memberId,
+    status: 'claimed',
+    method: input.method,
+    hasReceipt: withReceipt,
+    claimedAt: new Date().toISOString(),
+    claimedBy: uid,
+    ...(input.note?.trim() ? { note: input.note.trim().slice(0, 200) } : {}),
+  });
+  await withTimeout(batch.commit(), 30_000);
 }
 
-/** Member withdraws a claim, or admin rejects one / removes a recorded payment. */
-export async function removePayment(cid: string, periodId: string, memberId: string) {
-  await withTimeout(deleteDoc(paymentRef(cid, periodId, memberId)));
+/** Member withdraws a claim, or admin rejects one / removes a recorded payment (with its screenshot). */
+export async function removePayment(cid: string, payment: Pick<Payment, 'periodId' | 'memberId' | 'hasReceipt'>) {
+  const db = firestore();
+  const batch = writeBatch(db);
+  batch.delete(paymentRef(cid, payment.periodId, payment.memberId));
+  if (payment.hasReceipt) batch.delete(receiptRef(cid, paymentId(payment.periodId, payment.memberId)));
+  await withTimeout(batch.commit());
 }
 
-/** Admin: confirm a claim or record a payment received in cash. */
-export async function confirmPayment(cid: string, periodId: string, memberId: string, adminUid: string) {
+/** Loads a transfer screenshot as a data URI (admin, or the member who sent it). */
+export async function loadReceipt(cid: string, pid: string): Promise<string | null> {
+  const snap = await retry(() => getDoc(receiptRef(cid, pid)));
+  const image = snap.exists() ? String(snap.data().image ?? '') : '';
+  return image ? `data:image/jpeg;base64,${image}` : null;
+}
+
+/**
+ * Admin: confirm a member's claim (keeps their method and screenshot), or
+ * record a payment received directly — pass the method in that case.
+ */
+export async function confirmPayment(
+  cid: string,
+  periodId: string,
+  memberId: string,
+  adminUid: string,
+  method?: PaymentMethod,
+) {
   await withTimeout(
     setDoc(
       paymentRef(cid, periodId, memberId),
@@ -475,13 +530,20 @@ export async function confirmPayment(cid: string, periodId: string, memberId: st
         status: 'confirmed',
         confirmedAt: new Date().toISOString(),
         confirmedBy: adminUid,
+        ...(method ? { method } : {}),
       },
       { merge: true },
     ),
   );
 }
 
-export async function confirmMany(cid: string, periodId: string, memberIds: string[], adminUid: string) {
+export async function confirmMany(
+  cid: string,
+  periodId: string,
+  memberIds: string[],
+  adminUid: string,
+  method: PaymentMethod = 'cash',
+) {
   const db = firestore();
   const now = new Date().toISOString();
   for (let i = 0; i < memberIds.length; i += BATCH_LIMIT) {
@@ -489,12 +551,20 @@ export async function confirmMany(cid: string, periodId: string, memberIds: stri
     memberIds.slice(i, i + BATCH_LIMIT).forEach((memberId) =>
       batch.set(
         doc(paymentsCol(db, cid), paymentId(periodId, memberId)),
-        { periodId, memberId, status: 'confirmed', confirmedAt: now, confirmedBy: adminUid },
+        { periodId, memberId, status: 'confirmed', confirmedAt: now, confirmedBy: adminUid, method },
         { merge: true },
       ),
     );
     await withTimeout(batch.commit());
   }
+}
+
+/** Admin: where members should send InstaPay / Vodafone Cash transfers. */
+export async function updatePayInfo(cid: string, info: PayInfo) {
+  const clean: PayInfo = {};
+  if (info.instapay?.trim()) clean.instapay = info.instapay.trim().slice(0, 60);
+  if (info.vodafoneCash?.trim()) clean.vodafoneCash = info.vodafoneCash.trim().slice(0, 20);
+  await withTimeout(updateDoc(circleRef(firestore(), cid), { payInfo: clean, updatedAt: serverTimestamp() }));
 }
 
 // ---------------------------------------------------------------------------

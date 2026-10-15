@@ -36,6 +36,12 @@ describe('server notifications', () => {
     assert.match(msgs[0].body, /منى|جمعية/);
   });
 
+  it('mentions the method and the screenshot in the admin push', () => {
+    const msg = claimedMessage('جمعية الشغل', 'منى', 1000, 'vodafone_cash', true);
+    assert.match(msg.title, /فودافون كاش/);
+    assert.match(msg.body, /صورة التحويل/);
+  });
+
   it('chunks requests to Expo’s 100-message limit', () => {
     assert.deepEqual(chunk([...Array(205).keys()], 100).map((c) => c.length), [100, 100, 5]);
   });

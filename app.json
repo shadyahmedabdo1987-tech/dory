@@ -3,7 +3,7 @@
     "name": "دوري",
     "slug": "dory",
     "scheme": "dory",
-    "version": "2.0.0",
+    "version": "2.2.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -50,6 +50,14 @@
         {
           "color": "#0F5C4D",
           "defaultChannel": "reminders"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "دوري محتاج يوصل لصورك علشان ترفق صورة تحويل القسط.",
+          "cameraPermission": "دوري محتاج الكاميرا علشان تصوّر إيصال تحويل القسط.",
+          "microphonePermission": false
         }
       ]
     ],

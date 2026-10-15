@@ -108,7 +108,7 @@ export const onPaymentWritten = onDocumentWritten('circles/{cid}/payments/{pid}'
   const data = { circleId: cid, type: kind };
 
   if (kind === 'claimed') {
-    await send(await tokensFor(circle.adminUid), claimedMessage(circle.name, member.name, amount), data);
+    await send(await tokensFor(circle.adminUid), claimedMessage(circle.name, member.name, amount, after.method, after.hasReceipt), data);
   } else if (member.uid && member.uid !== circle.adminUid) {
     await send(await tokensFor(member.uid), confirmedMessage(circle.name, amount), data);
   }

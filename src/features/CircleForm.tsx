@@ -17,7 +17,6 @@ import {
   ordinal,
   parseAmount,
   parseISODate,
-  shuffle,
   todayISO,
   toISODate,
   validateDraft,
@@ -28,6 +27,8 @@ import {
 } from '@/core';
 import { Button, Card, Chip, Field, IconButton, Row, Segmented, Text } from '@/ui/components';
 import { colors, fonts, radius, space } from '@/ui/theme';
+
+import { DrawWheel } from './DrawWheel';
 
 const ERRORS: Record<DraftError, string> = {
   name: 'اكتب اسم للجمعية',
@@ -68,6 +69,7 @@ export function CircleForm({
   const [day, setDay] = useState(String(start.d));
   const [members, setMembers] = useState<Member[]>(initial?.members ?? [blankMember(), blankMember(), blankMember()]);
   const [showErrors, setShowErrors] = useState(false);
+  const [wheelOpen, setWheelOpen] = useState(false);
 
   const months = useMemo(() => {
     const list: { key: string; y: number; m: number }[] = [];
@@ -262,12 +264,18 @@ export function CircleForm({
             />
             {mode === 'create' && (
               <Button
-                label="قرعة"
-                icon="shuffle"
+                label="عجلة القرعة"
+                icon="sync-circle-outline"
                 variant="secondary"
                 style={{ flex: 1 }}
                 disabled={members.length < 2}
-                onPress={() => setMembers((l) => shuffle(l))}
+                onPress={() => {
+                  if (members.some((m) => !m.name.trim())) {
+                    setShowErrors(true);
+                    return Alert.alert('اكتب الأسماء الأول', 'كل عضو لازم يكون ليه اسم قبل القرعة.');
+                  }
+                  setWheelOpen(true);
+                }}
               />
             )}
           </Row>
@@ -287,6 +295,16 @@ export function CircleForm({
 
         <Button label={submitLabel} icon="checkmark-circle" loading={busy} onPress={submit} />
       </ScrollView>
+      <DrawWheel
+        visible={wheelOpen}
+        entries={members.map((m) => ({ key: m.id, value: m.id, name: m.name.trim() }))}
+        onClose={() => setWheelOpen(false)}
+        onDone={(ids) => {
+          const byId = new Map(members.map((m) => [m.id, m]));
+          setMembers(ids.map((id) => byId.get(id)!).filter(Boolean));
+          setWheelOpen(false);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

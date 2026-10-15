@@ -17,6 +17,8 @@ const MESSAGES: Record<string, string> = {
   'dory/already-linked': 'الرقم ده متسجل بالفعل على موبايل تاني. اطلب من صاحب الجمعية يفك الربط.',
   'dory/invalid-phone': 'اكتب رقم موبايل صحيح.',
   'dory/offline-timeout': 'النت ضعيف. التعديل هيتحفظ أول ما الاتصال يرجع.',
+  'dory/receipt-missing': 'لازم ترفع صورة التحويل لما تدفع إنستاباي أو فودافون كاش.',
+  'dory/receipt-too-large': 'الصورة كبيرة جدًا. جرّب صورة تانية أو قصّ الصورة.',
   'dory/not-configured': 'التطبيق مش متوصل بالسيرفر. كلم الدعم الفني.',
 
   // Firestore

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,16 +12,23 @@ import {
   periodTitle,
   relativeDays,
   daysBetween,
+  METHOD_LABEL,
+  methodOf,
   todayISO,
+  paymentId,
   type AccountLine,
   type Circle,
   type MemberPaymentState,
   type Payment,
+  type TimelineEntry,
 } from '@/core';
-import { claimPayment, removePayment } from '@/data';
+import { removePayment } from '@/data';
 import { Badge, Button, Card, ProgressBar, Row, Text } from '@/ui/components';
 import { confirm, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
+
+import { PaySheet } from './PaySheet';
+import { ReceiptViewer } from './ReceiptViewer';
 
 const STATE_BADGE: Record<MemberPaymentState, { label: string; tone: 'success' | 'gold' | 'danger' | 'neutral' } | null> = {
   confirmed: { label: 'مدفوع ✓', tone: 'success' },
@@ -48,18 +56,14 @@ export function MemberView({
   const acc = memberAccount(circle, payments, memberId, today);
   const { busy, run } = useAction();
 
-  const claim = async (line: AccountLine) => {
-    const ok = await confirm(
-      'دفعت القسط؟',
-      `هنبلّغ صاحب الجمعية إنك دفعت ${formatMoney(line.entry.due)} عن ${formatDate(line.entry.date)}، وهو هيأكد.`,
-      'أيوه دفعت',
-    );
-    if (ok) run(() => claimPayment(circle.id, line.entry.period.id, memberId, uid), { success: 'وصل لصاحب الجمعية، ومستني تأكيده.' });
-  };
+  const [paying, setPaying] = useState<TimelineEntry | null>(null);
+  const [viewing, setViewing] = useState<AccountLine | null>(null);
+
+  const claim = (line: AccountLine) => setPaying(line.entry);
 
   const undo = async (line: AccountLine) => {
     if (await confirm('تراجع؟', 'هنشيل البلاغ بتاعك إنك دفعت القسط ده.', 'تراجع', true)) {
-      run(() => removePayment(circle.id, line.entry.period.id, memberId));
+      if (line.payment) run(() => removePayment(circle.id, line.payment!));
     }
   };
 
@@ -166,7 +170,15 @@ export function MemberView({
                 <Text weight="semibold" numberOfLines={1}>
                   {line.isMyPayout ? 'دورك تقبض' : periodTitle(line.entry)}
                 </Text>
-                <Text variant="caption">{formatDate(line.entry.date)}</Text>
+                <Text variant="caption">
+                  {formatDate(line.entry.date)}
+                  {line.payment ? ` • ${METHOD_LABEL[methodOf(line.payment)]}` : ''}
+                </Text>
+                {line.payment?.hasReceipt ? (
+                  <Text variant="caption" color={colors.primary} weight="semibold" onPress={() => setViewing(line)}>
+                    عرض صورة التحويل
+                  </Text>
+                ) : null}
                 {line.entry.period.note ? <Text variant="caption">{line.entry.period.note}</Text> : null}
               </View>
               <View style={{ alignItems: 'flex-end', gap: 2 }}>
@@ -187,6 +199,14 @@ export function MemberView({
           );
         })}
       </Card>
+      <PaySheet circle={circle} entry={paying} memberId={memberId} uid={uid} onClose={() => setPaying(null)} />
+      <ReceiptViewer
+        circleId={circle.id}
+        paymentId={viewing ? paymentId(viewing.entry.period.id, memberId) : null}
+        title="صورة التحويل"
+        subtitle={viewing ? `${formatMoney(viewing.entry.due)} • ${formatDate(viewing.entry.date)}` : undefined}
+        onClose={() => setViewing(null)}
+      />
     </ScrollView>
   );
 }

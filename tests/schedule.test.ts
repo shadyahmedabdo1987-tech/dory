@@ -255,3 +255,29 @@ describe('validation', () => {
     assert.match(code, /^[A-HJ-NP-Z2-9]{6}$/);
   });
 });
+
+import { applyTurnOrder, sliceAtPointer, spinTarget } from '../src/core/schedule.ts';
+
+describe('draw wheel', () => {
+  it('applies a drawn order to payout periods only', () => {
+    const periods = postpone(makeCircle().periods, 1);
+    const next = applyTurnOrder(periods, ['c', 'a', 'b']);
+    assert.deepEqual(next.map((p) => (p.kind === 'payout' ? p.recipientId : p.kind)), ['c', 'skip', 'a', 'b']);
+  });
+
+  it('rejects an order that does not match the recipients', () => {
+    assert.throws(() => applyTurnOrder(makeCircle().periods, ['a', 'b']));
+    assert.throws(() => applyTurnOrder(makeCircle().periods, ['a', 'b', 'x']));
+  });
+
+  it('lands every slice exactly under the pointer', () => {
+    for (const count of [1, 2, 3, 7, 12, 30]) {
+      for (let index = 0; index < count; index++) {
+        const from = 1234.5;
+        const target = spinTarget(count, index, from);
+        assert.ok(target > from + 360 * 5, 'spins forward several turns');
+        assert.equal(sliceAtPointer(count, target), index);
+      }
+    }
+  });
+});

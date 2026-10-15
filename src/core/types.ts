@@ -38,12 +38,18 @@ export interface Member {
 
 export type PaymentStatus = 'claimed' | 'confirmed';
 
+export type PaymentMethod = 'cash' | 'instapay' | 'vodafone_cash';
+
 export interface Payment {
   /** `${periodId}_${memberId}` — one payment per member per period. */
   id: string;
   periodId: string;
   memberId: string;
   status: PaymentStatus;
+  /** How the money was sent. Missing on payments recorded before v2.2 (treated as cash). */
+  method?: PaymentMethod;
+  /** A transfer screenshot is stored in circles/{cid}/receipts/{paymentId}. */
+  hasReceipt?: boolean;
   /** Member said "I paid" (ISO timestamp). */
   claimedAt?: string;
   /** Admin confirmed receipt (ISO timestamp). */
@@ -62,9 +68,18 @@ export interface Circle {
   startDate: string;
   adminUid: string;
   inviteCode: string;
+  /** Where members send transfers (shown in the pay sheet). */
+  payInfo?: PayInfo;
   members: Member[];
   periods: Period[];
   createdAt: string;
+}
+
+export interface PayInfo {
+  /** InstaPay address (e.g. name@instapay) or mobile number. */
+  instapay?: string;
+  /** Vodafone Cash wallet number. */
+  vodafoneCash?: string;
 }
 
 export interface TimelineEntry {

@@ -8,6 +8,7 @@ rules_version = '2';
 //   phones/{normalizedPhone}         phone -> memberId lookup used when joining
 //   memberships/{uid}                links a signed-in device to a member row
 //   payments/{periodId_memberId}     member may *claim* their own payment; only admin confirms
+//   receipts/{periodId_memberId}     transfer screenshot for a claim (member owner + admin only)
 // invites/{code}                     invite code -> circle id
 //
 // Admins must have a real (email) account. Members join anonymously with the
@@ -51,7 +52,9 @@ service cloud.firestore {
       return d.keys().hasAll(['name', 'installment', 'currency', 'frequency', 'startDate', 'adminUid',
                               'inviteCode', 'periods', 'memberCount', 'createdAt', 'updatedAt', 'schemaVersion'])
         && d.keys().hasOnly(['name', 'installment', 'currency', 'frequency', 'startDate', 'adminUid',
-                             'inviteCode', 'periods', 'memberCount', 'createdAt', 'updatedAt', 'schemaVersion'])
+                             'inviteCode', 'periods', 'memberCount', 'createdAt', 'updatedAt', 'schemaVersion',
+                             'payInfo'])
+        && (!('payInfo' in d) || validPayInfo(d.payInfo))
         && d.name is string && d.name.size() > 0 && d.name.size() <= 60
         && d.installment is number && d.installment > 0 && d.installment <= 100000000
         && d.currency == 'EGP'
@@ -62,6 +65,12 @@ service cloud.firestore {
         && d.memberCount is int && d.memberCount >= 0 && d.memberCount <= 120
         && d.schemaVersion == 1
         && d.updatedAt == request.time;
+    }
+
+    function validPayInfo(p) {
+      return p is map
+        && p.keys().hasOnly(['instapay', 'vodafoneCash'])
+        && optionalString(p, 'instapay', 60) && optionalString(p, 'vodafoneCash', 20);
     }
 
     function validMember(d) {
@@ -75,7 +84,9 @@ service cloud.firestore {
     function validPayment(pid, d) {
       return d.keys().hasAll(['periodId', 'memberId', 'status'])
         && d.keys().hasOnly(['periodId', 'memberId', 'status', 'claimedAt', 'claimedBy',
-                             'confirmedAt', 'confirmedBy', 'note'])
+                             'confirmedAt', 'confirmedBy', 'note', 'method', 'hasReceipt'])
+        && (!('method' in d) || d.method in ['cash', 'instapay', 'vodafone_cash'])
+        && (!('hasReceipt' in d) || d.hasReceipt is bool)
         && d.periodId is string && d.memberId is string
         && pid == d.periodId + '_' + d.memberId
         && d.status in ['claimed', 'confirmed']
@@ -176,13 +187,47 @@ service cloud.firestore {
           && validPayment(pid, request.resource.data)
           && request.resource.data.memberId == myMemberId(cid)
           && request.resource.data.status == 'claimed'
-          && request.resource.data.claimedBy == request.auth.uid;
+          && request.resource.data.claimedBy == request.auth.uid
+          && request.resource.data.method in ['cash', 'instapay', 'vodafone_cash']
+          // Transfers must come with a screenshot written in the same batch.
+          && (request.resource.data.method == 'cash'
+              || (request.resource.data.hasReceipt == true
+                  && existsAfter(/databases/$(database)/documents/circles/$(cid)/receipts/$(pid))));
 
         // Member withdraws a claim that the admin hasn't confirmed yet.
         allow delete: if isMember(cid)
           && resource.data.memberId == myMemberId(cid)
           && resource.data.status == 'claimed';
       }
+    }
+
+    // ---------- transfer screenshots ----------
+    // Stored as a compressed base64 JPEG (works on the free plan, no Cloud Storage).
+    match /circles/{cid}/receipts/{pid} {
+      function validReceipt(d) {
+        return d.keys().hasOnly(['image', 'memberId', 'periodId', 'uploadedBy', 'createdAt'])
+          && d.image is string && d.image.size() > 0 && d.image.size() <= 900000
+          && d.memberId is string && d.periodId is string
+          && pid == d.periodId + '_' + d.memberId
+          && d.uploadedBy == request.auth.uid
+          && d.createdAt == request.time;
+      }
+      function ownsReceipt() {
+        return isMember(cid) && resource.data.memberId == myMemberId(cid);
+      }
+
+      allow get: if isAdmin(cid) || ownsReceipt();
+      allow list: if isAdmin(cid);
+
+      allow create: if validReceipt(request.resource.data)
+        && (isAdmin(cid)
+            || (isMember(cid) && request.resource.data.memberId == myMemberId(cid)));
+
+      // Owner can remove it while the claim is still unconfirmed; admin anytime.
+      allow delete: if isAdmin(cid)
+        || (ownsReceipt()
+            && (!exists(/databases/$(database)/documents/circles/$(cid)/payments/$(pid))
+                || get(/databases/$(database)/documents/circles/$(cid)/payments/$(pid)).data.status == 'claimed'));
     }
 
     // "Circles I belong to" — collection-group query on my own memberships.

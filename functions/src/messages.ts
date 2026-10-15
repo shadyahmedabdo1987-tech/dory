@@ -7,8 +7,12 @@ export interface PaymentDoc {
   periodId: string;
   memberId: string;
   status: 'claimed' | 'confirmed';
+  method?: 'cash' | 'instapay' | 'vodafone_cash';
+  hasReceipt?: boolean;
   note?: string;
 }
+
+const METHOD_LABEL = { cash: 'كاش', instapay: 'إنستاباي', vodafone_cash: 'فودافون كاش' } as const;
 
 export interface PeriodDoc {
   id: string;
@@ -41,10 +45,16 @@ export function formatEGP(amount: number): string {
   }
 }
 
-export function claimedMessage(circleName: string, memberName: string, amount: number) {
+export function claimedMessage(
+  circleName: string,
+  memberName: string,
+  amount: number,
+  method: PaymentDoc['method'] = 'cash',
+  hasReceipt = false,
+) {
   return {
-    title: `💵 ${memberName} دفع`,
-    body: `بيقول إنه دفع ${formatEGP(amount)} في ${circleName}. ادخل أكّد الاستلام.`,
+    title: `💵 ${memberName} دفع ${METHOD_LABEL[method]}`,
+    body: `${formatEGP(amount)} في ${circleName}.${hasReceipt ? ' مرفق صورة التحويل.' : ''} ادخل أكّد الاستلام.`,
   };
 }
 
