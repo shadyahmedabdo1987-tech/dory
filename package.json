@@ -12,7 +12,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --no-warnings --test \"tests/*.test.ts\"",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-dory \"node --test tests-rules/\"",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-dory \"node --test tests-rules/*.test.mjs\"",
     "check": "npm run typecheck && npm test",
     "emulators": "firebase emulators:start --project demo-dory",
     "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes",
