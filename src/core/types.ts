@@ -12,7 +12,7 @@
  * at the right period no matter how the timeline is edited.
  */
 
-export type Frequency = 'weekly' | 'monthly' | 'quarterly';
+export type Frequency = 'weekly' | 'monthly' | 'quarterly' | 'every4months';
 
 export type PeriodKind = 'payout' | 'extra' | 'skip';
 

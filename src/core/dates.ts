@@ -49,7 +49,7 @@ export function daysBetween(fromISO: string, toISO: string): number {
   return Math.round((Date.UTC(b.y, b.m - 1, b.d) - Date.UTC(a.y, a.m - 1, a.d)) / 86_400_000);
 }
 
-export const FREQUENCY_MONTHS: Record<Frequency, number> = { weekly: 0, monthly: 1, quarterly: 3 };
+export const FREQUENCY_MONTHS: Record<Frequency, number> = { weekly: 0, monthly: 1, quarterly: 3, every4months: 4 };
 
 /** Date of the n-th step (0-based) from the start date. */
 export function stepDate(startDate: string, frequency: Frequency, step: number): string {

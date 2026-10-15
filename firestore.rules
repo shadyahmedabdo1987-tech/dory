@@ -61,7 +61,7 @@ service cloud.firestore {
         && d.name is string && d.name.size() > 0 && d.name.size() <= 60
         && d.installment is number && d.installment > 0 && d.installment <= 100000000
         && d.currency == 'EGP'
-        && d.frequency in ['weekly', 'monthly', 'quarterly']
+        && d.frequency in ['weekly', 'monthly', 'quarterly', 'every4months']
         && d.startDate is string && d.startDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && d.inviteCode is string && d.inviteCode.matches('^[A-Z2-9]{6}$')
         && d.periods is list && d.periods.size() <= 240

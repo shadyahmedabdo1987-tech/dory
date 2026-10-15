@@ -148,7 +148,8 @@ export function CircleForm({
               onChange={setFrequency}
               options={[
                 { value: 'monthly', label: 'شهري' },
-                { value: 'quarterly', label: 'كل ٣ شهور' },
+                { value: 'quarterly', label: '٣ شهور' },
+                { value: 'every4months', label: '٤ شهور' },
                 { value: 'weekly', label: 'أسبوعي' },
               ]}
             />

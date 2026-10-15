@@ -72,6 +72,13 @@ describe('frequencies', () => {
     );
   });
 
+  it('every-4-months steps four months', () => {
+    assert.deepEqual(
+      [0, 1, 2, 3].map((i) => stepDate('2026-01-31', 'every4months', i)),
+      ['2026-01-31', '2026-05-31', '2026-09-30', '2027-01-31'],
+    );
+  });
+
   it('weekly steps seven days', () => {
     assert.equal(stepDate('2026-12-29', 'weekly', 1), '2027-01-05');
   });

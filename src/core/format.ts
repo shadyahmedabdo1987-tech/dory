@@ -43,6 +43,7 @@ export const FREQUENCY_LABEL: Record<Frequency, { every: string; unit: string; u
   weekly: { every: 'كل أسبوع', unit: 'أسبوع', units: 'أسابيع' },
   monthly: { every: 'كل شهر', unit: 'شهر', units: 'شهور' },
   quarterly: { every: 'كل ٣ شهور', unit: 'قسط ربع سنوي', units: 'أقساط ربع سنوية' },
+  every4months: { every: 'كل ٤ شهور', unit: 'قسط كل ٤ شهور', units: 'أقساط كل ٤ شهور' },
 };
 
 export function ordinal(n: number): string {
