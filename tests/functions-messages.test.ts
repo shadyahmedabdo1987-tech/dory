@@ -69,3 +69,16 @@ describe('payout notifications', () => {
     assert.match(rejected.body, /الرقم غلط/);
   });
 });
+
+import { payoutAudience } from '../functions/src/messages.ts';
+
+describe('payout confirmation notifications', () => {
+  it('tells the admin when the recipient confirms or disputes', () => {
+    assert.equal(payoutAudience('received'), 'admin');
+    assert.equal(payoutAudience('disputed'), 'admin');
+    assert.equal(payoutAudience('requested'), 'admin');
+    assert.equal(payoutAudience('paid'), 'recipient');
+    const msg = payoutMessageFor('disputed', 'جمعية', 'منى', { periodId: 'p', recipientId: 'm', status: 'disputed', method: 'instapay', disputeNote: 'ما وصلش' }, 0);
+    assert.match(msg.body, /ما وصلش/);
+  });
+});

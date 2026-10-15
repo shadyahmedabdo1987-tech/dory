@@ -436,3 +436,46 @@ describe('payout requests', () => {
     await assertFails(setDoc(doc(member, 'circles', CID, 'payoutReceipts', 'p1'), { image: 'x', recipientId: 'm1', periodId: 'p1', uploadedBy: 'u1', createdAt: serverTimestamp() }));
   });
 });
+
+describe('payout receipt confirmation', () => {
+  async function paidPayout() {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'circles', CID, 'payouts', 'p0'), {
+        periodId: 'p0', recipientId: 'm1', status: 'paid', method: 'instapay', account: 'a@instapay', hasReceipt: true, paidAt: 'now',
+      });
+    });
+  }
+
+  it('lets the recipient confirm the money arrived', async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    await paidPayout();
+    await assertSucceeds(setDoc(doc(db, 'circles', CID, 'payouts', 'p0'), { status: 'received', receivedAt: 'now' }, { merge: true }));
+  });
+
+  it('lets the recipient report it did not arrive, then confirm later', async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    await paidPayout();
+    const ref = doc(db, 'circles', CID, 'payouts', 'p0');
+    await assertSucceeds(setDoc(ref, { status: 'disputed', disputeNote: 'لسه ما وصلش' }, { merge: true }));
+    await assertSucceeds(setDoc(ref, { status: 'received', receivedAt: 'now' }, { merge: true }));
+  });
+
+  it('blocks confirming before payment, by someone else, or changing the amount details', async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'circles', CID, 'payouts', 'p0'), {
+        periodId: 'p0', recipientId: 'm1', status: 'approved', method: 'cash',
+      });
+    });
+    await assertFails(setDoc(doc(db, 'circles', CID, 'payouts', 'p0'), { status: 'received', receivedAt: 'now' }, { merge: true }));
+
+    await paidPayout();
+    await assertFails(setDoc(doc(db, 'circles', CID, 'payouts', 'p0'), { status: 'received', method: 'cash' }, { merge: true }));
+    const other = anon('u2');
+    await joinBatch(other, 'u2', 'm2');
+    await assertFails(setDoc(doc(other, 'circles', CID, 'payouts', 'p0'), { status: 'received', receivedAt: 'now' }, { merge: true }));
+  });
+});

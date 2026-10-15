@@ -645,6 +645,8 @@ function payoutFromDoc(data: DocumentData): PayoutRequest {
     decidedAt: data.decidedAt ?? undefined,
     paidAt: data.paidAt ?? undefined,
     hasReceipt: data.hasReceipt === true,
+    receivedAt: data.receivedAt ?? undefined,
+    disputeNote: data.disputeNote ?? undefined,
   };
 }
 
@@ -774,6 +776,9 @@ export async function markPayoutPaid(
           paidAt: new Date().toISOString(),
           decidedBy: adminUid,
           hasReceipt: needsReceipt,
+          // A fresh transfer needs a fresh confirmation from the recipient.
+          receivedAt: deleteField(),
+          disputeNote: deleteField(),
         },
         { merge: true },
       );
@@ -793,7 +798,13 @@ export async function undoPayout(cid: string, periodId: string, hadReceipt: bool
       const periods = setPaidOut((snap.data().periods ?? []) as Period[], periodId, false);
       const payout = await tx.get(payoutRef(db, cid, periodId));
       if (payout.exists()) {
-        tx.update(payoutRef(db, cid, periodId), { status: 'approved', paidAt: deleteField(), hasReceipt: false });
+        tx.update(payoutRef(db, cid, periodId), {
+          status: 'approved',
+          paidAt: deleteField(),
+          hasReceipt: false,
+          receivedAt: deleteField(),
+          disputeNote: deleteField(),
+        });
       }
       if (hadReceipt) tx.delete(payoutReceiptRef(db, cid, periodId));
       tx.update(circleRef(db, cid), { periods: cleanPeriods(periods), updatedAt: serverTimestamp() });
@@ -805,4 +816,26 @@ export async function loadPayoutReceipt(cid: string, periodId: string): Promise<
   const snap = await retry(() => getDoc(payoutReceiptRef(firestore(), cid, periodId)));
   const image = snap.exists() ? String(snap.data().image ?? '') : '';
   return image ? `data:image/jpeg;base64,${image}` : null;
+}
+
+/** Recipient: "the money arrived ✓". */
+export async function confirmPayoutReceived(cid: string, periodId: string) {
+  await withTimeout(
+    setDoc(
+      payoutRef(firestore(), cid, periodId),
+      { status: 'received', receivedAt: new Date().toISOString(), disputeNote: deleteField() },
+      { merge: true },
+    ),
+  );
+}
+
+/** Recipient: "it didn't arrive" — the admin gets notified with the note. */
+export async function disputePayout(cid: string, periodId: string, note: string) {
+  await withTimeout(
+    setDoc(
+      payoutRef(firestore(), cid, periodId),
+      { status: 'disputed', disputeNote: note.trim().slice(0, 200) || 'الفلوس ما وصلتش' },
+      { merge: true },
+    ),
+  );
 }

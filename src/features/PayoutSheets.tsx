@@ -37,7 +37,9 @@ export const PAYOUT_TONE: Record<PayoutRequest['status'], 'gold' | 'success' | '
   requested: 'gold',
   approved: 'neutral',
   rejected: 'danger',
-  paid: 'success',
+  paid: 'gold',
+  received: 'success',
+  disputed: 'danger',
 };
 
 function AccountField({
@@ -262,11 +264,19 @@ export function AdminPayoutSheet({
 
         {paid ? (
           <>
-            <View style={styles.paidCard}>
-              <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-              <Text style={{ flex: 1 }} weight="semibold">
-                اتسلّم {request ? `— ${describePayout(request)}` : ''}
-              </Text>
+            <View style={[styles.paidCard, request?.status === 'disputed' && { backgroundColor: colors.dangerSoft }]}>
+              <Ionicons
+                name={request?.status === 'disputed' ? 'alert-circle' : request?.status === 'received' ? 'shield-checkmark' : 'time-outline'}
+                size={22}
+                color={request?.status === 'disputed' ? colors.danger : colors.success}
+              />
+              <View style={{ flex: 1 }}>
+                <Text weight="semibold">اتسلّم {request ? `— ${describePayout(request)}` : ''}</Text>
+                {request ? <Text variant="caption">{PAYOUT_STATUS_LABEL[request.status]}</Text> : null}
+                {request?.status === 'disputed' && request.disputeNote ? (
+                  <Text variant="caption" color={colors.danger}>“{request.disputeNote}”</Text>
+                ) : null}
+              </View>
             </View>
             {request?.hasReceipt && (
               <Button label="عرض صورة التحويل" icon="image-outline" variant="secondary" onPress={() => onShowReceipt(entry.period.id)} />

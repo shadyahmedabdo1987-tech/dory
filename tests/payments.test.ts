@@ -74,3 +74,21 @@ describe('payout requests', () => {
     assert.equal(canEditPayoutRequest({ status: 'paid' }), false);
   });
 });
+
+import { awaitingRecipientConfirmation, payoutHandedOver } from '../src/core/payments.ts';
+
+describe('payout receipt confirmation', () => {
+  it('waits for the recipient only after the admin paid', () => {
+    assert.equal(awaitingRecipientConfirmation({ status: 'approved' }), false);
+    assert.equal(awaitingRecipientConfirmation({ status: 'paid' }), true);
+    assert.equal(awaitingRecipientConfirmation({ status: 'received' }), false);
+  });
+
+  it('counts paid, received and disputed as handed over', () => {
+    assert.equal(payoutHandedOver({ status: 'paid' }), true);
+    assert.equal(payoutHandedOver({ status: 'received' }), true);
+    assert.equal(payoutHandedOver({ status: 'disputed' }), true);
+    assert.equal(payoutHandedOver({ status: 'requested' }), false);
+    assert.equal(payoutHandedOver(undefined), false);
+  });
+});

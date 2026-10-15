@@ -237,13 +237,13 @@ service cloud.firestore {
         return d.keys().hasAll(['periodId', 'recipientId', 'status', 'method'])
           && d.keys().hasOnly(['periodId', 'recipientId', 'status', 'method', 'account', 'note',
                                'requestedAt', 'requestedBy', 'adminNote', 'decidedAt', 'decidedBy',
-                               'paidAt', 'hasReceipt'])
+                               'paidAt', 'hasReceipt', 'receivedAt', 'disputeNote'])
           && d.periodId == pid
           && d.recipientId is string
-          && d.status in ['requested', 'approved', 'rejected', 'paid']
+          && d.status in ['requested', 'approved', 'rejected', 'paid', 'received', 'disputed']
           && d.method in ['cash', 'instapay', 'vodafone_cash']
           && optionalString(d, 'account', 60) && optionalString(d, 'note', 200)
-          && optionalString(d, 'adminNote', 200)
+          && optionalString(d, 'adminNote', 200) && optionalString(d, 'disputeNote', 200)
           && (!('hasReceipt' in d) || d.hasReceipt is bool);
       }
       function isRecipient() {
@@ -272,6 +272,14 @@ service cloud.firestore {
         && request.resource.data.requestedBy == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['status', 'method', 'account', 'note', 'requestedAt', 'requestedBy']);
+
+      // After the admin pays, the recipient confirms receipt — or reports it didn't arrive.
+      allow update: if isRecipient()
+        && resource.data.status in ['paid', 'disputed']
+        && validPayout(request.resource.data)
+        && request.resource.data.status in ['received', 'disputed']
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'receivedAt', 'disputeNote']);
     }
 
     // Admin's transfer screenshot for a payout.

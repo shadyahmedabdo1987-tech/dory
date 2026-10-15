@@ -54,8 +54,20 @@ export const PAYOUT_STATUS_LABEL: Record<PayoutStatus, string> = {
   requested: 'مستني موافقة صاحب الجمعية',
   approved: 'اتوافق على الطلب',
   rejected: 'الطلب اترفض',
-  paid: 'اتسلّم ✓',
+  paid: 'مستني تأكيد الاستلام',
+  received: 'استلم ✓',
+  disputed: 'بيقول ما وصلوش',
 };
+
+/** The pot was handed over (whether or not the recipient confirmed yet). */
+export function payoutHandedOver(r: Pick<PayoutRequest, 'status'> | undefined): boolean {
+  return !!r && (r.status === 'paid' || r.status === 'received' || r.status === 'disputed');
+}
+
+/** Waiting on the recipient to confirm the money arrived. */
+export function awaitingRecipientConfirmation(r: Pick<PayoutRequest, 'status'> | undefined): boolean {
+  return r?.status === 'paid';
+}
 
 export type PayoutRequestError = 'account-missing' | 'account-invalid';
 

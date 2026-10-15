@@ -12,6 +12,7 @@ import {
   periodTitle,
   relativeDays,
   daysBetween,
+  awaitingRecipientConfirmation,
   canEditPayoutRequest,
   METHOD_LABEL,
   methodOf,
@@ -24,9 +25,9 @@ import {
   type Payment,
   type TimelineEntry,
 } from '@/core';
-import { loadPayoutReceipt, loadReceipt, removePayment, usePayouts } from '@/data';
-import { Badge, Button, Card, ProgressBar, Row, Text } from '@/ui/components';
-import { confirm, useAction } from '@/ui/feedback';
+import { confirmPayoutReceived, disputePayout, loadPayoutReceipt, loadReceipt, removePayment, usePayouts } from '@/data';
+import { Badge, Button, Card, Field, ProgressBar, Row, Text } from '@/ui/components';
+import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 
 import { PaySheet } from './PaySheet';
@@ -65,6 +66,14 @@ export function MemberView({
   const [requesting, setRequesting] = useState<TimelineEntry | null>(null);
   const [payoutReceipt, setPayoutReceipt] = useState<string | null>(null);
   const payouts = usePayouts(circle.id, 'member', memberId);
+  const [disputing, setDisputing] = useState<string | null>(null);
+  const [disputeNote, setDisputeNote] = useState('');
+
+  const confirmReceived = async (periodId: string, amount: number) => {
+    if (await confirm('تأكيد الاستلام', `هتأكد إنك استلمت ${formatMoney(amount)} كاملين.`, 'أيوه استلمت')) {
+      run(() => confirmPayoutReceived(circle.id, periodId), { success: 'شكرًا! صاحب الجمعية هيوصله تأكيدك.' });
+    }
+  };
 
   const claim = (line: AccountLine) => setPaying(line.entry);
 
@@ -173,7 +182,52 @@ export function MemberView({
                 </View>
               ) : null}
 
-              {p.received && request?.hasReceipt ? (
+              {request && (awaitingRecipientConfirmation(request) || request.status === 'disputed') ? (
+                <View style={styles.confirmBox}>
+                  <Text weight="bold">{request.status === 'disputed' ? 'وصلك القبض خلاص؟' : 'وصلك القبض؟'}</Text>
+                  <Text variant="caption">
+                    {request.status === 'disputed'
+                      ? `قلت إنه ما وصلش${request.disputeNote ? `: "${request.disputeNote}"` : ''}. لو وصل، أكّد الاستلام.`
+                      : `صاحب الجمعية سجّل إنه سلّمك ${describePayout(request)}. أكّد إنك استلمت.`}
+                  </Text>
+                  {request.hasReceipt && (
+                    <Button label="عرض إيصال التحويل" icon="image-outline" variant="secondary" onPress={() => setPayoutReceipt(p.entry.period.id)} />
+                  )}
+                  <Row gap={space.sm}>
+                    {request.status !== 'disputed' && (
+                      <Button
+                        label="ما وصلنيش"
+                        icon="alert-circle-outline"
+                        variant="danger"
+                        style={{ flex: 1 }}
+                        onPress={() => {
+                          setDisputeNote('');
+                          setDisputing(p.entry.period.id);
+                        }}
+                      />
+                    )}
+                    <Button
+                      label="استلمت ✓"
+                      icon="checkmark-done"
+                      loading={busy}
+                      style={{ flex: 2, backgroundColor: colors.success, borderColor: colors.success }}
+                      onPress={() => confirmReceived(p.entry.period.id, p.amount)}
+                    />
+                  </Row>
+                </View>
+              ) : request?.status === 'received' ? (
+                <Row gap={space.sm}>
+                  <Ionicons name="shield-checkmark" size={18} color={colors.success} />
+                  <Text variant="caption" color={colors.success} weight="semibold" style={{ flex: 1 }}>
+                    أكدت الاستلام{request.receivedAt ? ` • ${formatDate(request.receivedAt.slice(0, 10))}` : ''}
+                  </Text>
+                  {request.hasReceipt && (
+                    <Text variant="caption" color={colors.primary} weight="bold" onPress={() => setPayoutReceipt(p.entry.period.id)}>
+                      الإيصال
+                    </Text>
+                  )}
+                </Row>
+              ) : p.received && request?.hasReceipt ? (
                 <Button label="عرض إيصال تحويل القبض" icon="image-outline" variant="secondary" onPress={() => setPayoutReceipt(p.entry.period.id)} />
               ) : editable ? (
                 <Button
@@ -247,6 +301,29 @@ export function MemberView({
         uid={uid}
         onClose={() => setRequesting(null)}
       />
+      <Sheet visible={!!disputing} title="القبض ما وصلش" onClose={() => setDisputing(null)}>
+        <Text variant="caption">قول لصاحب الجمعية إيه اللي حصل، وهيوصله إشعار فورًا.</Text>
+        <Field
+          label="التفاصيل"
+          value={disputeNote}
+          onChangeText={setDisputeNote}
+          placeholder="مثلًا: التحويل ما ظهرش في المحفظة لحد دلوقتي"
+          maxLength={200}
+          multiline
+        />
+        <Button
+          label="ابعت لصاحب الجمعية"
+          icon="send"
+          variant="danger"
+          loading={busy}
+          onPress={() =>
+            run(async () => {
+              await disputePayout(circle.id, disputing!, disputeNote);
+              setDisputing(null);
+            })
+          }
+        />
+      </Sheet>
       <ReceiptViewer
         source={payoutReceipt ? { key: `payout-${payoutReceipt}`, load: () => loadPayoutReceipt(circle.id, payoutReceipt) } : null}
         title="إيصال تحويل القبض"
@@ -273,6 +350,7 @@ const styles = StyleSheet.create({
   balance: { backgroundColor: colors.primary, borderRadius: radius.lg, padding: space.xl, gap: space.xs },
   alert: { backgroundColor: colors.dangerSoft, borderRadius: radius.md, padding: space.md, gap: space.sm },
   payout: { backgroundColor: colors.goldSoft, borderRadius: radius.sm, padding: space.md, gap: space.sm },
+  confirmBox: { backgroundColor: colors.card, borderRadius: radius.md, padding: space.md, gap: space.sm, borderWidth: 1, borderColor: colors.gold },
   line: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -94,7 +94,8 @@ export interface TimelineEntry {
 
 export type MemberPaymentState = 'confirmed' | 'claimed' | 'overdue' | 'due' | 'upcoming' | 'none';
 
-export type PayoutStatus = 'requested' | 'approved' | 'rejected' | 'paid';
+/** requested → approved/rejected → paid → received (or disputed by the recipient). */
+export type PayoutStatus = 'requested' | 'approved' | 'rejected' | 'paid' | 'received' | 'disputed';
 
 /**
  * How the turn's recipient wants to receive the pot, and what the admin did
@@ -117,4 +118,8 @@ export interface PayoutRequest {
   paidAt?: string;
   /** Transfer screenshot at circles/{cid}/payoutReceipts/{periodId}. */
   hasReceipt?: boolean;
+  /** Recipient confirmed the money arrived. */
+  receivedAt?: string;
+  /** Recipient says the money didn't arrive (with their explanation). */
+  disputeNote?: string;
 }

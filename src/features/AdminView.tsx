@@ -77,7 +77,7 @@ export function AdminView({
   const [tab, setTab] = useState<AdminTab>(initialTab);
   const payouts = usePayouts(circle.id, 'admin', undefined);
   const o = overview(circle, payments);
-  const openPayoutRequests = payouts.filter((r) => r.status === 'requested').length;
+  const openPayoutRequests = payouts.filter((r) => r.status === 'requested' || r.status === 'disputed').length;
 
   return (
     <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}>
@@ -196,10 +196,11 @@ function CollectTab({
   };
 
   const requestFor = (periodId: string) => payouts.find((r) => r.periodId === periodId);
+  // New requests to review, and payouts the recipient says never arrived.
   const openRequests = payouts
-    .filter((r) => r.status === 'requested')
+    .filter((r) => r.status === 'requested' || r.status === 'disputed')
     .map((r) => ({ r, e: entries.find((x) => x.period.id === r.periodId) }))
-    .filter((x): x is { r: PayoutRequest; e: TimelineEntry } => !!x.e && !x.e.period.paidOut);
+    .filter((x): x is { r: PayoutRequest; e: TimelineEntry } => !!x.e && (x.r.status === 'disputed' || !x.e.period.paidOut));
   const thisRequest = requestFor(entry.period.id);
 
   return (
@@ -214,10 +215,16 @@ function CollectTab({
             <Pressable key={r.periodId} onPress={() => setPayoutFor(e)} style={({ pressed }) => [styles.pendingRow, pressed && { opacity: 0.7 }]}>
               <Row gap={space.sm}>
                 <View style={{ flex: 1 }}>
-                  <Text weight="semibold">{e.recipient?.name ?? '—'}</Text>
+                  <Row gap={space.xs}>
+                    <Text weight="semibold">{e.recipient?.name ?? '—'}</Text>
+                    {r.status === 'disputed' && <Badge label="بيقول ما وصلوش" tone="danger" />}
+                  </Row>
                   <Text variant="caption">
                     {describePayout(r)} • {formatDate(e.date, false)}
                   </Text>
+                  {r.status === 'disputed' && r.disputeNote ? (
+                    <Text variant="caption" color={colors.danger}>“{r.disputeNote}”</Text>
+                  ) : null}
                 </View>
                 <Ionicons name="chevron-back" size={18} color={colors.muted} />
               </Row>
@@ -310,7 +317,11 @@ function CollectTab({
                 <Button
                   label={
                     entry.period.paidOut
-                      ? `${entry.recipient?.name ?? ''} قبض ✓`
+                      ? thisRequest?.status === 'received'
+                        ? `${entry.recipient?.name ?? ''} قبض وأكّد الاستلام ✓`
+                        : thisRequest?.status === 'disputed'
+                          ? `${entry.recipient?.name ?? ''} بيقول ما وصلوش — راجع`
+                          : `${entry.recipient?.name ?? ''} قبض • مستني تأكيده`
                       : thisRequest?.status === 'requested'
                         ? `راجع طلب قبض ${entry.recipient?.name ?? ''}`
                         : `تسليم القبض لـ ${entry.recipient?.name ?? ''}`

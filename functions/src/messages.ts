@@ -105,14 +105,20 @@ export function chunk<T>(items: T[], size: number): T[][] {
 export interface PayoutDoc {
   periodId: string;
   recipientId: string;
-  status: 'requested' | 'approved' | 'rejected' | 'paid';
+  status: 'requested' | 'approved' | 'rejected' | 'paid' | 'received' | 'disputed';
   method: 'cash' | 'instapay' | 'vodafone_cash';
   account?: string;
   adminNote?: string;
   hasReceipt?: boolean;
+  disputeNote?: string;
 }
 
-export type PayoutEvent = 'requested' | 'approved' | 'rejected' | 'paid' | null;
+export type PayoutEvent = PayoutDoc['status'] | null;
+
+/** Who should hear about a payout event. */
+export function payoutAudience(event: Exclude<PayoutEvent, null>): 'admin' | 'recipient' {
+  return event === 'requested' || event === 'received' || event === 'disputed' ? 'admin' : 'recipient';
+}
 
 /** Notify on each status change, and when the recipient edits a pending request. */
 export function payoutEvent(before: PayoutDoc | undefined, after: PayoutDoc | undefined): PayoutEvent {
@@ -139,7 +145,14 @@ export function payoutMessageFor(event: Exclude<PayoutEvent, null>, circleName: 
     case 'paid':
       return {
         title: '🎉 مبروك! قبضت جمعيتك',
-        body: `${formatEGP(amount)} من ${circleName} — ${describe(p)}.${p.hasReceipt ? ' إيصال التحويل في حسابك.' : ''}`,
+        body: `${formatEGP(amount)} من ${circleName} — ${describe(p)}.${p.hasReceipt ? ' إيصال التحويل في حسابك.' : ''} أكّد الاستلام من التطبيق.`,
+      };
+    case 'received':
+      return { title: `✅ ${memberName} أكّد استلام القبض`, body: `${circleName}: ${formatEGP(amount)} — ${describe(p)}.` };
+    case 'disputed':
+      return {
+        title: `⚠️ ${memberName} بيقول القبض ما وصلوش`,
+        body: `${circleName}${p.disputeNote ? `: "${p.disputeNote}"` : ''}. راجع التحويل.`,
       };
   }
 }

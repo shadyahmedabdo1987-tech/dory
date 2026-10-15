@@ -12,6 +12,7 @@ import {
   confirmedMessage,
   paymentEvent,
   type ExpoMessage,
+  payoutAudience,
   payoutEvent,
   payoutMessageFor,
   type PaymentDoc,
@@ -133,7 +134,7 @@ export const onPayoutWritten = onDocumentWritten('circles/{cid}/payouts/{pid}', 
   const content = payoutMessageFor(kind, circle.name, member.name, after, pot);
   const data = { circleId: cid, type: `payout-${kind}` };
 
-  if (kind === 'requested') {
+  if (payoutAudience(kind) === 'admin') {
     await send(await tokensFor(circle.adminUid), content, data);
   } else if (member.uid && member.uid !== circle.adminUid) {
     await send(await tokensFor(member.uid), content, data);
