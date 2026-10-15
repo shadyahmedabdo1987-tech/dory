@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { ComponentProps, ReactNode } from 'react';
 import { useEffect } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -34,9 +34,7 @@ function Welcome() {
   return (
     <View style={[styles.welcome, { paddingTop: insets.top + space.xxl, paddingBottom: insets.bottom + space.xl }]}>
       <View style={{ alignItems: 'center', gap: space.sm }}>
-        <View style={styles.logoBig}>
-          <Ionicons name="sync-circle" size={64} color={colors.primary} />
-        </View>
+        <Image source={require('../assets/splash-icon.png')} style={styles.logoBig} accessibilityLabel="دوري" />
         <Text variant="title" color={colors.white} style={{ fontSize: 40, lineHeight: 60 }}>
           دوري
         </Text>
@@ -278,14 +276,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  logoBig: {
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    backgroundColor: colors.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  logoBig: { width: 150, height: 150 },
   featureIcon: {
     width: 40,
     height: 40,

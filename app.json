@@ -22,8 +22,10 @@
     "android": {
       "package": "com.alabdo.dory",
       "adaptiveIcon": {
-        "backgroundColor": "#0F5C4D",
-        "foregroundImage": "./assets/adaptive-icon.png"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundImage": "./assets/adaptive-icon-background.png",
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png",
+        "backgroundColor": "#0F5C4D"
       },
       "edgeToEdgeEnabled": true
     },
@@ -39,7 +41,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",
-          "imageWidth": 180,
+          "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#0F5C4D"
         }
@@ -49,7 +51,8 @@
         "expo-notifications",
         {
           "color": "#0F5C4D",
-          "defaultChannel": "reminders"
+          "defaultChannel": "reminders",
+          "icon": "./assets/notification-icon.png"
         }
       ],
       [
