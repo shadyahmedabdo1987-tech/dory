@@ -93,3 +93,28 @@ export interface TimelineEntry {
 }
 
 export type MemberPaymentState = 'confirmed' | 'claimed' | 'overdue' | 'due' | 'upcoming' | 'none';
+
+export type PayoutStatus = 'requested' | 'approved' | 'rejected' | 'paid';
+
+/**
+ * How the turn's recipient wants to receive the pot, and what the admin did
+ * with it. Stored at circles/{cid}/payouts/{periodId}.
+ */
+export interface PayoutRequest {
+  periodId: string;
+  recipientId: string;
+  status: PayoutStatus;
+  /** What the recipient asked for. */
+  method: PaymentMethod;
+  /** Vodafone Cash number / InstaPay address (transfers only). */
+  account?: string;
+  note?: string;
+  requestedAt?: string;
+  /** Admin decision / edit. */
+  adminNote?: string;
+  decidedAt?: string;
+  /** When the admin handed over / transferred the money. */
+  paidAt?: string;
+  /** Transfer screenshot at circles/{cid}/payoutReceipts/{periodId}. */
+  hasReceipt?: boolean;
+}

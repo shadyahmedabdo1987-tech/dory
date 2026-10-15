@@ -1,7 +1,9 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
-import { watchCircle, watchMembership, watchMyCircles, type CircleRef, type CircleSnapshot } from './circles';
+import type { PayoutRequest } from '@/core';
+
+import { watchCircle, watchMembership, watchMyCircles, watchPayouts, type CircleRef, type CircleSnapshot } from './circles';
 import { arabicError, retry } from './errors';
 import { firestore } from './firebase';
 
@@ -88,4 +90,15 @@ export function useMyCircles(uid: string | undefined) {
   }, [uid]);
 
   return { refs, error, loading: refs === undefined && !error };
+}
+
+/** Live payout requests: all of them for the admin, only the member's own otherwise. */
+export function usePayouts(cid: string | undefined, role: Role, memberId: string | undefined) {
+  const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
+  useEffect(() => {
+    if (!cid || role === 'none' || (role === 'member' && !memberId)) return;
+    const viewer = role === 'admin' ? ({ role: 'admin' } as const) : ({ role: 'member', memberId: memberId! } as const);
+    return watchPayouts(cid, viewer, setPayouts, () => setPayouts([]));
+  }, [cid, role, memberId]);
+  return payouts;
 }

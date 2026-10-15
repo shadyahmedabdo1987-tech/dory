@@ -3,21 +3,25 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { loadReceipt, arabicError } from '@/data';
+import { arabicError } from '@/data';
 import { Text } from '@/ui/components';
 import { colors, space } from '@/ui/theme';
 
 /** Full-screen view of a transfer screenshot, with optional actions underneath. */
+export interface ReceiptSource {
+  /** Changes whenever a different image should be shown. */
+  key: string;
+  load: () => Promise<string | null>;
+}
+
 export function ReceiptViewer({
-  circleId,
-  paymentId,
+  source,
   title,
   subtitle,
   onClose,
   footer,
 }: {
-  circleId: string;
-  paymentId: string | null;
+  source: ReceiptSource | null;
   title: string;
   subtitle?: string;
   onClose: () => void;
@@ -28,11 +32,12 @@ export function ReceiptViewer({
   const [error, setError] = useState<string>();
 
   useEffect(() => {
-    if (!paymentId) return;
+    if (!source) return;
     let cancelled = false;
     setImage(null);
     setError(undefined);
-    loadReceipt(circleId, paymentId)
+    source
+      .load()
       .then((uri) => {
         if (cancelled) return;
         if (uri) setImage(uri);
@@ -42,10 +47,11 @@ export function ReceiptViewer({
     return () => {
       cancelled = true;
     };
-  }, [circleId, paymentId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source?.key]);
 
   return (
-    <Modal visible={!!paymentId} animationType="fade" onRequestClose={onClose}>
+    <Modal visible={!!source} animationType="fade" onRequestClose={onClose}>
       <View style={[styles.root, { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.md }]}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>

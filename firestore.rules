@@ -231,6 +231,63 @@ service cloud.firestore {
                 || get(/databases/$(database)/documents/circles/$(cid)/payments/$(pid)).data.status == 'claimed'));
     }
 
+    // ---------- payout requests (turn recipient <-> admin) ----------
+    match /circles/{cid}/payouts/{pid} {
+      function validPayout(d) {
+        return d.keys().hasAll(['periodId', 'recipientId', 'status', 'method'])
+          && d.keys().hasOnly(['periodId', 'recipientId', 'status', 'method', 'account', 'note',
+                               'requestedAt', 'requestedBy', 'adminNote', 'decidedAt', 'decidedBy',
+                               'paidAt', 'hasReceipt'])
+          && d.periodId == pid
+          && d.recipientId is string
+          && d.status in ['requested', 'approved', 'rejected', 'paid']
+          && d.method in ['cash', 'instapay', 'vodafone_cash']
+          && optionalString(d, 'account', 60) && optionalString(d, 'note', 200)
+          && optionalString(d, 'adminNote', 200)
+          && (!('hasReceipt' in d) || d.hasReceipt is bool);
+      }
+      function isRecipient() {
+        return isMember(cid) && resource.data.recipientId == myMemberId(cid);
+      }
+
+      // Account numbers are private: only the admin and the recipient see them.
+      allow get, list: if isAdmin(cid) || isRecipient();
+
+      allow create, update, delete: if isAdmin(cid) && (request.method == 'delete' || validPayout(request.resource.data));
+
+      // Recipient submits a request for their own turn…
+      allow create: if isMember(cid)
+        && validPayout(request.resource.data)
+        && request.resource.data.recipientId == myMemberId(cid)
+        && request.resource.data.status == 'requested'
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.keys().hasOnly(['periodId', 'recipientId', 'status', 'method', 'account',
+                                                 'note', 'requestedAt', 'requestedBy']);
+
+      // …and may change it until the admin approves or pays.
+      allow update: if isRecipient()
+        && resource.data.status in ['requested', 'rejected']
+        && validPayout(request.resource.data)
+        && request.resource.data.status == 'requested'
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'method', 'account', 'note', 'requestedAt', 'requestedBy']);
+    }
+
+    // Admin's transfer screenshot for a payout.
+    match /circles/{cid}/payoutReceipts/{pid} {
+      allow get: if isAdmin(cid) || (isMember(cid) && resource.data.recipientId == myMemberId(cid));
+      allow list, delete: if isAdmin(cid);
+      allow create: if isAdmin(cid)
+        && request.resource.data.keys().hasOnly(['image', 'recipientId', 'periodId', 'uploadedBy', 'createdAt'])
+        && request.resource.data.image is string
+        && request.resource.data.image.size() > 0 && request.resource.data.image.size() <= 900000
+        && request.resource.data.periodId == pid
+        && request.resource.data.recipientId is string
+        && request.resource.data.uploadedBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+    }
+
     // "Circles I belong to" — collection-group query on my own memberships.
     match /{path=**}/memberships/{uid} {
       allow read: if signedIn() && resource.data.uid == request.auth.uid;

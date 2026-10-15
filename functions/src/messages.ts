@@ -97,3 +97,49 @@ export function chunk<T>(items: T[], size: number): T[][] {
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Payout requests
+// ---------------------------------------------------------------------------
+
+export interface PayoutDoc {
+  periodId: string;
+  recipientId: string;
+  status: 'requested' | 'approved' | 'rejected' | 'paid';
+  method: 'cash' | 'instapay' | 'vodafone_cash';
+  account?: string;
+  adminNote?: string;
+  hasReceipt?: boolean;
+}
+
+export type PayoutEvent = 'requested' | 'approved' | 'rejected' | 'paid' | null;
+
+/** Notify on each status change, and when the recipient edits a pending request. */
+export function payoutEvent(before: PayoutDoc | undefined, after: PayoutDoc | undefined): PayoutEvent {
+  if (!after) return null;
+  if (after.status !== before?.status) return after.status;
+  if (after.status === 'requested' && (after.method !== before?.method || after.account !== before?.account)) {
+    return 'requested';
+  }
+  return null;
+}
+
+function describe(p: PayoutDoc) {
+  return p.method === 'cash' ? 'كاش' : `${METHOD_LABEL[p.method]}${p.account ? ` على ${p.account}` : ''}`;
+}
+
+export function payoutMessageFor(event: Exclude<PayoutEvent, null>, circleName: string, memberName: string, p: PayoutDoc, amount: number) {
+  switch (event) {
+    case 'requested':
+      return { title: `💼 ${memberName} طلب طريقة القبض`, body: `${circleName}: ${describe(p)}. ادخل وافق أو عدّل.` };
+    case 'approved':
+      return { title: '👍 اتوافق على طلب القبض', body: `${circleName}: هتقبض ${describe(p)}.${p.adminNote ? ` "${p.adminNote}"` : ''}` };
+    case 'rejected':
+      return { title: '⚠️ طلب القبض اترفض', body: `${circleName}${p.adminNote ? `: "${p.adminNote}"` : ''}. تقدر تبعت طلب جديد.` };
+    case 'paid':
+      return {
+        title: '🎉 مبروك! قبضت جمعيتك',
+        body: `${formatEGP(amount)} من ${circleName} — ${describe(p)}.${p.hasReceipt ? ' إيصال التحويل في حسابك.' : ''}`,
+      };
+  }
+}

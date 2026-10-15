@@ -19,6 +19,9 @@ const MESSAGES: Record<string, string> = {
   'dory/offline-timeout': 'النت ضعيف. التعديل هيتحفظ أول ما الاتصال يرجع.',
   'dory/receipt-missing': 'لازم ترفع صورة التحويل لما تدفع إنستاباي أو فودافون كاش.',
   'dory/receipt-too-large': 'الصورة كبيرة جدًا. جرّب صورة تانية أو قصّ الصورة.',
+  'dory/payout-receipt-missing': 'ارفق صورة التحويل قبل ما تسجّل إنك حوّلت القبض.',
+  'dory/account-missing': 'اكتب رقم فودافون كاش أو عنوان إنستاباي.',
+  'dory/account-invalid': 'الرقم أو العنوان مش صحيح. اتأكد منه.',
   'dory/not-configured': 'التطبيق مش متوصل بالسيرفر. كلم الدعم الفني.',
 
   // Firestore

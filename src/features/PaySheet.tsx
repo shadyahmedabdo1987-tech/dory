@@ -27,6 +27,66 @@ export const METHOD_ICON: Record<PaymentMethod, ComponentProps<typeof Ionicons>[
   vodafone_cash: 'phone-portrait-outline',
 };
 
+export function MethodPicker({ value, onChange }: { value: PaymentMethod; onChange: (m: PaymentMethod) => void }) {
+  return (
+    <Row gap={space.sm}>
+      {PAYMENT_METHODS.map((m) => {
+        const active = m === value;
+        return (
+          <Pressable
+            key={m}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: active }}
+            onPress={() => {
+              tap();
+              onChange(m);
+            }}
+            style={[styles.method, active && styles.methodActive]}
+          >
+            <Ionicons name={METHOD_ICON[m]} size={22} color={active ? colors.white : colors.primary} />
+            <Text variant="caption" weight="bold" color={active ? colors.white : colors.text}>
+              {METHOD_LABEL[m]}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </Row>
+  );
+}
+
+/** A preview of a picked screenshot with a "change" action, or library/camera buttons. */
+export function ReceiptPicker({
+  value,
+  onChange,
+}: {
+  value: PickedReceipt | null;
+  onChange: (r: PickedReceipt | null) => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const choose = async (source: 'library' | 'camera') => {
+    setPicking(true);
+    try {
+      const picked = await pickReceipt(source);
+      if (picked) onChange(picked);
+    } catch {
+      Alert.alert('معلش', 'مقدرناش نفتح الصورة. جرّب تاني.');
+    } finally {
+      setPicking(false);
+    }
+  };
+  return value ? (
+    <View style={styles.previewWrap}>
+      <Image source={{ uri: value.uri }} style={styles.preview} resizeMode="contain" />
+      <Button label="غيّر الصورة" icon="refresh" variant="ghost" onPress={() => onChange(null)} />
+    </View>
+  ) : (
+    <Row gap={space.sm}>
+      <Button label="من الصور" icon="images-outline" variant="secondary" style={{ flex: 1 }} loading={picking} onPress={() => choose('library')} />
+      <Button label="صوّر" icon="camera-outline" variant="secondary" style={{ flex: 1 }} disabled={picking} onPress={() => choose('camera')} />
+    </Row>
+  );
+}
+
 /** Member "I paid" flow: pick how you paid; transfers need a screenshot. */
 export function PaySheet({
   circle,
@@ -44,7 +104,6 @@ export function PaySheet({
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [receipt, setReceipt] = useState<PickedReceipt | null>(null);
   const [note, setNote] = useState('');
-  const [picking, setPicking] = useState(false);
   const { busy, run } = useAction();
 
   // Fresh state every time the sheet opens for a period.
@@ -57,18 +116,6 @@ export function PaySheet({
   if (!entry) return null;
   const needsReceipt = requiresReceipt(method);
   const target = payTarget(method, circle.payInfo);
-
-  const choose = async (source: 'library' | 'camera') => {
-    setPicking(true);
-    try {
-      const picked = await pickReceipt(source);
-      if (picked) setReceipt(picked);
-    } catch {
-      Alert.alert('معلش', 'مقدرناش نفتح الصورة. جرّب تاني.');
-    } finally {
-      setPicking(false);
-    }
-  };
 
   const submit = () =>
     run(
@@ -91,28 +138,7 @@ export function PaySheet({
         </Text>
 
         <Text weight="semibold">دفعت إزاي؟</Text>
-        <Row gap={space.sm}>
-          {PAYMENT_METHODS.map((m) => {
-            const active = m === method;
-            return (
-              <Pressable
-                key={m}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: active }}
-                onPress={() => {
-                  tap();
-                  setMethod(m);
-                }}
-                style={[styles.method, active && styles.methodActive]}
-              >
-                <Ionicons name={METHOD_ICON[m]} size={22} color={active ? colors.white : colors.primary} />
-                <Text variant="caption" weight="bold" color={active ? colors.white : colors.text}>
-                  {METHOD_LABEL[m]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </Row>
+        <MethodPicker value={method} onChange={setMethod} />
 
         {target && (
           <Pressable
@@ -135,31 +161,7 @@ export function PaySheet({
         {needsReceipt && (
           <View style={{ gap: space.sm }}>
             <Text weight="semibold">صورة التحويل (مطلوبة)</Text>
-            {receipt ? (
-              <View style={styles.previewWrap}>
-                <Image source={{ uri: receipt.uri }} style={styles.preview} resizeMode="contain" />
-                <Button label="غيّر الصورة" icon="refresh" variant="ghost" onPress={() => setReceipt(null)} />
-              </View>
-            ) : (
-              <Row gap={space.sm}>
-                <Button
-                  label="من الصور"
-                  icon="images-outline"
-                  variant="secondary"
-                  style={{ flex: 1 }}
-                  loading={picking}
-                  onPress={() => choose('library')}
-                />
-                <Button
-                  label="صوّر"
-                  icon="camera-outline"
-                  variant="secondary"
-                  style={{ flex: 1 }}
-                  disabled={picking}
-                  onPress={() => choose('camera')}
-                />
-              </Row>
-            )}
+            <ReceiptPicker value={receipt} onChange={setReceipt} />
           </View>
         )}
 

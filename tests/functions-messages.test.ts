@@ -46,3 +46,26 @@ describe('server notifications', () => {
     assert.deepEqual(chunk([...Array(205).keys()], 100).map((c) => c.length), [100, 100, 5]);
   });
 });
+
+import { payoutEvent, payoutMessageFor } from '../functions/src/messages.ts';
+
+describe('payout notifications', () => {
+  const base = { periodId: 'p', recipientId: 'm', method: 'vodafone_cash' as const, account: '01011111111' };
+
+  it('fires on every status change and on edits of a pending request', () => {
+    assert.equal(payoutEvent(undefined, { ...base, status: 'requested' }), 'requested');
+    assert.equal(payoutEvent({ ...base, status: 'requested' }, { ...base, status: 'requested', account: '01022222222' }), 'requested');
+    assert.equal(payoutEvent({ ...base, status: 'requested' }, { ...base, status: 'requested' }), null);
+    assert.equal(payoutEvent({ ...base, status: 'requested' }, { ...base, status: 'approved' }), 'approved');
+    assert.equal(payoutEvent({ ...base, status: 'approved' }, { ...base, status: 'paid', hasReceipt: true }), 'paid');
+    assert.equal(payoutEvent({ ...base, status: 'paid' }, undefined), null);
+  });
+
+  it('writes clear Arabic messages', () => {
+    const paid = payoutMessageFor('paid', 'جمعية الشغل', 'منى', { ...base, status: 'paid', hasReceipt: true }, 10000);
+    assert.match(paid.body, /فودافون كاش/);
+    assert.match(paid.body, /إيصال/);
+    const rejected = payoutMessageFor('rejected', 'جمعية الشغل', 'منى', { ...base, status: 'rejected', adminNote: 'الرقم غلط' }, 0);
+    assert.match(rejected.body, /الرقم غلط/);
+  });
+});

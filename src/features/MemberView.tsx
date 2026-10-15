@@ -12,8 +12,10 @@ import {
   periodTitle,
   relativeDays,
   daysBetween,
+  canEditPayoutRequest,
   METHOD_LABEL,
   methodOf,
+  PAYOUT_STATUS_LABEL,
   todayISO,
   paymentId,
   type AccountLine,
@@ -22,12 +24,13 @@ import {
   type Payment,
   type TimelineEntry,
 } from '@/core';
-import { removePayment } from '@/data';
+import { loadPayoutReceipt, loadReceipt, removePayment, usePayouts } from '@/data';
 import { Badge, Button, Card, ProgressBar, Row, Text } from '@/ui/components';
 import { confirm, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 
 import { PaySheet } from './PaySheet';
+import { describePayout, PAYOUT_TONE, PayoutRequestSheet } from './PayoutSheets';
 import { ReceiptViewer } from './ReceiptViewer';
 
 const STATE_BADGE: Record<MemberPaymentState, { label: string; tone: 'success' | 'gold' | 'danger' | 'neutral' } | null> = {
@@ -58,6 +61,10 @@ export function MemberView({
 
   const [paying, setPaying] = useState<TimelineEntry | null>(null);
   const [viewing, setViewing] = useState<AccountLine | null>(null);
+
+  const [requesting, setRequesting] = useState<TimelineEntry | null>(null);
+  const [payoutReceipt, setPayoutReceipt] = useState<string | null>(null);
+  const payouts = usePayouts(circle.id, 'member', memberId);
 
   const claim = (line: AccountLine) => setPaying(line.entry);
 
@@ -135,18 +142,50 @@ export function MemberView({
           <Ionicons name="gift" size={22} color={colors.gold} />
         </Row>
         {acc.myPayouts.length === 0 && <Text variant="caption">مفيش دور ليك في الجدول.</Text>}
-        {acc.myPayouts.map((p) => (
-          <Row key={p.entry.period.id} style={styles.payout}>
-            <View style={{ flex: 1 }}>
-              <Text weight="bold">{formatMoney(p.amount)}</Text>
-              <Text variant="caption">
-                {formatDate(p.entry.date)}
-                {!p.received ? ` • ${relativeDays(daysBetween(today, p.entry.date))}` : ''}
-              </Text>
+        {acc.myPayouts.map((p) => {
+          const request = payouts.find((r) => r.periodId === p.entry.period.id);
+          const editable = !p.received && canEditPayoutRequest(request);
+          return (
+            <View key={p.entry.period.id} style={styles.payout}>
+              <Row gap={space.md}>
+                <View style={{ flex: 1 }}>
+                  <Text weight="bold">{formatMoney(p.amount)}</Text>
+                  <Text variant="caption">
+                    {formatDate(p.entry.date)}
+                    {!p.received ? ` • ${relativeDays(daysBetween(today, p.entry.date))}` : ''}
+                  </Text>
+                </View>
+                <Badge
+                  label={p.received ? 'استلمت ✓' : `الدور رقم ${formatNumber(p.entry.index + 1)}`}
+                  tone={p.received ? 'success' : 'gold'}
+                />
+              </Row>
+
+              {request ? (
+                <View style={{ gap: 2 }}>
+                  <Row gap={space.xs}>
+                    <Text variant="caption" weight="semibold" color={colors.text}>
+                      {describePayout(request)}
+                    </Text>
+                    {!p.received && <Badge label={PAYOUT_STATUS_LABEL[request.status]} tone={PAYOUT_TONE[request.status]} />}
+                  </Row>
+                  {request.adminNote ? <Text variant="caption">صاحب الجمعية: “{request.adminNote}”</Text> : null}
+                </View>
+              ) : null}
+
+              {p.received && request?.hasReceipt ? (
+                <Button label="عرض إيصال تحويل القبض" icon="image-outline" variant="secondary" onPress={() => setPayoutReceipt(p.entry.period.id)} />
+              ) : editable ? (
+                <Button
+                  label={request ? 'تعديل طريقة القبض' : 'حدد طريقة القبض'}
+                  icon="wallet-outline"
+                  variant={request ? 'ghost' : 'primary'}
+                  onPress={() => setRequesting(p.entry)}
+                />
+              ) : null}
             </View>
-            <Badge label={p.received ? 'استلمت ✓' : `الدور رقم ${formatNumber(p.entry.index + 1)}`} tone={p.received ? 'success' : 'gold'} />
-          </Row>
-        ))}
+          );
+        })}
       </Card>
 
       {/* Statement */}
@@ -200,9 +239,28 @@ export function MemberView({
         })}
       </Card>
       <PaySheet circle={circle} entry={paying} memberId={memberId} uid={uid} onClose={() => setPaying(null)} />
+      <PayoutRequestSheet
+        circle={circle}
+        entry={requesting}
+        request={requesting ? payouts.find((r) => r.periodId === requesting.period.id) : undefined}
+        memberId={memberId}
+        uid={uid}
+        onClose={() => setRequesting(null)}
+      />
       <ReceiptViewer
-        circleId={circle.id}
-        paymentId={viewing ? paymentId(viewing.entry.period.id, memberId) : null}
+        source={payoutReceipt ? { key: `payout-${payoutReceipt}`, load: () => loadPayoutReceipt(circle.id, payoutReceipt) } : null}
+        title="إيصال تحويل القبض"
+        onClose={() => setPayoutReceipt(null)}
+      />
+      <ReceiptViewer
+        source={
+          viewing
+            ? {
+                key: paymentId(viewing.entry.period.id, memberId),
+                load: () => loadReceipt(circle.id, paymentId(viewing.entry.period.id, memberId)),
+              }
+            : null
+        }
         title="صورة التحويل"
         subtitle={viewing ? `${formatMoney(viewing.entry.due)} • ${formatDate(viewing.entry.date)}` : undefined}
         onClose={() => setViewing(null)}
@@ -214,7 +272,7 @@ export function MemberView({
 const styles = StyleSheet.create({
   balance: { backgroundColor: colors.primary, borderRadius: radius.lg, padding: space.xl, gap: space.xs },
   alert: { backgroundColor: colors.dangerSoft, borderRadius: radius.md, padding: space.md, gap: space.sm },
-  payout: { backgroundColor: colors.goldSoft, borderRadius: radius.sm, padding: space.md, gap: space.md },
+  payout: { backgroundColor: colors.goldSoft, borderRadius: radius.sm, padding: space.md, gap: space.sm },
   line: {
     flexDirection: 'row',
     alignItems: 'center',

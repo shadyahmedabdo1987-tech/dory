@@ -26,7 +26,6 @@ import {
   postpone,
   removePeriod,
   reminderMessage,
-  setPaidOut,
   timeline,
   todayISO,
   whatsappUrl,
@@ -38,10 +37,15 @@ import {
   type Member,
   type Payment,
   type TimelineEntry,
+  type PayoutRequest,
+  PAYOUT_STATUS_LABEL,
 } from '@/core';
 import {
   confirmMany,
   confirmPayment,
+  loadPayoutReceipt,
+  loadReceipt,
+  usePayouts,
   mutatePeriods,
   removePayment,
   rotateInviteCode,
@@ -53,6 +57,7 @@ import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 
 import { DrawWheel } from './DrawWheel';
+import { AdminPayoutSheet, describePayout, PAYOUT_TONE } from './PayoutSheets';
 import { ReceiptViewer } from './ReceiptViewer';
 
 export type AdminTab = 'collect' | 'schedule' | 'members';
@@ -70,7 +75,9 @@ export function AdminView({
 }) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<AdminTab>(initialTab);
+  const payouts = usePayouts(circle.id, 'admin', undefined);
   const o = overview(circle, payments);
+  const openPayoutRequests = payouts.filter((r) => r.status === 'requested').length;
 
   return (
     <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}>
@@ -101,13 +108,16 @@ export function AdminView({
         value={tab}
         onChange={setTab}
         options={[
-          { value: 'collect', label: o.pendingCount ? `التحصيل (${formatNumber(o.pendingCount)})` : 'التحصيل' },
+          {
+            value: 'collect',
+            label: o.pendingCount + openPayoutRequests ? `التحصيل (${formatNumber(o.pendingCount + openPayoutRequests)})` : 'التحصيل',
+          },
           { value: 'schedule', label: 'الجدول' },
           { value: 'members', label: 'الأعضاء' },
         ]}
       />
 
-      {tab === 'collect' && <CollectTab circle={circle} payments={payments} uid={uid} />}
+      {tab === 'collect' && <CollectTab circle={circle} payments={payments} payouts={payouts} uid={uid} />}
       {tab === 'schedule' && <ScheduleTab circle={circle} payments={payments} />}
       {tab === 'members' && <MembersTab circle={circle} />}
     </ScrollView>
@@ -118,7 +128,17 @@ export function AdminView({
 // Collection: approvals + one period at a time
 // ---------------------------------------------------------------------------
 
-function CollectTab({ circle, payments, uid }: { circle: Circle; payments: Payment[]; uid: string }) {
+function CollectTab({
+  circle,
+  payments,
+  payouts,
+  uid,
+}: {
+  circle: Circle;
+  payments: Payment[];
+  payouts: PayoutRequest[];
+  uid: string;
+}) {
   const entries = useMemo(() => timeline(circle), [circle]);
   const current = currentIndex(circle);
   const [index, setIndex] = useState(() => Math.max(0, Math.min(current, entries.length - 1)));
@@ -136,6 +156,8 @@ function CollectTab({ circle, payments, uid }: { circle: Circle; payments: Payme
     );
 
   const [review, setReview] = useState<{ payment: Payment; member: Member; entry: TimelineEntry } | null>(null);
+  const [payoutFor, setPayoutFor] = useState<TimelineEntry | null>(null);
+  const [payoutReceipt, setPayoutReceipt] = useState<string | null>(null);
 
   const approve = (p: Payment) => run(() => confirmPayment(circle.id, p.periodId, p.memberId, uid));
   const reject = async (p: Payment, member: Member) => {
@@ -173,16 +195,37 @@ function CollectTab({ circle, payments, uid }: { circle: Circle; payments: Payme
     ]);
   };
 
-  const togglePayout = async () => {
-    if (!entry.period.paidOut && !s.isComplete) {
-      const ok = await confirm('لسه في ناس ما دفعتش', 'متأكد إنك سلّمت القبض؟', 'أيوه سلّمت');
-      if (!ok) return;
-    }
-    run(() => mutatePeriods(circle.id, (ps) => setPaidOut(ps, entry.period.id, !entry.period.paidOut)));
-  };
+  const requestFor = (periodId: string) => payouts.find((r) => r.periodId === periodId);
+  const openRequests = payouts
+    .filter((r) => r.status === 'requested')
+    .map((r) => ({ r, e: entries.find((x) => x.period.id === r.periodId) }))
+    .filter((x): x is { r: PayoutRequest; e: TimelineEntry } => !!x.e && !x.e.period.paidOut);
+  const thisRequest = requestFor(entry.period.id);
 
   return (
     <View style={{ gap: space.md }}>
+      {openRequests.length > 0 && (
+        <Card style={{ borderColor: colors.primary }}>
+          <Row gap={space.sm}>
+            <Ionicons name="wallet" size={20} color={colors.primary} />
+            <Text variant="heading">طلبات القبض</Text>
+          </Row>
+          {openRequests.map(({ r, e }) => (
+            <Pressable key={r.periodId} onPress={() => setPayoutFor(e)} style={({ pressed }) => [styles.pendingRow, pressed && { opacity: 0.7 }]}>
+              <Row gap={space.sm}>
+                <View style={{ flex: 1 }}>
+                  <Text weight="semibold">{e.recipient?.name ?? '—'}</Text>
+                  <Text variant="caption">
+                    {describePayout(r)} • {formatDate(e.date, false)}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-back" size={18} color={colors.muted} />
+              </Row>
+            </Pressable>
+          ))}
+        </Card>
+      )}
+
       {pending.length > 0 && (
         <Card style={{ borderColor: colors.gold }}>
           <Row gap={space.sm}>
@@ -250,12 +293,33 @@ function CollectTab({ circle, payments, uid }: { circle: Circle; payments: Payme
             </Row>
             <ProgressBar value={s.pot ? s.collected / s.pot : 0} color={s.isComplete ? colors.success : colors.gold} />
             {entry.period.kind === 'payout' && (
-              <Button
-                label={entry.period.paidOut ? `${entry.recipient?.name ?? ''} استلم ✓ (إلغاء)` : `سلّمت القبض لـ ${entry.recipient?.name ?? ''}`}
-                icon={entry.period.paidOut ? 'arrow-undo-outline' : 'cash-outline'}
-                variant={entry.period.paidOut ? 'secondary' : 'primary'}
-                onPress={togglePayout}
-              />
+              <>
+                {thisRequest && !entry.period.paidOut ? (
+                  <Row gap={space.xs}>
+                    <Text variant="caption" style={{ flex: 1 }}>
+                      طلب {entry.recipient?.name}: {describePayout(thisRequest)}
+                    </Text>
+                    <Badge label={PAYOUT_STATUS_LABEL[thisRequest.status]} tone={PAYOUT_TONE[thisRequest.status]} />
+                  </Row>
+                ) : null}
+                {!s.isComplete && !entry.period.paidOut ? (
+                  <Text variant="caption" color={colors.danger}>
+                    لسه في أقساط ما اتأكدتش للفترة دي.
+                  </Text>
+                ) : null}
+                <Button
+                  label={
+                    entry.period.paidOut
+                      ? `${entry.recipient?.name ?? ''} قبض ✓`
+                      : thisRequest?.status === 'requested'
+                        ? `راجع طلب قبض ${entry.recipient?.name ?? ''}`
+                        : `تسليم القبض لـ ${entry.recipient?.name ?? ''}`
+                  }
+                  icon={entry.period.paidOut ? 'checkmark-done' : 'cash-outline'}
+                  variant={entry.period.paidOut ? 'secondary' : 'primary'}
+                  onPress={() => setPayoutFor(entry)}
+                />
+              </>
             )}
           </Card>
 
@@ -319,9 +383,24 @@ function CollectTab({ circle, payments, uid }: { circle: Circle; payments: Payme
           </Row>
         </>
       )}
+      <AdminPayoutSheet
+        circle={circle}
+        entry={payoutFor}
+        request={payoutFor ? requestFor(payoutFor.period.id) : undefined}
+        uid={uid}
+        onClose={() => setPayoutFor(null)}
+        onShowReceipt={(pid) => {
+          setPayoutFor(null);
+          setPayoutReceipt(pid);
+        }}
+      />
       <ReceiptViewer
-        circleId={circle.id}
-        paymentId={review?.payment.id ?? null}
+        source={payoutReceipt ? { key: `payout-${payoutReceipt}`, load: () => loadPayoutReceipt(circle.id, payoutReceipt) } : null}
+        title="إيصال تحويل القبض"
+        onClose={() => setPayoutReceipt(null)}
+      />
+      <ReceiptViewer
+        source={review ? { key: review.payment.id, load: () => loadReceipt(circle.id, review.payment.id) } : null}
         title={review ? `${review.member.name} • ${METHOD_LABEL[methodOf(review.payment)]}` : ''}
         subtitle={review ? `${formatMoney(review.entry.due)} • ${formatDate(review.entry.date)}` : undefined}
         onClose={() => setReview(null)}

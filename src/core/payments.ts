@@ -1,4 +1,5 @@
-import type { PayInfo, PaymentMethod } from './types';
+import { normalizePhone } from './format.ts';
+import type { PayInfo, PaymentMethod, PayoutRequest, PayoutStatus } from './types';
 
 export const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'instapay', 'vodafone_cash'];
 
@@ -43,4 +44,41 @@ export function validateClaim(input: ClaimInput): ClaimError | null {
   if (!input.receiptBase64) return 'receipt-missing';
   if (!receiptFits(input.receiptBase64)) return 'receipt-too-large';
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Payouts (the turn's recipient receiving the pot)
+// ---------------------------------------------------------------------------
+
+export const PAYOUT_STATUS_LABEL: Record<PayoutStatus, string> = {
+  requested: 'مستني موافقة صاحب الجمعية',
+  approved: 'اتوافق على الطلب',
+  rejected: 'الطلب اترفض',
+  paid: 'اتسلّم ✓',
+};
+
+export type PayoutRequestError = 'account-missing' | 'account-invalid';
+
+/** Vodafone Cash needs a valid Egyptian mobile; InstaPay an address or a mobile. */
+export function validatePayoutRequest(method: PaymentMethod, account: string | undefined): PayoutRequestError | null {
+  if (method === 'cash') return null;
+  const value = account?.trim() ?? '';
+  if (!value) return 'account-missing';
+  if (method === 'vodafone_cash') {
+    const phone = normalizePhone(value);
+    return phone && /^201[0125]\d{8}$/.test(phone) ? null : 'account-invalid';
+  }
+  // InstaPay: name@instapay style address, or a mobile number.
+  if (/^[A-Za-z0-9._-]{3,}@[A-Za-z0-9.-]+$/.test(value)) return null;
+  return normalizePhone(value) ? null : 'account-invalid';
+}
+
+/** The recipient may (re)submit until the admin approves or pays. */
+export function canEditPayoutRequest(request: Pick<PayoutRequest, 'status'> | undefined): boolean {
+  return !request || request.status === 'requested' || request.status === 'rejected';
+}
+
+/** Paying out a transfer needs the admin's transfer screenshot. */
+export function payoutNeedsReceipt(method: PaymentMethod): boolean {
+  return requiresReceipt(method);
 }

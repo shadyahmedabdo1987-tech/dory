@@ -355,3 +355,84 @@ describe('payment methods & receipts', () => {
     await assertFails(updateDoc(ref, { payInfo: { bank: 'x' }, updatedAt: serverTimestamp() }));
   });
 });
+
+describe('payout requests', () => {
+  const request = (by, extra = {}) => ({
+    periodId: 'p0',
+    recipientId: 'm1',
+    status: 'requested',
+    method: 'vodafone_cash',
+    account: '01011111111',
+    requestedAt: new Date().toISOString(),
+    requestedBy: by,
+    ...extra,
+  });
+
+  it('lets the recipient request and change their payout method', async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    const ref = doc(db, 'circles', CID, 'payouts', 'p0');
+    await assertSucceeds(setDoc(ref, request('u1')));
+    await assertSucceeds(setDoc(ref, { method: 'instapay', account: 'ahmed@instapay', requestedAt: 'x', requestedBy: 'u1', status: 'requested' }, { merge: true }));
+    await assertSucceeds(getDoc(ref));
+  });
+
+  it("blocks requesting someone else's payout or self-approving", async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    await assertFails(setDoc(doc(db, 'circles', CID, 'payouts', 'p0'), request('u1', { recipientId: 'm2' })));
+    await assertFails(setDoc(doc(db, 'circles', CID, 'payouts', 'p0'), request('u1', { status: 'approved' })));
+    await assertFails(setDoc(doc(db, 'circles', CID, 'payouts', 'p0'), request('u1', { status: 'paid', hasReceipt: true })));
+  });
+
+  it('hides payout accounts from other members', async () => {
+    const owner = anon('u1');
+    await joinBatch(owner, 'u1');
+    await setDoc(doc(owner, 'circles', CID, 'payouts', 'p0'), request('u1'));
+    const other = anon('u2');
+    await joinBatch(other, 'u2', 'm2');
+    await assertFails(getDoc(doc(other, 'circles', CID, 'payouts', 'p0')));
+    await assertSucceeds(getDocs(query(collection(other, 'circles', CID, 'payouts'), where('recipientId', '==', 'm2'))));
+    await assertFails(getDocs(collection(other, 'circles', CID, 'payouts')));
+  });
+
+  it('freezes the request once the admin approves it', async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    await setDoc(doc(db, 'circles', CID, 'payouts', 'p0'), request('u1'));
+    await assertSucceeds(
+      setDoc(doc(admin(), 'circles', CID, 'payouts', 'p0'), { status: 'approved', decidedAt: 'now', decidedBy: 'admin' }, { merge: true }),
+    );
+    await assertFails(setDoc(doc(db, 'circles', CID, 'payouts', 'p0'), { method: 'cash', status: 'requested', requestedBy: 'u1', requestedAt: 'x' }, { merge: true }));
+  });
+
+  it('lets the admin pay out with a transfer screenshot the recipient can see', async () => {
+    const member = anon('u1');
+    await joinBatch(member, 'u1');
+    const db = admin();
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'circles', CID, 'payoutReceipts', 'p0'), {
+      image: 'data',
+      recipientId: 'm1',
+      periodId: 'p0',
+      uploadedBy: 'admin',
+      createdAt: serverTimestamp(),
+    });
+    batch.set(doc(db, 'circles', CID, 'payouts', 'p0'), {
+      periodId: 'p0',
+      recipientId: 'm1',
+      status: 'paid',
+      method: 'instapay',
+      account: 'ahmed@instapay',
+      paidAt: 'now',
+      hasReceipt: true,
+    });
+    await assertSucceeds(batch.commit());
+    await assertSucceeds(getDoc(doc(member, 'circles', CID, 'payoutReceipts', 'p0')));
+
+    const other = anon('u2');
+    await joinBatch(other, 'u2', 'm2');
+    await assertFails(getDoc(doc(other, 'circles', CID, 'payoutReceipts', 'p0')));
+    await assertFails(setDoc(doc(member, 'circles', CID, 'payoutReceipts', 'p1'), { image: 'x', recipientId: 'm1', periodId: 'p1', uploadedBy: 'u1', createdAt: serverTimestamp() }));
+  });
+});

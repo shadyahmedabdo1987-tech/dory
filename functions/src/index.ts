@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, type DocumentData, type DocumentReference, type Firestore } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { defineString } from 'firebase-functions/params';
-import { onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 
 import {
@@ -10,12 +10,12 @@ import {
   chunk,
   claimedMessage,
   confirmedMessage,
-  newlyPaidOut,
   paymentEvent,
-  payoutMessage,
   type ExpoMessage,
+  payoutEvent,
+  payoutMessageFor,
   type PaymentDoc,
-  type PeriodDoc,
+  type PayoutDoc,
 } from './messages.js';
 
 initializeApp();
@@ -114,23 +114,28 @@ export const onPaymentWritten = onDocumentWritten('circles/{cid}/payments/{pid}'
   }
 });
 
-/** Admin marks a payout as handed over → congratulate the recipient. */
-export const onCircleUpdated = onDocumentUpdated('circles/{cid}', async (event) => {
-  const before = (event.data?.before.data()?.periods ?? []) as PeriodDoc[];
-  const afterData = event.data?.after.data();
-  if (!afterData) return;
-  const paid = newlyPaidOut(before, (afterData.periods ?? []) as PeriodDoc[]);
-  if (paid.length === 0) return;
+/** Payout requests: recipient → admin on request; admin → recipient on decision or transfer. */
+export const onPayoutWritten = onDocumentWritten('circles/{cid}/payouts/{pid}', async (event) => {
+  const before = event.data?.before.exists ? (event.data.before.data() as PayoutDoc) : undefined;
+  const after = event.data?.after.exists ? (event.data.after.data() as PayoutDoc) : undefined;
+  const kind = payoutEvent(before, after);
+  if (!kind || !after) return;
 
   const { cid } = event.params;
-  const pot = (Number(afterData.installment) || 0) * (Number(afterData.memberCount) || 0);
-  await Promise.all(
-    paid.map(async (p) => {
-      if (!p.recipientId) return;
-      const member = await db.collection('circles').doc(cid).collection('members').doc(p.recipientId).get();
-      const uid = member.get('uid') as string | null;
-      if (!uid || uid === afterData.adminUid) return;
-      await send(await tokensFor(uid), payoutMessage(afterData.name, pot), { circleId: cid, type: 'payout' });
-    }),
-  );
+  const [circleSnap, memberSnap] = await Promise.all([
+    db.collection('circles').doc(cid).get(),
+    db.collection('circles').doc(cid).collection('members').doc(after.recipientId).get(),
+  ]);
+  if (!circleSnap.exists || !memberSnap.exists) return;
+  const circle = circleSnap.data()!;
+  const member = memberSnap.data()!;
+  const pot = (Number(circle.installment) || 0) * (Number(circle.memberCount) || 0);
+  const content = payoutMessageFor(kind, circle.name, member.name, after, pot);
+  const data = { circleId: cid, type: `payout-${kind}` };
+
+  if (kind === 'requested') {
+    await send(await tokensFor(circle.adminUid), content, data);
+  } else if (member.uid && member.uid !== circle.adminUid) {
+    await send(await tokensFor(member.uid), content, data);
+  }
 });

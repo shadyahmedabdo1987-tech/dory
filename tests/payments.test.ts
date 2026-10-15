@@ -45,3 +45,32 @@ describe('payment methods', () => {
     );
   });
 });
+
+import { canEditPayoutRequest, validatePayoutRequest } from '../src/core/payments.ts';
+
+describe('payout requests', () => {
+  it('needs no account for cash', () => {
+    assert.equal(validatePayoutRequest('cash', undefined), null);
+  });
+
+  it('validates Vodafone Cash numbers', () => {
+    assert.equal(validatePayoutRequest('vodafone_cash', '010 1234 5678'), null);
+    assert.equal(validatePayoutRequest('vodafone_cash', '٠١٠١٢٣٤٥٦٧٨'), null);
+    assert.equal(validatePayoutRequest('vodafone_cash', ''), 'account-missing');
+    assert.equal(validatePayoutRequest('vodafone_cash', '12345'), 'account-invalid');
+  });
+
+  it('accepts InstaPay addresses or mobiles', () => {
+    assert.equal(validatePayoutRequest('instapay', 'shady@instapay'), null);
+    assert.equal(validatePayoutRequest('instapay', '01012345678'), null);
+    assert.equal(validatePayoutRequest('instapay', '@@'), 'account-invalid');
+  });
+
+  it('lets the recipient edit only before approval', () => {
+    assert.equal(canEditPayoutRequest(undefined), true);
+    assert.equal(canEditPayoutRequest({ status: 'requested' }), true);
+    assert.equal(canEditPayoutRequest({ status: 'rejected' }), true);
+    assert.equal(canEditPayoutRequest({ status: 'approved' }), false);
+    assert.equal(canEditPayoutRequest({ status: 'paid' }), false);
+  });
+});

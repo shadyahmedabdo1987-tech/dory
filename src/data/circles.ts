@@ -2,6 +2,7 @@ import {
   collection,
   collectionGroup,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -34,7 +35,11 @@ import {
   type PayInfo,
   type Payment,
   type PaymentMethod,
+  type PayoutRequest,
   type Period,
+  validatePayoutRequest,
+  payoutNeedsReceipt,
+  setPaidOut,
 } from '@/core';
 
 import { AppError, arabicError, retry, withTimeout } from './errors';
@@ -430,14 +435,14 @@ async function deleteInChunks(db: Firestore, refs: DocumentReference[]) {
 export async function deleteCircle(circle: Circle): Promise<void> {
   const db = firestore();
   const cid = circle.id;
-  const [receipts, payments, memberships, phones, contacts, members] = await Promise.all(
-    ['receipts', 'payments', 'memberships', 'phones', 'contacts', 'members'].map((c) =>
+  const [payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members] = await Promise.all(
+    ['payoutReceipts', 'payouts', 'receipts', 'payments', 'memberships', 'phones', 'contacts', 'members'].map((c) =>
       retry(() => getDocs(collection(db, 'circles', cid, c))),
     ),
   );
   await deleteInChunks(
     db,
-    [receipts, payments, memberships, phones, contacts, members].flatMap((s) => s.docs.map((d) => d.ref)),
+    [payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members].flatMap((s) => s.docs.map((d) => d.ref)),
   );
   const batch = writeBatch(db);
   batch.delete(inviteRef(db, circle.inviteCode));
@@ -616,4 +621,188 @@ export async function leaveCircle(cid: string, memberId: string, uid: string): P
   batch.update(doc(membersCol(db, cid), memberId), { uid: null });
   batch.delete(membershipRef(db, cid, uid));
   await withTimeout(batch.commit());
+}
+
+// ---------------------------------------------------------------------------
+// Payouts: the turn's recipient asks how to be paid, the admin decides and pays
+// ---------------------------------------------------------------------------
+
+const payoutsCol = (db: Firestore, cid: string) => collection(db, 'circles', cid, 'payouts');
+const payoutRef = (db: Firestore, cid: string, periodId: string) => doc(payoutsCol(db, cid), periodId);
+const payoutReceiptRef = (db: Firestore, cid: string, periodId: string) =>
+  doc(db, 'circles', cid, 'payoutReceipts', periodId);
+
+function payoutFromDoc(data: DocumentData): PayoutRequest {
+  return {
+    periodId: data.periodId,
+    recipientId: data.recipientId,
+    status: data.status,
+    method: data.method ?? 'cash',
+    account: data.account ?? undefined,
+    note: data.note ?? undefined,
+    requestedAt: data.requestedAt ?? undefined,
+    adminNote: data.adminNote ?? undefined,
+    decidedAt: data.decidedAt ?? undefined,
+    paidAt: data.paidAt ?? undefined,
+    hasReceipt: data.hasReceipt === true,
+  };
+}
+
+/**
+ * Admin: every payout request in the circle. Member: only their own (the
+ * rules hide other members' account numbers).
+ */
+export function watchPayouts(
+  cid: string,
+  viewer: { role: 'admin' } | { role: 'member'; memberId: string },
+  onData: (payouts: PayoutRequest[]) => void,
+  onError: (message: string) => void,
+): Unsubscribe {
+  const db = firestore();
+  const q =
+    viewer.role === 'admin'
+      ? payoutsCol(db, cid)
+      : query(payoutsCol(db, cid), where('recipientId', '==', viewer.memberId));
+  return onSnapshot(
+    q,
+    (snap) => onData(snap.docs.map((d) => payoutFromDoc(d.data()))),
+    (e) => onError(arabicError(e)),
+  );
+}
+
+function checkAccount(method: PaymentMethod, account?: string) {
+  const problem = validatePayoutRequest(method, account);
+  if (problem) throw new AppError(`dory/${problem}`, arabicError({ code: `dory/${problem}` }));
+}
+
+/** Recipient: "pay my turn by …". Creates or updates the request until it's approved. */
+export async function requestPayout(
+  cid: string,
+  periodId: string,
+  recipientId: string,
+  uid: string,
+  input: { method: PaymentMethod; account?: string; note?: string },
+) {
+  checkAccount(input.method, input.account);
+  const transfer = input.method !== 'cash';
+  await withTimeout(
+    setDoc(
+      payoutRef(firestore(), cid, periodId),
+      {
+        periodId,
+        recipientId,
+        status: 'requested',
+        method: input.method,
+        account: transfer ? input.account!.trim().slice(0, 60) : deleteField(),
+        note: input.note?.trim() ? input.note.trim().slice(0, 200) : deleteField(),
+        requestedAt: new Date().toISOString(),
+        requestedBy: uid,
+      },
+      { merge: true },
+    ),
+  );
+}
+
+/** Admin: approve (optionally changing method/account) or reject a request. */
+export async function decidePayout(
+  cid: string,
+  request: PayoutRequest,
+  adminUid: string,
+  decision: { status: 'approved' | 'rejected'; method?: PaymentMethod; account?: string; adminNote?: string },
+) {
+  const method = decision.method ?? request.method;
+  const account = decision.account ?? request.account;
+  if (decision.status === 'approved') checkAccount(method, account);
+  await withTimeout(
+    setDoc(
+      payoutRef(firestore(), cid, request.periodId),
+      {
+        periodId: request.periodId,
+        recipientId: request.recipientId,
+        status: decision.status,
+        method,
+        account: method === 'cash' || !account ? deleteField() : account.trim().slice(0, 60),
+        adminNote: decision.adminNote?.trim() ? decision.adminNote.trim().slice(0, 200) : deleteField(),
+        decidedAt: new Date().toISOString(),
+        decidedBy: adminUid,
+      },
+      { merge: true },
+    ),
+  );
+}
+
+/**
+ * Admin hands over the pot: marks the period paid out, records how, and
+ * attaches the transfer screenshot — all in one transaction.
+ */
+export async function markPayoutPaid(
+  cid: string,
+  periodId: string,
+  recipientId: string,
+  adminUid: string,
+  input: { method: PaymentMethod; account?: string; receiptBase64?: string; adminNote?: string },
+) {
+  if (input.method !== 'cash') checkAccount(input.method, input.account);
+  const needsReceipt = payoutNeedsReceipt(input.method);
+  if (needsReceipt && !input.receiptBase64) {
+    throw new AppError('dory/receipt-missing', arabicError({ code: 'dory/payout-receipt-missing' }));
+  }
+  const db = firestore();
+  await withTimeout(
+    runTransaction(db, async (tx) => {
+      const snap = await tx.get(circleRef(db, cid));
+      if (!snap.exists()) throw new AppError('not-found', arabicError({ code: 'not-found' }));
+      const periods = setPaidOut((snap.data().periods ?? []) as Period[], periodId, true);
+      if (needsReceipt) {
+        tx.set(payoutReceiptRef(db, cid, periodId), {
+          image: input.receiptBase64,
+          recipientId,
+          periodId,
+          uploadedBy: adminUid,
+          createdAt: serverTimestamp(),
+        });
+      }
+      tx.set(
+        payoutRef(db, cid, periodId),
+        {
+          periodId,
+          recipientId,
+          status: 'paid',
+          method: input.method,
+          account: input.method === 'cash' || !input.account ? deleteField() : input.account.trim().slice(0, 60),
+          adminNote: input.adminNote?.trim() ? input.adminNote.trim().slice(0, 200) : deleteField(),
+          paidAt: new Date().toISOString(),
+          decidedBy: adminUid,
+          hasReceipt: needsReceipt,
+        },
+        { merge: true },
+      );
+      tx.update(circleRef(db, cid), { periods: cleanPeriods(periods), updatedAt: serverTimestamp() });
+    }),
+    30_000,
+  );
+}
+
+/** Admin: undo a payout recorded by mistake. */
+export async function undoPayout(cid: string, periodId: string, hadReceipt: boolean) {
+  const db = firestore();
+  await withTimeout(
+    runTransaction(db, async (tx) => {
+      const snap = await tx.get(circleRef(db, cid));
+      if (!snap.exists()) throw new AppError('not-found', arabicError({ code: 'not-found' }));
+      const periods = setPaidOut((snap.data().periods ?? []) as Period[], periodId, false);
+      const payout = await tx.get(payoutRef(db, cid, periodId));
+      if (payout.exists()) {
+        tx.update(payoutRef(db, cid, periodId), { status: 'approved', paidAt: deleteField(), hasReceipt: false });
+      }
+      if (hadReceipt) tx.delete(payoutReceiptRef(db, cid, periodId));
+      tx.update(circleRef(db, cid), { periods: cleanPeriods(periods), updatedAt: serverTimestamp() });
+    }),
+  );
+}
+
+export async function loadPayoutReceipt(cid: string, periodId: string): Promise<string | null> {
+  const snap = await retry(() => getDoc(payoutReceiptRef(firestore(), cid, periodId)));
+  const image = snap.exists() ? String(snap.data().image ?? '') : '';
+  return image ? `data:image/jpeg;base64,${image}` : null;
 }
