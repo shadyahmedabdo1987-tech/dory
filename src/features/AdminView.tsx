@@ -10,6 +10,8 @@ import {
   addExtraTurn,
   currentIndex,
   applyTurnOrder,
+  drawablePayouts,
+  ownerFirstOrder,
   FREQUENCY_LABEL,
   formatDate,
   formatMoney,
@@ -461,9 +463,9 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
   const [extraOpen, setExtraOpen] = useState(false);
   const [turnOpen, setTurnOpen] = useState(false);
   const [wheelOpen, setWheelOpen] = useState(false);
-  const wheelEntries = entries
-    .filter((e) => e.period.kind === 'payout')
-    .map((e) => ({ key: e.period.id, value: e.period.recipientId ?? '', name: e.recipient?.name ?? '—' }));
+  const { fixed: ownerTurn, open: drawable } = drawablePayouts(circle);
+  const nameOf = (id?: string) => circle.members.find((m) => m.id === id)?.name ?? '—';
+  const wheelEntries = drawable.map((p) => ({ key: p.id, value: p.recipientId ?? '', name: nameOf(p.recipientId) }));
   const [amount, setAmount] = useState(String(circle.installment));
   const [note, setNote] = useState('');
 
@@ -591,9 +593,12 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         visible={wheelOpen}
         entries={wheelEntries}
         onClose={() => setWheelOpen(false)}
+        title={ownerTurn.length ? `قرعة الأعضاء (${nameOf(ownerTurn[0].recipientId)} ثابت في الدور الأول)` : undefined}
         onDone={(order) => {
           setWheelOpen(false);
-          run(() => mutatePeriods(circle.id, (ps) => applyTurnOrder(ps, order)), { success: 'اتسجّل ترتيب القبض الجديد.' });
+          run(() => mutatePeriods(circle.id, (ps) => applyTurnOrder(ps, ownerFirstOrder({ ...circle, periods: ps }, order))), {
+            success: 'اتسجّل ترتيب القبض الجديد.',
+          });
         }}
       />
 

@@ -28,7 +28,22 @@ module.exports = ({ config }) => {
     'expo-build-properties',
     {
       // Smaller, faster release builds (R8 code shrinking + unused resource removal).
-      android: { enableMinifyInReleaseBuilds: true, enableShrinkResourcesInReleaseBuilds: true },
+      android: {
+        enableMinifyInReleaseBuilds: true,
+        enableShrinkResourcesInReleaseBuilds: true,
+        // Optional/compile-only classes referenced by dependencies; safe to ignore at runtime.
+        extraProguardRules: [
+          '-dontwarn com.google.errorprone.annotations.**',
+          '-dontwarn javax.annotation.**',
+          '-dontwarn org.conscrypt.**',
+          '-dontwarn org.bouncycastle.**',
+          '-dontwarn org.openjsse.**',
+          '-dontwarn com.google.firebase.**',
+          '-dontwarn io.invertase.firebase.**',
+          '-keep class com.swmansion.** { *; }',
+          '-keep class expo.modules.** { *; }',
+        ].join('\n'),
+      },
       ...(nativeFirebase ? { ios: { useFrameworks: 'static' } } : {}),
     },
   ]);

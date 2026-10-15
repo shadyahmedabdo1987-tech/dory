@@ -72,6 +72,8 @@ export interface Circle {
   payInfo?: PayInfo;
   /** WhatsApp group invite link (https://chat.whatsapp.com/…). */
   whatsappGroup?: string;
+  /** The organizer's own member row; their turn is fixed first and skipped by the draw. */
+  ownerMemberId?: string;
   members: Member[];
   periods: Period[];
   createdAt: string;

@@ -14,6 +14,7 @@ export default function NewCircleScreen() {
   return (
     <CircleForm
       mode="create"
+      ownerName={user.displayName ?? ''}
       submitLabel="ابدأ الجمعية"
       busy={busy}
       onSubmit={(draft) =>

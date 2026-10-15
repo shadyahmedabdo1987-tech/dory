@@ -288,3 +288,22 @@ describe('draw wheel', () => {
     }
   });
 });
+
+import { drawablePayouts, ownerFirstOrder } from '../src/core/schedule.ts';
+
+describe('owner keeps the first turn', () => {
+  it('excludes the owner from the draw and puts them first', () => {
+    const circle = { ...makeCircle(), ownerMemberId: 'a' };
+    const { fixed, open } = drawablePayouts(circle);
+    assert.deepEqual(fixed.map((p) => p.recipientId), ['a']);
+    assert.deepEqual(open.map((p) => p.recipientId), ['b', 'c']);
+    assert.deepEqual(ownerFirstOrder(circle, ['c', 'b']), ['a', 'c', 'b']);
+    assert.deepEqual(applyTurnOrder(circle.periods, ownerFirstOrder(circle, ['c', 'b'])).map((p) => p.recipientId), ['a', 'c', 'b']);
+  });
+
+  it('draws everyone when there is no fixed owner turn', () => {
+    assert.equal(drawablePayouts(makeCircle()).fixed.length, 0);
+    const moved = { ...makeCircle(), ownerMemberId: 'a', periods: movePeriod(makeCircle().periods, 0, 2) };
+    assert.equal(drawablePayouts(moved).fixed.length, 0);
+  });
+});

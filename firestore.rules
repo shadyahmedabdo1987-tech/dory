@@ -53,7 +53,8 @@ service cloud.firestore {
                               'inviteCode', 'periods', 'memberCount', 'createdAt', 'updatedAt', 'schemaVersion'])
         && d.keys().hasOnly(['name', 'installment', 'currency', 'frequency', 'startDate', 'adminUid',
                              'inviteCode', 'periods', 'memberCount', 'createdAt', 'updatedAt', 'schemaVersion',
-                             'payInfo', 'whatsappGroup'])
+                             'payInfo', 'whatsappGroup', 'ownerMemberId'])
+        && (!('ownerMemberId' in d) || d.ownerMemberId is string)
         && (!('payInfo' in d) || validPayInfo(d.payInfo))
         && (!('whatsappGroup' in d) || d.whatsappGroup == null
             || (d.whatsappGroup is string

@@ -348,6 +348,8 @@ export interface CircleDraft {
   frequency: Frequency;
   startDate: string;
   members: Member[];
+  /** The organizer is members[0] and always takes the first turn. */
+  ownerFirst?: boolean;
 }
 
 export type DraftError = 'name' | 'installment' | 'startDate' | 'members' | 'memberName' | 'duplicatePhone';
@@ -404,4 +406,20 @@ export function spinTarget(count: number, index: number, fromDeg: number, turns 
   const center = (index + 0.5) * slice;
   const base = fromDeg - (((fromDeg % 360) + 360) % 360);
   return base + turns * 360 + (360 - center);
+}
+
+/**
+ * Draw entries when the organizer keeps the first turn: returns the payout
+ * periods open to the draw and the fixed owner prefix.
+ */
+export function drawablePayouts(circle: Pick<Circle, 'periods' | 'ownerMemberId'>) {
+  const payouts = circle.periods.filter((p) => p.kind === 'payout');
+  const fixed = circle.ownerMemberId && payouts[0]?.recipientId === circle.ownerMemberId ? [payouts[0]] : [];
+  return { fixed, open: payouts.slice(fixed.length) };
+}
+
+/** Combines the fixed owner turn with the drawn order. */
+export function ownerFirstOrder(circle: Pick<Circle, 'periods' | 'ownerMemberId'>, drawn: string[]): string[] {
+  const { fixed } = drawablePayouts(circle);
+  return [...fixed.map((p) => p.recipientId ?? ''), ...drawn];
 }

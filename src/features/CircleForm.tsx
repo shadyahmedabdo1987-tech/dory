@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -48,12 +48,15 @@ const blankMember = (): Member => ({ id: newId('new_'), name: '', phone: '' });
 export function CircleForm({
   mode,
   initial,
+  ownerName,
   submitLabel,
   busy,
   onSubmit,
 }: {
   mode: 'create' | 'edit';
   initial?: CircleDraft;
+  /** Organizer's name, used for their own row when they take the first turn. */
+  ownerName?: string;
   submitLabel: string;
   busy?: boolean;
   onSubmit: (draft: CircleDraft) => void;
@@ -67,7 +70,12 @@ export function CircleForm({
   const [frequency, setFrequency] = useState<Frequency>(initial?.frequency ?? 'monthly');
   const [monthKey, setMonthKey] = useState(`${start.y}-${start.m}`);
   const [day, setDay] = useState(String(start.d));
-  const [members, setMembers] = useState<Member[]>(initial?.members ?? [blankMember(), blankMember(), blankMember()]);
+  const [members, setMembers] = useState<Member[]>(
+    initial?.members ?? [{ ...blankMember(), name: ownerName?.trim() || '' }, blankMember(), blankMember()],
+  );
+  // The organizer is the first row and keeps the first turn; the draw covers everyone else.
+  const [ownerFirst, setOwnerFirst] = useState(mode === 'create');
+  const locked = (i: number) => mode === 'create' && ownerFirst && i === 0;
   const [showErrors, setShowErrors] = useState(false);
   const [wheelOpen, setWheelOpen] = useState(false);
 
@@ -87,7 +95,7 @@ export function CircleForm({
   const dayNum = Math.max(1, Math.min(parseAmount(day) || 1, daysInMonth(selected.y, selected.m)));
   const startDate = toISODate({ y: selected.y, m: selected.m, d: dayNum });
   const installment = parseAmount(amount);
-  const draft: CircleDraft = { name, installment, frequency, startDate, members };
+  const draft: CircleDraft = { name, installment, frequency, startDate, members, ownerFirst: mode === 'create' && ownerFirst };
   const errors = validateDraft(draft, normalizePhone);
   const has = (e: DraftError) => showErrors && errors.includes(e);
 
@@ -199,6 +207,20 @@ export function CircleForm({
               ? 'الترتيب هنا هو ترتيب القبض. رقم الموبايل مهم علشان العضو يدخل ويتابع حسابه.'
               : 'الأعضاء الجداد بيتضاف دورهم في آخر الجدول. ترتيب الأدوار من تبويب "الجدول".'}
           </Text>
+          {mode === 'create' && (
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: ownerFirst }}
+              onPress={() => setOwnerFirst((v) => !v)}
+              style={styles.ownerToggle}
+            >
+              <Ionicons name={ownerFirst ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text weight="semibold">صاحب الجمعية ياخد الدور الأول</Text>
+                <Text variant="caption">الصف الأول هو إنت، والقرعة بتكون على باقي الأعضاء.</Text>
+              </View>
+            </Pressable>
+          )}
           {has('members') && <Text variant="caption" color={colors.danger}>{ERRORS.members}</Text>}
           {has('duplicatePhone') && <Text variant="caption" color={colors.danger}>{ERRORS.duplicatePhone}</Text>}
 
@@ -207,9 +229,9 @@ export function CircleForm({
               <Row style={{ justifyContent: 'space-between' }}>
                 <Row gap={space.xs}>
                   {mode === 'create' ? (
-                    <View style={styles.pill}>
-                      <Text variant="caption" weight="bold" color={colors.primary}>
-                        الدور {ordinal(i)}
+                    <View style={[styles.pill, locked(i) && { backgroundColor: colors.goldSoft }]}>
+                      <Text variant="caption" weight="bold" color={locked(i) ? '#8A6A1C' : colors.primary}>
+                        {locked(i) ? '👑 صاحب الجمعية • الدور الأول' : `الدور ${ordinal(i)}`}
                       </Text>
                     </View>
                   ) : m.uid ? (
@@ -224,16 +246,23 @@ export function CircleForm({
                 <Row gap={space.xs}>
                   {mode === 'create' && (
                     <>
-                      <IconButton icon="arrow-up" label="لفوق" disabled={i === 0} onPress={() => setMembers((l) => moveItem(l, i, i - 1))} />
+                      <IconButton
+                        icon="arrow-up"
+                        label="لفوق"
+                        disabled={i === 0 || locked(i) || locked(i - 1)}
+                        onPress={() => setMembers((l) => moveItem(l, i, i - 1))}
+                      />
                       <IconButton
                         icon="arrow-down"
                         label="لتحت"
-                        disabled={i === members.length - 1}
+                        disabled={i === members.length - 1 || locked(i)}
                         onPress={() => setMembers((l) => moveItem(l, i, i + 1))}
                       />
                     </>
                   )}
-                  <IconButton icon="trash-outline" label="حذف" color={colors.danger} bg={colors.dangerSoft} onPress={() => remove(m)} />
+                  {!locked(i) && (
+                    <IconButton icon="trash-outline" label="حذف" color={colors.danger} bg={colors.dangerSoft} onPress={() => remove(m)} />
+                  )}
                 </Row>
               </Row>
               <TextInput
@@ -298,11 +327,13 @@ export function CircleForm({
       </ScrollView>
       <DrawWheel
         visible={wheelOpen}
-        entries={members.map((m) => ({ key: m.id, value: m.id, name: m.name.trim() }))}
+        entries={members.slice(ownerFirst && mode === 'create' ? 1 : 0).map((m) => ({ key: m.id, value: m.id, name: m.name.trim() }))}
+        title={ownerFirst && mode === 'create' ? 'قرعة باقي الأعضاء' : undefined}
         onClose={() => setWheelOpen(false)}
         onDone={(ids) => {
           const byId = new Map(members.map((m) => [m.id, m]));
-          setMembers(ids.map((id) => byId.get(id)!).filter(Boolean));
+          const drawn = ids.map((id) => byId.get(id)!).filter(Boolean);
+          setMembers(ownerFirst && mode === 'create' ? [members[0], ...drawn] : drawn);
           setWheelOpen(false);
         }}
       />
@@ -318,6 +349,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  ownerToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    padding: space.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
   },
   pill: { backgroundColor: colors.primarySoft, paddingHorizontal: space.md, paddingVertical: 2, borderRadius: radius.pill },
   input: {

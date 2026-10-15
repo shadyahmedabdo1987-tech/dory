@@ -99,6 +99,7 @@ function circleFromDoc(id: string, data: DocumentData, members: Member[]): Circl
     inviteCode: d.inviteCode,
     payInfo: d.payInfo ?? undefined,
     whatsappGroup: d.whatsappGroup ?? undefined,
+    ownerMemberId: d.ownerMemberId ?? undefined,
     periods: Array.isArray(d.periods) ? d.periods : [],
     members,
     createdAt: d.createdAt?.toDate?.().toISOString() ?? new Date().toISOString(),
@@ -301,6 +302,7 @@ export async function createCircle(draft: CircleDraft, adminUid: string): Promis
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     schemaVersion: SCHEMA_VERSION,
+    ...(draft.ownerFirst && members[0] ? { ownerMemberId: members[0].id } : {}),
   });
   members.forEach((m, i) => {
     const phone = phoneOf(m);
