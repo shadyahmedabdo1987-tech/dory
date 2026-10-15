@@ -2,6 +2,10 @@ name: Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      abis:
+        description: CPU architectures (comma-separated)
+        default: arm64-v8a,armeabi-v7a
   push:
     tags: ['v*']
 
@@ -40,7 +44,7 @@ jobs:
 
       - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=${{ inputs.abis || 'arm64-v8a,armeabi-v7a' }}
         env:
           NODE_ENV: production
           GRADLE_OPTS: -Xmx4g -Dorg.gradle.jvmargs=-Xmx4g
@@ -49,7 +53,8 @@ jobs:
         id: apk
         run: |
           VERSION=$(node -p "require('./app.json').expo.version")
-          NAME="dory-${VERSION}-${GITHUB_RUN_NUMBER}.apk"
+          SUFFIX=$([ "${{ inputs.abis }}" = "arm64-v8a" ] && echo "-arm64" || echo "")
+          NAME="dory-${VERSION}-${GITHUB_RUN_NUMBER}${SUFFIX}.apk"
           cp android/app/build/outputs/apk/release/app-release.apk "$NAME"
           ls -lh "$NAME"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
