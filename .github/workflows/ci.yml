@@ -36,6 +36,20 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run test:rules
 
+  functions:
+    name: Cloud Functions build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+
   app:
     name: Typecheck & bundle
     runs-on: ubuntu-latest
@@ -54,3 +68,4 @@ jobs:
           EXPO_PUBLIC_FIREBASE_API_KEY: ci
           EXPO_PUBLIC_FIREBASE_PROJECT_ID: demo-dory
           EXPO_PUBLIC_FIREBASE_APP_ID: ci
+          EXPO_PUBLIC_APP_CHECK: 'off'

@@ -31,3 +31,9 @@ expo-env.d.ts
 *.log
 .vscode/
 .idea/
+
+# Native Firebase config (provide to EAS as file env vars)
+google-services.json
+GoogleService-Info.plist
+functions/lib/
+functions/node_modules/

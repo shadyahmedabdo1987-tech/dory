@@ -15,6 +15,8 @@ import {
 } from 'firebase/firestore';
 import { Platform } from 'react-native';
 
+import { setupAppCheck } from './appCheck';
+
 /**
  * Firebase config is read from EXPO_PUBLIC_* variables (see .env.example).
  * They are compiled into the app, so every user who installs the store build
@@ -46,6 +48,8 @@ function init() {
   app = isFresh ? initializeApp(config) : getApp();
 
   if (isFresh) {
+    // App Check must be initialized before Auth/Firestore start sending requests.
+    if (!emulatorHost) setupAppCheck(app);
     // Keep the session across app restarts (members stay signed in).
     auth =
       Platform.OS === 'web'

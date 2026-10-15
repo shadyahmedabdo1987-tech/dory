@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { ComponentProps, ReactNode } from 'react';
+import { useEffect } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,6 +17,7 @@ import {
 } from '@/core';
 import { signOut, useCircleData, useMyCircles, type CircleRef } from '@/data';
 import { useAppSession } from '@/data/session';
+import { clearReminders, registerForPush, unregisterPush, useCircleReminders } from '@/notifications';
 import { Badge, Button, Card, EmptyState, ProgressBar, Row, Text } from '@/ui/components';
 import { confirm, ErrorScreen } from '@/ui/feedback';
 import { colors, radius, shadow, space } from '@/ui/theme';
@@ -86,8 +88,18 @@ function Home({ uid }: { uid: string }) {
       'خروج',
       true,
     );
-    if (ok) await signOut();
+    if (ok) {
+      await unregisterPush(uid);
+      await clearReminders();
+      await signOut();
+    }
   };
+
+  // Register for push once the user has at least one circle (permission prompt in context).
+  const hasCircles = (refs?.length ?? 0) > 0;
+  useEffect(() => {
+    if (hasCircles) registerForPush(uid);
+  }, [hasCircles, uid]);
 
   if (error) return <ErrorScreen message={error} />;
 
@@ -175,6 +187,7 @@ function CardShell({ id, children }: { id: string; children: ReactNode }) {
 
 function AdminCard({ id, uid }: { id: string; uid: string }) {
   const { data } = useCircleData(id, uid);
+  useCircleReminders(data?.circle, data?.payments, 'admin', undefined);
   if (!data) return <SkeletonCard />;
   const { circle, payments } = data;
   const o = overview(circle, payments);
@@ -213,6 +226,7 @@ function AdminCard({ id, uid }: { id: string; uid: string }) {
 
 function MemberCard({ id, uid }: { id: string; uid: string }) {
   const { data, myMemberId } = useCircleData(id, uid);
+  useCircleReminders(data?.circle, data?.payments, 'member', myMemberId);
   if (!data || !myMemberId || !data.circle.members.some((m) => m.id === myMemberId)) return <SkeletonCard />;
   const acc = memberAccount(data.circle, data.payments, myMemberId);
   const next = acc.nextDue;

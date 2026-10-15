@@ -6,6 +6,7 @@ import { deleteCircle, leaveCircle, useCircleData } from '@/data';
 import { useAppSession } from '@/data/session';
 import { AdminView, type AdminTab } from '@/features/AdminView';
 import { MemberView } from '@/features/MemberView';
+import { clearReminders } from '@/notifications';
 import { EmptyState, Row } from '@/ui/components';
 import { confirm, ErrorScreen, LoadingScreen, useAction } from '@/ui/feedback';
 import { colors, space } from '@/ui/theme';
@@ -32,6 +33,7 @@ export default function CircleScreen() {
     if (ok) {
       await run(async () => {
         await deleteCircle(circle);
+        await clearReminders(circle.id);
         router.back();
       });
     }
@@ -43,6 +45,7 @@ export default function CircleScreen() {
     if (ok) {
       await run(async () => {
         await leaveCircle(circle.id, myMember.id, user.uid);
+        await clearReminders(circle.id);
         router.back();
       });
     }

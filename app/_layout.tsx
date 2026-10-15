@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { isFirebaseConfigured, useSession } from '@/data';
 import { SessionProvider } from '@/data/session';
+import { useNotificationRouting } from '@/notifications';
 import { ErrorScreen } from '@/ui/feedback';
 import { colors, fonts } from '@/ui/theme';
 
@@ -22,6 +23,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({ Cairo_400Regular, Cairo_600SemiBold, Cairo_700Bold });
   const session = useSession();
+  useNotificationRouting();
   const ready = fontsLoaded && !session.loading;
 
   useEffect(() => {

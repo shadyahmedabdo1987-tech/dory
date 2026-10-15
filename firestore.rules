@@ -190,6 +190,16 @@ service cloud.firestore {
       allow read: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
+    // ---------- push tokens (read only by Cloud Functions via the Admin SDK) ----------
+    match /users/{uid}/devices/{deviceId} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['token', 'platform', 'updatedAt'])
+        && request.resource.data.token is string && request.resource.data.token.size() < 256
+        && request.resource.data.platform in ['ios', 'android']
+        && request.resource.data.updatedAt == request.time;
+    }
+
     // ---------- invites ----------
     match /invites/{code} {
       allow get: if signedIn();

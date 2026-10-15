@@ -247,3 +247,20 @@ describe('admin edits', () => {
     await assertSucceeds(batch.commit());
   });
 });
+
+describe('push tokens', () => {
+  const device = (platform = 'android') => ({ token: 'ExponentPushToken[abc]', platform, updatedAt: serverTimestamp() });
+
+  it('lets users manage only their own devices', async () => {
+    const db = anon('u1');
+    await assertSucceeds(setDoc(doc(db, 'users', 'u1', 'devices', 'd1'), device()));
+    await assertSucceeds(deleteDoc(doc(db, 'users', 'u1', 'devices', 'd1')));
+    await assertFails(setDoc(doc(db, 'users', 'u2', 'devices', 'd1'), device()));
+    await assertFails(getDoc(doc(anon('u2'), 'users', 'u1', 'devices', 'd1')));
+  });
+
+  it('validates the token document', async () => {
+    await assertFails(setDoc(doc(anon('u1'), 'users', 'u1', 'devices', 'd1'), device('windows')));
+    await assertFails(setDoc(doc(anon('u1'), 'users', 'u1', 'devices', 'd1'), { ...device(), extra: 1 }));
+  });
+});
