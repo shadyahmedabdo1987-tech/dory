@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, type DocumentData, type DocumentReference, type Firestore } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { defineString } from 'firebase-functions/params';
-import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 
 import {
@@ -12,6 +12,7 @@ import {
   confirmedMessage,
   paymentEvent,
   type ExpoMessage,
+  announcementMessage,
   payoutAudience,
   payoutEvent,
   payoutMessageFor,
@@ -139,4 +140,23 @@ export const onPayoutWritten = onDocumentWritten('circles/{cid}/payouts/{pid}', 
   } else if (member.uid && member.uid !== circle.adminUid) {
     await send(await tokensFor(member.uid), content, data);
   }
+});
+
+/** Admin announcement → push to every member who joined from their phone. */
+export const onAnnouncementCreated = onDocumentCreated('circles/{cid}/announcements/{aid}', async (event) => {
+  const data = event.data?.data();
+  if (!data) return;
+  const { cid } = event.params;
+  const [circleSnap, membersSnap] = await Promise.all([
+    db.collection('circles').doc(cid).get(),
+    db.collection('circles').doc(cid).collection('members').get(),
+  ]);
+  if (!circleSnap.exists) return;
+  const circle = circleSnap.data()!;
+  const uids = [...new Set(membersSnap.docs.map((d) => d.get('uid') as string | null).filter((u): u is string => !!u && u !== circle.adminUid))];
+  const devices = (await Promise.all(uids.map((u) => tokensFor(u)))).flat();
+  await send(devices, announcementMessage(circle.name, String(data.title ?? ''), String(data.body ?? '')), {
+    circleId: cid,
+    type: 'announcement',
+  });
 });

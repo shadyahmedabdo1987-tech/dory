@@ -30,6 +30,7 @@ import { Badge, Button, Card, Field, ProgressBar, Row, Text } from '@/ui/compone
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 
+import { AnnouncementsCard } from './Messaging';
 import { PaySheet } from './PaySheet';
 import { describePayout, PAYOUT_TONE, PayoutRequestSheet } from './PayoutSheets';
 import { ReceiptViewer } from './ReceiptViewer';
@@ -114,6 +115,8 @@ export function MemberView({
           </Text>
         </Row>
       </View>
+
+      <AnnouncementsCard circle={circle} />
 
       {acc.overdueAmount > 0 && (
         <Row style={styles.alert}>

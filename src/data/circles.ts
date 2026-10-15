@@ -6,7 +6,9 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
+  orderBy,
   query,
   runTransaction,
   serverTimestamp,
@@ -31,6 +33,7 @@ import {
   type Frequency,
   requiresReceipt,
   validateClaim,
+  type Announcement,
   type Member,
   type PayInfo,
   type Payment,
@@ -40,6 +43,7 @@ import {
   validatePayoutRequest,
   payoutNeedsReceipt,
   setPaidOut,
+  cleanGroupLink,
 } from '@/core';
 
 import { AppError, arabicError, retry, withTimeout } from './errors';
@@ -94,6 +98,7 @@ function circleFromDoc(id: string, data: DocumentData, members: Member[]): Circl
     adminUid: d.adminUid,
     inviteCode: d.inviteCode,
     payInfo: d.payInfo ?? undefined,
+    whatsappGroup: d.whatsappGroup ?? undefined,
     periods: Array.isArray(d.periods) ? d.periods : [],
     members,
     createdAt: d.createdAt?.toDate?.().toISOString() ?? new Date().toISOString(),
@@ -435,14 +440,14 @@ async function deleteInChunks(db: Firestore, refs: DocumentReference[]) {
 export async function deleteCircle(circle: Circle): Promise<void> {
   const db = firestore();
   const cid = circle.id;
-  const [payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members] = await Promise.all(
-    ['payoutReceipts', 'payouts', 'receipts', 'payments', 'memberships', 'phones', 'contacts', 'members'].map((c) =>
+  const [announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members] = await Promise.all(
+    ['announcements', 'payoutReceipts', 'payouts', 'receipts', 'payments', 'memberships', 'phones', 'contacts', 'members'].map((c) =>
       retry(() => getDocs(collection(db, 'circles', cid, c))),
     ),
   );
   await deleteInChunks(
     db,
-    [payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members].flatMap((s) => s.docs.map((d) => d.ref)),
+    [announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members].flatMap((s) => s.docs.map((d) => d.ref)),
   );
   const batch = writeBatch(db);
   batch.delete(inviteRef(db, circle.inviteCode));
@@ -838,4 +843,57 @@ export async function disputePayout(cid: string, periodId: string, note: string)
       { merge: true },
     ),
   );
+}
+
+// ---------------------------------------------------------------------------
+// WhatsApp group & announcements
+// ---------------------------------------------------------------------------
+
+/** Admin: save (or clear with null) the circle's WhatsApp group invite link. */
+export async function updateWhatsappGroup(cid: string, raw: string | null) {
+  const link = raw === null ? null : cleanGroupLink(raw);
+  if (raw !== null && !link) throw new AppError('dory/invalid-group-link', arabicError({ code: 'dory/invalid-group-link' }));
+  await withTimeout(
+    updateDoc(circleRef(firestore(), cid), { whatsappGroup: link ?? deleteField(), updatedAt: serverTimestamp() }),
+  );
+}
+
+const announcementsCol = (db: Firestore, cid: string) => collection(db, 'circles', cid, 'announcements');
+
+export function watchAnnouncements(
+  cid: string,
+  onData: (items: Announcement[]) => void,
+  onError: (message: string) => void,
+): Unsubscribe {
+  return onSnapshot(
+    query(announcementsCol(firestore(), cid), orderBy('createdAt', 'desc'), limit(50)),
+    { includeMetadataChanges: false },
+    (snap) =>
+      onData(
+        snap.docs.map((d) => ({
+          id: d.id,
+          title: String(d.data().title ?? ''),
+          body: String(d.data().body ?? ''),
+          // Pending server timestamps are null until the write is acknowledged.
+          createdAt: d.data({ serverTimestamps: 'estimate' }).createdAt?.toDate?.().toISOString() ?? new Date().toISOString(),
+        })),
+      ),
+    (e) => onError(arabicError(e)),
+  );
+}
+
+/** Admin: post an announcement to every member (in-app now; push via Cloud Functions). */
+export async function postAnnouncement(cid: string, uid: string, title: string, body: string) {
+  await withTimeout(
+    setDoc(doc(announcementsCol(firestore(), cid)), {
+      title: title.trim().slice(0, 80),
+      body: body.trim().slice(0, 1000),
+      createdBy: uid,
+      createdAt: serverTimestamp(),
+    }),
+  );
+}
+
+export async function deleteAnnouncement(cid: string, id: string) {
+  await withTimeout(deleteDoc(doc(announcementsCol(firestore(), cid), id)));
 }

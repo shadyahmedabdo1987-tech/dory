@@ -1,9 +1,17 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
-import type { PayoutRequest } from '@/core';
+import type { Announcement, PayoutRequest } from '@/core';
 
-import { watchCircle, watchMembership, watchMyCircles, watchPayouts, type CircleRef, type CircleSnapshot } from './circles';
+import {
+  watchAnnouncements,
+  watchCircle,
+  watchMembership,
+  watchMyCircles,
+  watchPayouts,
+  type CircleRef,
+  type CircleSnapshot,
+} from './circles';
 import { arabicError, retry } from './errors';
 import { firestore } from './firebase';
 
@@ -101,4 +109,14 @@ export function usePayouts(cid: string | undefined, role: Role, memberId: string
     return watchPayouts(cid, viewer, setPayouts, () => setPayouts([]));
   }, [cid, role, memberId]);
   return payouts;
+}
+
+/** Live announcements for a circle, newest first. */
+export function useAnnouncements(cid: string | undefined, enabled = true) {
+  const [items, setItems] = useState<Announcement[]>([]);
+  useEffect(() => {
+    if (!cid || !enabled) return;
+    return watchAnnouncements(cid, setItems, () => setItems([]));
+  }, [cid, enabled]);
+  return items;
 }

@@ -70,6 +70,8 @@ export interface Circle {
   inviteCode: string;
   /** Where members send transfers (shown in the pay sheet). */
   payInfo?: PayInfo;
+  /** WhatsApp group invite link (https://chat.whatsapp.com/…). */
+  whatsappGroup?: string;
   members: Member[];
   periods: Period[];
   createdAt: string;
@@ -122,4 +124,13 @@ export interface PayoutRequest {
   receivedAt?: string;
   /** Recipient says the money didn't arrive (with their explanation). */
   disputeNote?: string;
+}
+
+/** Admin message to every member (in-app feed + push). circles/{cid}/announcements/{id} */
+export interface Announcement {
+  id: string;
+  title: string;
+  body: string;
+  /** ISO timestamp. */
+  createdAt: string;
 }

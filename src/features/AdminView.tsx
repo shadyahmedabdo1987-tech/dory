@@ -57,10 +57,11 @@ import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 
 import { DrawWheel } from './DrawWheel';
+import { MessagesTab } from './Messaging';
 import { AdminPayoutSheet, describePayout, PAYOUT_TONE } from './PayoutSheets';
 import { ReceiptViewer } from './ReceiptViewer';
 
-export type AdminTab = 'collect' | 'schedule' | 'members';
+export type AdminTab = 'collect' | 'schedule' | 'members' | 'messages';
 
 export function AdminView({
   circle,
@@ -114,12 +115,14 @@ export function AdminView({
           },
           { value: 'schedule', label: 'الجدول' },
           { value: 'members', label: 'الأعضاء' },
+          { value: 'messages', label: 'الرسائل' },
         ]}
       />
 
       {tab === 'collect' && <CollectTab circle={circle} payments={payments} payouts={payouts} uid={uid} />}
       {tab === 'schedule' && <ScheduleTab circle={circle} payments={payments} />}
       {tab === 'members' && <MembersTab circle={circle} />}
+      {tab === 'messages' && <MessagesTab circle={circle} payments={payments} uid={uid} />}
     </ScrollView>
   );
 }

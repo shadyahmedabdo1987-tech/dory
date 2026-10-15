@@ -479,3 +479,25 @@ describe('payout receipt confirmation', () => {
     await assertFails(setDoc(doc(other, 'circles', CID, 'payouts', 'p0'), { status: 'received', receivedAt: 'now' }, { merge: true }));
   });
 });
+
+describe('whatsapp group & announcements', () => {
+  it('stores a valid WhatsApp group link and rejects anything else', async () => {
+    const ref = doc(admin(), 'circles', CID);
+    await assertSucceeds(updateDoc(ref, { whatsappGroup: 'https://chat.whatsapp.com/AbCdEf1234567890', updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(ref, { whatsappGroup: 'https://evil.example/phish', updatedAt: serverTimestamp() }));
+  });
+
+  it('lets only the admin post announcements, and members read them', async () => {
+    const member = anon('u1');
+    await joinBatch(member, 'u1');
+    const msg = { title: 'تذكير', body: 'القسط بكرة', createdAt: serverTimestamp() };
+    await assertSucceeds(addDocTo(admin(), { ...msg, createdBy: 'admin' }));
+    await assertFails(addDocTo(member, { ...msg, createdBy: 'u1' }));
+    await assertSucceeds(getDocs(collection(member, 'circles', CID, 'announcements')));
+    await assertFails(getDocs(collection(anon('stranger'), 'circles', CID, 'announcements')));
+  });
+});
+
+function addDocTo(db, data) {
+  return setDoc(doc(collection(db, 'circles', CID, 'announcements')), data);
+}

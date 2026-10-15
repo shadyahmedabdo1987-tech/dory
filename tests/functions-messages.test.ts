@@ -82,3 +82,13 @@ describe('payout confirmation notifications', () => {
     assert.match(msg.body, /ما وصلش/);
   });
 });
+
+import { announcementMessage } from '../functions/src/messages.ts';
+
+describe('announcement push', () => {
+  it('prefixes the circle name and trims long bodies', () => {
+    const m = announcementMessage('جمعية الشغل', 'تذكير', 'x'.repeat(400));
+    assert.match(m.title, /جمعية الشغل/);
+    assert.ok(m.body.length <= 180);
+  });
+});

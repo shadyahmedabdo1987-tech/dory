@@ -22,6 +22,7 @@ const MESSAGES: Record<string, string> = {
   'dory/payout-receipt-missing': 'ارفق صورة التحويل قبل ما تسجّل إنك حوّلت القبض.',
   'dory/account-missing': 'اكتب رقم فودافون كاش أو عنوان إنستاباي.',
   'dory/account-invalid': 'الرقم أو العنوان مش صحيح. اتأكد منه.',
+  'dory/invalid-group-link': 'ده مش لينك جروب واتساب. انسخ لينك الدعوة من إعدادات الجروب.',
   'dory/not-configured': 'التطبيق مش متوصل بالسيرفر. كلم الدعم الفني.',
 
   // Firestore

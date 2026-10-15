@@ -156,3 +156,8 @@ export function payoutMessageFor(event: Exclude<PayoutEvent, null>, circleName: 
       };
   }
 }
+
+export function announcementMessage(circleName: string, title: string, body: string) {
+  const text = body.trim().replace(/\s+/g, ' ');
+  return { title: `📢 ${circleName}: ${title}`.slice(0, 120), body: text.length > 180 ? `${text.slice(0, 177)}…` : text };
+}

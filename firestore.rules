@@ -53,8 +53,11 @@ service cloud.firestore {
                               'inviteCode', 'periods', 'memberCount', 'createdAt', 'updatedAt', 'schemaVersion'])
         && d.keys().hasOnly(['name', 'installment', 'currency', 'frequency', 'startDate', 'adminUid',
                              'inviteCode', 'periods', 'memberCount', 'createdAt', 'updatedAt', 'schemaVersion',
-                             'payInfo'])
+                             'payInfo', 'whatsappGroup'])
         && (!('payInfo' in d) || validPayInfo(d.payInfo))
+        && (!('whatsappGroup' in d) || d.whatsappGroup == null
+            || (d.whatsappGroup is string
+                && d.whatsappGroup.matches('^https://chat[.]whatsapp[.]com/[A-Za-z0-9]{10,40}$')))
         && d.name is string && d.name.size() > 0 && d.name.size() <= 60
         && d.installment is number && d.installment > 0 && d.installment <= 100000000
         && d.currency == 'EGP'
@@ -200,6 +203,19 @@ service cloud.firestore {
           && resource.data.memberId == myMemberId(cid)
           && resource.data.status == 'claimed';
       }
+    }
+
+    // ---------- announcements (admin -> all members) ----------
+    match /circles/{cid}/announcements/{aid} {
+      allow read: if isAdmin(cid) || isMember(cid);
+      allow create: if isAdmin(cid)
+        && request.resource.data.keys().hasOnly(['title', 'body', 'createdAt', 'createdBy'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 80
+        && request.resource.data.body is string && request.resource.data.body.size() <= 1000
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow delete: if isAdmin(cid);
     }
 
     // ---------- transfer screenshots ----------
