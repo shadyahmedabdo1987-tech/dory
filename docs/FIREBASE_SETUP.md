@@ -27,6 +27,9 @@ npm run deploy:rules             # بيرفع firestore.rules و firestore.index
 > لازم القواعد تترفع قبل أي استخدام. من غيرها، التطبيق هيرفض كل العمليات.
 
 ## ٥. مفاتيح التطبيق
+
+> ✅ اتعمل: مفاتيح مشروع `dory-app-eff88` موجودة في `config/production.env`.
+
 1. **Project settings (⚙️) → Your apps → Web app (</>)** وسجّل تطبيق جديد.
 2. انسخ قيم `firebaseConfig` في ملف `.env`:
 ```bash
