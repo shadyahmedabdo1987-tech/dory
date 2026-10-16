@@ -125,7 +125,7 @@ function MemberReportView({ report: r, circle, share }: { report: MemberReport; 
           />
         </View>
         {r.installmentsPending ? (
-          <Text variant="caption" color="#8A6A1C">
+          <Text variant="caption" color={colors.goldText}>
             {formatNumber(r.installmentsPending)} قسط مستني تأكيد صاحب الجمعية.
           </Text>
         ) : null}

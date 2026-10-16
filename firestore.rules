@@ -97,7 +97,8 @@ service cloud.firestore {
     function validPayment(pid, d) {
       return d.keys().hasAll(['periodId', 'memberId', 'status'])
         && d.keys().hasOnly(['periodId', 'memberId', 'status', 'claimedAt', 'claimedBy',
-                             'confirmedAt', 'confirmedBy', 'note', 'method', 'hasReceipt'])
+                             'confirmedAt', 'confirmedBy', 'note', 'method', 'hasReceipt', 'receiptCheck'])
+        && (!('receiptCheck' in d) || d.receiptCheck in ['auto', 'manual'])
         && (!('method' in d) || d.method in ['cash', 'instapay', 'vodafone_cash'])
         && (!('hasReceipt' in d) || d.hasReceipt is bool)
         && d.periodId is string && d.memberId is string

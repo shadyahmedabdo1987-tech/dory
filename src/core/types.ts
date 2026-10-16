@@ -50,6 +50,12 @@ export interface Payment {
   method?: PaymentMethod;
   /** A transfer screenshot is stored in circles/{cid}/receipts/{paymentId}. */
   hasReceipt?: boolean;
+  /**
+   * How the screenshot was checked before sending: 'auto' = the app read it and
+   * the amount + account matched; 'manual' = it couldn't be read, so the member
+   * typed them — the admin must check the money actually arrived.
+   */
+  receiptCheck?: 'auto' | 'manual';
   /** Member said "I paid" (ISO timestamp). */
   claimedAt?: string;
   /** Admin confirmed receipt (ISO timestamp). */

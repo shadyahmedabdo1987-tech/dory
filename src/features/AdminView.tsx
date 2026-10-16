@@ -221,7 +221,23 @@ function CollectTab({
   const [payoutFor, setPayoutFor] = useState<TimelineEntry | null>(null);
   const [payoutReceipt, setPayoutReceipt] = useState<string | null>(null);
 
-  const approve = (p: Payment) => run(() => confirmPayment(circle.id, p.periodId, p.memberId, uid));
+  /**
+   * A transfer whose receipt the app couldn't verify is only confirmed after the
+   * admin says the money is really in their account.
+   */
+  const approve = async (p: Payment) => {
+    if (p.hasReceipt && p.receiptCheck !== 'auto') {
+      const who = circle.members.find((m) => m.id === p.memberId)?.name ?? 'العضو';
+      const due = timeline(circle).find((e) => e.period.id === p.periodId)?.due ?? circle.installment;
+      const ok = await confirm(
+        'اتأكد الأول إن الفلوس وصلت',
+        `إيصال ${who} ما اتراجعش أوتوماتيك. افتح ${METHOD_LABEL[methodOf(p)]} بتاعك واتأكد إن ${formatMoney(due)} وصلوا حسابك فعلًا قبل ما تأكد.`,
+        `أيوه، ${formatMoney(due)} وصلوا حسابي`,
+      );
+      if (!ok) return;
+    }
+    run(() => confirmPayment(circle.id, p.periodId, p.memberId, uid));
+  };
   const reject = async (p: Payment, member: Member) => {
     if (await confirm('رفض الدفع؟', `هيتشال بلاغ ${member.name}${p.hasReceipt ? ' وصورة التحويل' : ''}، ويرجع القسط "لسه".`, 'رفض', true)) {
       run(() => removePayment(circle.id, p));
@@ -322,6 +338,17 @@ function CollectTab({
                   {formatMoney(e.due)} • {periodTitle(e)} • {formatDate(e.date, false)}
                 </Text>
                 {payment.note ? <Text variant="caption">“{payment.note}”</Text> : null}
+                {payment.hasReceipt ? (
+                  payment.receiptCheck === 'auto' ? (
+                    <Text variant="caption" weight="semibold" color={colors.success}>
+                      ✓ الإيصال مطابق للقسط وحسابك
+                    </Text>
+                  ) : (
+                    <Text variant="caption" weight="semibold" color={colors.danger}>
+                      ⚠️ الإيصال ما اتراجعش — اتأكد إن الفلوس وصلت حسابك
+                    </Text>
+                  )
+                ) : null}
                 {payment.hasReceipt ? (
                   <Text
                     variant="caption"
@@ -451,7 +478,7 @@ function CollectTab({
                     style={[styles.check, state === 'confirmed' && styles.checkOn, state === 'claimed' && styles.checkClaimed]}
                   >
                     {state === 'confirmed' && <Ionicons name="checkmark" size={20} color={colors.white} />}
-                    {state === 'claimed' && <Ionicons name="time" size={18} color="#8A6A1C" />}
+                    {state === 'claimed' && <Ionicons name="time" size={18} color={colors.goldText} />}
                   </Pressable>
                   <View style={{ flex: 1 }}>
                     <Text weight="semibold" numberOfLines={1}>
@@ -479,8 +506,18 @@ function CollectTab({
             variant="secondary"
             disabled={s.confirmed.length === s.payers.length}
             onPress={async () => {
-              const ids = s.payers.filter((m) => !s.confirmed.includes(m)).map((m) => m.id);
-              if (await confirm('تأكيد الكل؟', `هتسجل دفع ${formatNumber(ids.length)} عضو.`, 'سجّل')) {
+              const unverified = s.payers.filter((m) => {
+                const p = findPayment(payments, entry.period.id, m.id);
+                return p?.status === 'claimed' && p.hasReceipt && p.receiptCheck !== 'auto';
+              });
+              const ids = s.payers.filter((m) => !s.confirmed.includes(m) && !unverified.includes(m)).map((m) => m.id);
+              if (ids.length === 0) {
+                return alert('أكّدهم واحد واحد', `الإيصالات اللي فاضلة ما اتراجعتش: ${unverified.map((m) => m.name).join('، ')}. اتأكد إن الفلوس وصلت حسابك وأكّد كل واحد لوحده.`);
+              }
+              const note = unverified.length
+                ? `\n\nمش هيتأكد معاهم: ${unverified.map((m) => m.name).join('، ')} — إيصالاتهم ما اتراجعتش، أكّدهم لوحدهم بعد ما تتأكد إن الفلوس وصلت.`
+                : '';
+              if (await confirm('تأكيد الكل؟', `هتسجل دفع ${formatNumber(ids.length)} عضو.${note}`, 'سجّل')) {
                 run(() => confirmMany(circle.id, entry.period.id, ids, uid));
               }
             }}
@@ -576,7 +613,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
   const actions = (e: TimelineEntry) => {
     const started = e.index <= current;
     const buttons: DialogButton[] = [];
-    if (!started) buttons.push({ text: `أجّل الفترة دي ${unit}`, icon: 'time', color: '#B7791F', onPress: () => doPostpone(e.index) });
+    if (!started) buttons.push({ text: `أجّل الفترة دي ${unit}`, icon: 'time', color: colors.goldText, onPress: () => doPostpone(e.index) });
     if (e.index > 0 && !started)
       buttons.push({ text: 'طلّعها لفوق', icon: 'arrow-up', onPress: () => run(() => mutatePeriods(circle.id, (ps) => movePeriod(ps, e.index, e.index - 1))) });
     if (e.index < entries.length - 1 && !started)

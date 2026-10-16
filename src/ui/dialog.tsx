@@ -52,7 +52,7 @@ export function alert(title: string, message?: string, buttons?: DialogButton[],
 const TONES: Record<DialogTone, { icon: IconName; fg: string; bg: string }> = {
   info: { icon: 'information-circle', fg: colors.primary, bg: colors.primarySoft },
   success: { icon: 'checkmark-circle', fg: colors.success, bg: colors.successSoft },
-  warning: { icon: 'alert-circle', fg: '#B7791F', bg: colors.goldSoft },
+  warning: { icon: 'alert-circle', fg: colors.goldText, bg: colors.goldSoft },
   danger: { icon: 'trash', fg: colors.danger, bg: colors.dangerSoft },
   question: { icon: 'help-circle', fg: colors.primary, bg: colors.primarySoft },
 };

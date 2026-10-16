@@ -19,11 +19,14 @@ export interface Session {
   loading: boolean;
   /** Signed in with an email account (can own circles). */
   isAccount: boolean;
+  /** Re-render after the profile changed (Firebase doesn't emit an event for that). */
+  refresh?: () => void;
 }
 
 export function useSession(): Session {
   const [user, setUser] = useState<User | null>(() => (isFirebaseConfigured ? firebaseAuth().currentUser : null));
   const [loading, setLoading] = useState(isFirebaseConfigured);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     if (!isFirebaseConfigured) return;
@@ -33,7 +36,14 @@ export function useSession(): Session {
     });
   }, []);
 
-  return { user, loading, isAccount: !!user && !user.isAnonymous };
+  return { user, loading, isAccount: !!user && !user.isAnonymous, refresh: () => setTick((t) => t + 1) };
+}
+
+/** "حسابي": change the name shown in the app. */
+export async function updateMyName(name: string): Promise<void> {
+  const u = firebaseAuth().currentUser;
+  if (!u) return;
+  await updateProfile(u, { displayName: name.trim().slice(0, 60) });
 }
 
 export async function signUpAdmin(name: string, email: string, password: string): Promise<User> {

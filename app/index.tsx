@@ -18,7 +18,6 @@ import {
 import {
   reloadCircle,
   removePendingJoin,
-  signOut,
   useCircleData,
   useJoinStatus,
   useMyCircles,
@@ -27,9 +26,9 @@ import {
   type PendingJoin,
 } from '@/data';
 import { useAppSession } from '@/data/session';
-import { clearReminders, registerForPush, unregisterPush, useCirclePush, useCircleReminders } from '@/notifications';
+import { registerForPush, useCirclePush, useCircleReminders } from '@/notifications';
 import { Badge, Button, Card, EmptyState, ProgressBar, Row, Text } from '@/ui/components';
-import { confirm, ErrorScreen } from '@/ui/feedback';
+import { ErrorScreen } from '@/ui/feedback';
 import { colors, radius, shadow, space } from '@/ui/theme';
 
 export default function Index() {
@@ -71,22 +70,6 @@ function Home({ uid }: { uid: string }) {
   const { refs, error, loading } = useMyCircles(uid);
   const pending = usePendingJoins();
 
-  const menu = async () => {
-    const ok = await confirm(
-      'تسجيل الخروج',
-      isAccount
-        ? `مسجّل بـ ${user?.email ?? ''}. تقدر ترجع تدخل بنفس الإيميل في أي وقت.`
-        : 'إنت داخل كعضو من غير حساب. لو خرجت هتحتاج تبعت طلب انضمام وصاحب الجمعية يوافق تاني.',
-      'خروج',
-      true,
-    );
-    if (ok) {
-      await unregisterPush(uid);
-      await clearReminders();
-      await signOut();
-    }
-  };
-
   // Register for push once the user has at least one circle (permission prompt in context).
   const hasCircles = (refs?.length ?? 0) > 0;
   useEffect(() => {
@@ -117,8 +100,19 @@ function Home({ uid }: { uid: string }) {
               دوري
             </Text>
           </View>
-          <Pressable onPress={menu} accessibilityLabel="الحساب" hitSlop={10} style={styles.avatar}>
-            <Ionicons name="person" size={22} color={colors.primary} />
+          <Pressable
+            onPress={() => router.push('/account')}
+            accessibilityLabel="حسابي"
+            hitSlop={10}
+            style={({ pressed }) => [styles.avatar, pressed && { opacity: 0.85 }]}
+          >
+            {user?.displayName?.trim() ? (
+              <Text weight="bold" color={colors.white} style={{ fontSize: 20, lineHeight: 30 }}>
+                {user.displayName.trim().slice(0, 1)}
+              </Text>
+            ) : (
+              <Ionicons name="person" size={22} color={colors.white} />
+            )}
           </Pressable>
         </Row>
       </View>

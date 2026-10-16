@@ -27,8 +27,8 @@ import { colors, radius, space } from '@/ui/theme';
 type Tone = 'neutral' | 'success' | 'danger' | 'gold';
 type Filter = 'left' | 'all';
 
-const ORANGE = '#E8730C';
-const ORANGE_SOFT = '#FFF1E3';
+const ORANGE = colors.orange;
+const ORANGE_SOFT = colors.orangeSoft;
 
 /**
  * Every turn of the circle with its date and whether it was paid: for the
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: space.md,
-    backgroundColor: colors.white,
+    backgroundColor: colors.card,
   },
   rowCurrent: { borderColor: colors.primary, borderWidth: 2 },
   rowMine: { backgroundColor: ORANGE_SOFT, borderColor: ORANGE, borderWidth: 2 },

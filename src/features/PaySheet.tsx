@@ -175,7 +175,9 @@ export function PaySheet({
     account: !target || checkReceiptText(typedAccount, { amount: 0, accounts: [target] }).account,
   };
   const autoOk = !!auto && auto.amount && auto.account;
-  const verified = !needsReceipt || (!!receipt && !checking && (autoOk || (manual.amount && manual.account)));
+  // The app read the receipt and it doesn't match: no way around it — the right receipt (right amount, right account) is needed.
+  const blocked = !!auto && !autoOk;
+  const verified = !needsReceipt || (!!receipt && !checking && !blocked && (autoOk || (manual.amount && manual.account)));
 
   const submit = () =>
     run(
@@ -183,11 +185,17 @@ export function PaySheet({
         await claimPayment(circle.id, entry.period.id, memberId, uid, {
           method,
           receiptBase64: needsReceipt ? receipt?.base64 : undefined,
+          receiptCheck: needsReceipt ? (autoOk ? 'auto' : 'manual') : undefined,
           note,
         });
         onClose();
       },
-      { success: 'وصل لصاحب الجمعية، ومستني تأكيده.' },
+      {
+        success:
+          needsReceipt && !autoOk
+            ? 'وصل لصاحب الجمعية. هيأكد الدفع بعد ما يتأكد إن الفلوس وصلت حسابه.'
+            : 'وصل لصاحب الجمعية، ومستني تأكيده.',
+      },
     );
 
   return (
@@ -303,19 +311,30 @@ function ReceiptChecks({
       </View>
     );
   }
+  if (auto) {
+    return (
+      <View style={[styles.check, { backgroundColor: colors.dangerSoft, flexDirection: 'column', alignItems: 'stretch' }]}>
+        <Row gap={space.xs}>
+          <Ionicons name="close-circle" size={20} color={colors.danger} />
+          <Text weight="bold" color={colors.danger} style={{ flex: 1 }}>
+            الإيصال مش مطابق — مينفعش يتبعت
+          </Text>
+        </Row>
+        <Line ok={auto.amount} text={auto.amount ? `المبلغ ${formatMoney(amount)}` : `المبلغ المحوّل لازم يكون ${formatMoney(amount)} بالظبط`} />
+        <Line ok={auto.account} text={auto.account ? `محوّل على ${target ?? ''}` : `لازم يكون محوّل على ${target ?? 'حساب صاحب الجمعية'}`} />
+        <Text variant="caption" color={colors.text}>
+          لو حوّلت مبلغ أقل كمّل الباقي، وبعدين ارفع صورة إيصال فيها قيمة القسط كاملة على حساب صاحب الجمعية. ولو الصورة مش واضحة، صوّرها تاني.
+        </Text>
+      </View>
+    );
+  }
   return (
     <View style={[styles.check, { backgroundColor: colors.goldSoft, flexDirection: 'column', alignItems: 'stretch' }]}>
-      <Text weight="bold" color="#8A6A1C">
-        {auto ? 'الإيصال مش مطابق' : 'مقدرناش نقرا الإيصال كويس'}
+      <Text weight="bold" color={colors.goldText}>
+        مقدرناش نقرا الإيصال كويس
       </Text>
-      {auto ? (
-        <>
-          <Line ok={auto.amount} text={auto.amount ? `المبلغ ${formatMoney(amount)}` : `المبلغ لازم يكون ${formatMoney(amount)}`} />
-          <Line ok={auto.account} text={auto.account ? `محوّل على ${target ?? ''}` : `لازم يكون محوّل على ${target ?? 'حساب صاحب الجمعية'}`} />
-        </>
-      ) : null}
       <Text variant="caption">
-        لو الإيصال صح، اكتب المبلغ والرقم اللي حوّلت عليه زي ما هما في الإيصال، ولازم يطابقوا قسط الجمعية وحساب صاحبها.
+        اكتب المبلغ والرقم اللي حوّلت عليه زي ما هما في الإيصال، ولازم يطابقوا قيمة القسط وحساب صاحب الجمعية. الدفع مش هيتحسب غير لما صاحب الجمعية يتأكد إن الفلوس وصلت حسابه.
       </Text>
       <Field
         label="المبلغ اللي حوّلته"

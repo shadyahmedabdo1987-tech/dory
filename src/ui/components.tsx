@@ -99,7 +99,7 @@ export function Badge({ label, tone = 'neutral' }: { label: string; tone?: 'neut
     neutral: [colors.primarySoft, colors.primary],
     success: [colors.successSoft, colors.success],
     danger: [colors.dangerSoft, colors.danger],
-    gold: [colors.goldSoft, '#8A6A1C'],
+    gold: [colors.goldSoft, colors.goldText],
   }[tone];
   return (
     <View style={[styles.badge, { backgroundColor: palette[0] }]}>

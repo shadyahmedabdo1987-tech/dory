@@ -302,7 +302,7 @@ export function CircleForm({
                 <Row gap={space.xs} style={{ flexShrink: 1 }}>
                   {creating ? (
                     <View style={[styles.pill, locked(i) && { backgroundColor: colors.goldSoft }]}>
-                      <Text variant="caption" weight="bold" color={locked(i) ? '#8A6A1C' : colors.primary}>
+                      <Text variant="caption" weight="bold" color={locked(i) ? colors.goldText : colors.primary}>
                         {locked(i) ? '👑 صاحب الجمعية • الدور الأول' : `الدور ${ordinal(i)}`}
                       </Text>
                     </View>

@@ -124,6 +124,7 @@ function paymentFromDoc(id: string, data: DocumentData): Payment {
     status: data.status,
     method: data.method ?? undefined,
     hasReceipt: data.hasReceipt === true,
+    receiptCheck: data.receiptCheck === 'auto' || data.receiptCheck === 'manual' ? data.receiptCheck : undefined,
     claimedAt: data.claimedAt ?? undefined,
     confirmedAt: data.confirmedAt ?? undefined,
     note: data.note ?? undefined,
@@ -497,7 +498,7 @@ export async function claimPayment(
   periodId: string,
   memberId: string,
   uid: string,
-  input: { method: PaymentMethod; receiptBase64?: string; note?: string },
+  input: { method: PaymentMethod; receiptBase64?: string; note?: string; receiptCheck?: 'auto' | 'manual' },
 ) {
   const problem = validateClaim(input);
   if (problem) throw new AppError(`dory/${problem}`, arabicError({ code: `dory/${problem}` }));
@@ -521,6 +522,7 @@ export async function claimPayment(
     status: 'claimed',
     method: input.method,
     hasReceipt: withReceipt,
+    ...(withReceipt ? { receiptCheck: input.receiptCheck ?? 'manual' } : {}),
     claimedAt: new Date().toISOString(),
     claimedBy: uid,
     ...(input.note?.trim() ? { note: input.note.trim().slice(0, 200) } : {}),
@@ -530,7 +532,9 @@ export async function claimPayment(
     const [circleName, who] = await Promise.all([circleNameOf(cid), memberNameOf(cid, memberId)]);
     await pushToAdmin(cid, {
       title: `💵 ${who} بيقول إنه دفع`,
-      body: `${circleName}: ${METHOD_LABEL[input.method]}${withReceipt ? ' ومرفق صورة التحويل' : ''}. ادخل أكّد الاستلام.`,
+      body: `${circleName}: ${METHOD_LABEL[input.method]}${
+        withReceipt ? (input.receiptCheck === 'auto' ? ' — الإيصال مطابق ✓' : ' — اتأكد إن الفلوس وصلت حسابك') : ''
+      }. ادخل أكّد الاستلام.`,
     });
   })();
 }
@@ -944,6 +948,7 @@ function payoutFromDoc(data: DocumentData): PayoutRequest {
     decidedAt: data.decidedAt ?? undefined,
     paidAt: data.paidAt ?? undefined,
     hasReceipt: data.hasReceipt === true,
+    receiptCheck: data.receiptCheck === 'auto' || data.receiptCheck === 'manual' ? data.receiptCheck : undefined,
     receivedAt: data.receivedAt ?? undefined,
     disputeNote: data.disputeNote ?? undefined,
   };

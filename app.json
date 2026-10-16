@@ -5,7 +5,7 @@
     "scheme": "dory",
     "version": "2.6.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "primaryColor": "#0F5C4D",
     "backgroundColor": "#F6F3EC",

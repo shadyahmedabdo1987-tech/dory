@@ -385,7 +385,7 @@ export function MemberView({
 
 const styles = StyleSheet.create({
   balance: { backgroundColor: colors.primary, borderRadius: radius.lg, padding: space.xl, gap: space.xs },
-  myTurnPill: { marginTop: space.sm, alignSelf: 'stretch', justifyContent: 'center', backgroundColor: '#E8730C', borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm },
+  myTurnPill: { marginTop: space.sm, alignSelf: 'stretch', justifyContent: 'center', backgroundColor: colors.orange, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm },
   heroHint: { marginTop: space.sm, alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 4 },
   alert: { backgroundColor: colors.dangerSoft, borderRadius: radius.md, padding: space.md, gap: space.sm },
   payout: { backgroundColor: colors.goldSoft, borderRadius: radius.sm, padding: space.md, gap: space.sm },

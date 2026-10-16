@@ -473,6 +473,22 @@ describe('payment methods & receipts', () => {
     await assertSucceeds(getDoc(doc(admin(), 'circles', CID, 'receipts', 'p0_m1')));
   });
 
+  it('records how the receipt was checked, and only known values', async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    const ok = writeBatch(db);
+    ok.set(doc(db, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'u1'));
+    ok.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'instapay', { hasReceipt: true, receiptCheck: 'manual' }));
+    await assertSucceeds(ok.commit());
+
+    const other = anon('u2');
+    await joinBatch(other, 'u2', 'm2');
+    const bad = writeBatch(other);
+    bad.set(doc(other, 'circles', CID, 'receipts', 'p0_m2'), receipt('m2', 'u2'));
+    bad.set(doc(other, 'circles', CID, 'payments', 'p0_m2'), claimDoc('m2', 'u2', 'instapay', { hasReceipt: true, receiptCheck: 'trust-me' }));
+    await assertFails(bad.commit());
+  });
+
   it("blocks reading or forging someone else's screenshot", async () => {
     const owner = anon('u1');
     await joinBatch(owner, 'u1');

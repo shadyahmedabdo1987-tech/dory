@@ -5,7 +5,7 @@ import { ScrollView } from 'react-native';
 import { resetPassword, signInAdmin, signUpAdmin } from '@/data';
 import { Button, Card, Field, Segmented, Text } from '@/ui/components';
 import { useAction } from '@/ui/feedback';
-import { space } from '@/ui/theme';
+import { colors, space } from '@/ui/theme';
 import { alert } from '@/ui/dialog';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 
@@ -33,7 +33,7 @@ export default function AuthScreen() {
   return (
     <KeyboardScreen>
       <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">
-        <Text color="#6B7570">
+        <Text color={colors.muted}>
           حساب صاحب الجمعية بيحفظ كل جمعياتك على السيرفر. لو غيّرت موبايلك، سجّل دخول بنفس الإيميل وهتلاقي كل حاجة زي ما هي.
         </Text>
         <Segmented
