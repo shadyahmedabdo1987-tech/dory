@@ -16,7 +16,6 @@ import {
   formatDate,
   formatMoney,
   formatNumber,
-  groupSummaryMessage,
   inviteMessage,
   movePeriod,
   overview,
@@ -408,28 +407,18 @@ function CollectTab({
             })}
           </Card>
 
-          <Row gap={space.sm}>
-            <Button
-              label="الكل دفع"
-              icon="checkmark-done"
-              variant="secondary"
-              style={{ flex: 1 }}
-              disabled={s.confirmed.length === s.payers.length}
-              onPress={async () => {
-                const ids = s.payers.filter((m) => !s.confirmed.includes(m)).map((m) => m.id);
-                if (await confirm('تأكيد الكل؟', `هتسجل دفع ${formatNumber(ids.length)} عضو.`, 'سجّل')) {
-                  run(() => confirmMany(circle.id, entry.period.id, ids, uid));
-                }
-              }}
-            />
-            <Button
-              label="ابعت للجروب"
-              icon="share-social"
-              variant="whatsapp"
-              style={{ flex: 1 }}
-              onPress={() => Share.share({ message: groupSummaryMessage(circle, entry, [...s.unpaid, ...s.claimed]) }).catch(() => {})}
-            />
-          </Row>
+          <Button
+            label="الكل دفع"
+            icon="checkmark-done"
+            variant="secondary"
+            disabled={s.confirmed.length === s.payers.length}
+            onPress={async () => {
+              const ids = s.payers.filter((m) => !s.confirmed.includes(m)).map((m) => m.id);
+              if (await confirm('تأكيد الكل؟', `هتسجل دفع ${formatNumber(ids.length)} عضو.`, 'سجّل')) {
+                run(() => confirmMany(circle.id, entry.period.id, ids, uid));
+              }
+            }}
+          />
         </>
       )}
       <AdminPayoutSheet

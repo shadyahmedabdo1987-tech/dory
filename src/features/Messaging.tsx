@@ -1,51 +1,25 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Linking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   currentIndex,
   formatDate,
   formatNumber,
-  groupInviteMessage,
   groupTemplates,
-  memberNumbersText,
   periodSummary,
   timeline,
-  whatsappUrl,
   type Announcement,
   type Circle,
   type GroupTemplate,
   type Payment,
 } from '@/core';
-import { deleteAnnouncement, postAnnouncement, updateWhatsappGroup, useAnnouncements } from '@/data';
+import { deleteAnnouncement, postAnnouncement, useAnnouncements } from '@/data';
 import { Badge, Button, Card, Chip, Field, IconButton, Row, Text } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 import { alert } from '@/ui/dialog';
-
-/** Opens WhatsApp with the text ready; the user picks the group/chat and taps send. */
-export async function openWhatsAppText(text: string) {
-  const encoded = encodeURIComponent(text);
-  try {
-    await Linking.openURL(`whatsapp://send?text=${encoded}`);
-  } catch {
-    try {
-      await Linking.openURL(whatsappUrl(undefined, text));
-    } catch {
-      await Share.share({ message: text }).catch(() => {});
-    }
-  }
-}
-
-async function openUrl(url: string) {
-  try {
-    await Linking.openURL(url);
-  } catch {
-    alert('واتساب مش متاح', 'اتأكد إن واتساب متسطّب على الموبايل.');
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Unread tracking (per device, per circle)
@@ -83,7 +57,7 @@ export function AnnouncementsCard({ circle }: { circle: Circle }) {
   const { unread, seenAt, markSeen } = useUnreadAnnouncements(circle.id, items);
   const [all, setAll] = useState(false);
 
-  if (items.length === 0 && !circle.whatsappGroup) return null;
+  if (items.length === 0) return null;
   const latest = items.slice(0, 2);
 
   return (
@@ -113,9 +87,6 @@ export function AnnouncementsCard({ circle }: { circle: Circle }) {
             }}
           />
         )}
-        {circle.whatsappGroup ? (
-          <Button label="جروب الجمعية" icon="logo-whatsapp" variant="whatsapp" style={{ flex: 1 }} onPress={() => openUrl(circle.whatsappGroup!)} />
-        ) : null}
       </Row>
 
       <Sheet visible={all} title="إعلانات الجمعية" onClose={() => setAll(false)}>
@@ -145,7 +116,7 @@ function AnnouncementRow({ item, isNew, onDelete }: { item: Announcement; isNew:
 }
 
 // ---------------------------------------------------------------------------
-// Admin: messages tab (announcements + WhatsApp group)
+// Admin: messages tab (announcements)
 // ---------------------------------------------------------------------------
 
 export function MessagesTab({ circle, payments, uid }: { circle: Circle; payments: Payment[]; uid: string }) {
@@ -175,13 +146,9 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
       return true;
     });
     if (!sent) return;
-    const text = [title.trim(), body.trim()].filter(Boolean).join('\n');
     setTitle('');
     setBody('');
-    alert('اتبعت لكل الأعضاء ✓', 'تحب تبعته كمان على جروب الواتساب؟', [
-      { text: 'لأ', style: 'cancel' },
-      { text: 'ابعت للجروب', icon: 'logo-whatsapp', color: colors.whatsapp, onPress: () => openWhatsAppText(`📢 ${text}`) },
-    ]);
+    alert('اتبعت لكل الأعضاء ✓', 'الإعلان ظهر عند كل الأعضاء جوه التطبيق.');
   };
 
   return (
@@ -199,20 +166,8 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
         </ScrollView>
         <Field label="العنوان" value={title} onChangeText={setTitle} maxLength={80} placeholder="مثلًا: تذكير بقسط الشهر" />
         <Field label="الرسالة" value={body} onChangeText={setBody} maxLength={1000} multiline style={{ minHeight: 110, textAlignVertical: 'top', paddingTop: space.sm }} />
-        <Row gap={space.sm}>
-          <Button
-            label="للجروب"
-            icon="logo-whatsapp"
-            variant="secondary"
-            style={{ flex: 1 }}
-            disabled={!title.trim() && !body.trim()}
-            onPress={() => openWhatsAppText([title.trim(), body.trim()].filter(Boolean).join('\n'))}
-          />
-          <Button label="ابعت للأعضاء" icon="send" style={{ flex: 2 }} loading={busy} onPress={send} />
-        </Row>
+        <Button label="ابعت للأعضاء" icon="send" loading={busy} onPress={send} />
       </Card>
-
-      <WhatsAppGroupCard circle={circle} />
 
       {items.length > 0 && (
         <Card>
@@ -233,124 +188,6 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
   );
 }
 
-// ---------------------------------------------------------------------------
-// Admin: WhatsApp group setup
-// ---------------------------------------------------------------------------
-
-export function WhatsAppGroupCard({ circle }: { circle: Circle }) {
-  const [editing, setEditing] = useState(false);
-  const [link, setLink] = useState(circle.whatsappGroup ?? '');
-  const [inviting, setInviting] = useState(false);
-  const { busy, run } = useAction();
-  const numbers = memberNumbersText(circle.members);
-  const withPhone = circle.members.filter((m) => m.phone);
-
-  const copyNumbers = async () => {
-    await Clipboard.setStringAsync(numbers.text).catch(() => {});
-    alert(
-      `اتنسخ ${formatNumber(numbers.count)} رقم ✓`,
-      numbers.missing.length ? `مفيش رقم لـ: ${numbers.missing.join('، ')}` : 'الصقهم وإنت بتضيف أعضاء الجروب.',
-    );
-  };
-
-  return (
-    <Card>
-      <Row gap={space.sm}>
-        <Ionicons name="logo-whatsapp" size={22} color={colors.whatsapp} />
-        <Text variant="heading" style={{ flex: 1 }}>
-          جروب الواتساب
-        </Text>
-        {circle.whatsappGroup ? <Badge label="متوصل" tone="success" /> : null}
-      </Row>
-
-      {circle.whatsappGroup ? (
-        <>
-          <Text variant="caption">الأعضاء بيشوفوا زرار "جروب الجمعية" في حسابهم.</Text>
-          <Row gap={space.sm}>
-            <Button label="افتح الجروب" icon="open-outline" variant="whatsapp" style={{ flex: 1 }} onPress={() => openUrl(circle.whatsappGroup!)} />
-            <Button label="ابعت اللينك للأعضاء" icon="people-outline" variant="secondary" style={{ flex: 1 }} onPress={() => setInviting(true)} />
-          </Row>
-          <Button label="تغيير اللينك" icon="create-outline" variant="ghost" onPress={() => setEditing(true)} />
-        </>
-      ) : (
-        <>
-          <View style={styles.steps}>
-            <Step n={1} text="اعمل جروب جديد في واتساب." />
-            <Step n={2} text={`انسخ أرقام الأعضاء (${formatNumber(numbers.count)}) وضيفهم.`} />
-            <Step n={3} text='من إعدادات الجروب: "دعوة عن طريق رابط"، وانسخ اللينك هنا.' />
-          </View>
-          <Row gap={space.sm}>
-            <Button label="افتح واتساب" icon="logo-whatsapp" variant="whatsapp" style={{ flex: 1 }} onPress={() => openUrl('whatsapp://')} />
-            <Button label="انسخ الأرقام" icon="copy-outline" variant="secondary" style={{ flex: 1 }} onPress={copyNumbers} />
-          </Row>
-          <Button label="حط لينك الجروب" icon="link-outline" onPress={() => setEditing(true)} />
-        </>
-      )}
-
-      <Sheet visible={editing} title="لينك جروب الواتساب" onClose={() => setEditing(false)}>
-        <Field
-          label="لينك الدعوة"
-          value={link}
-          onChangeText={setLink}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          placeholder="https://chat.whatsapp.com/…"
-        />
-        <Button
-          label="لصق من الحافظة"
-          icon="clipboard-outline"
-          variant="ghost"
-          onPress={async () => setLink((await Clipboard.getStringAsync().catch(() => '')) || link)}
-        />
-        <Row gap={space.sm}>
-          {circle.whatsappGroup ? (
-            <Button
-              label="فك الربط"
-              variant="danger"
-              style={{ flex: 1 }}
-              onPress={() =>
-                run(async () => {
-                  await updateWhatsappGroup(circle.id, null);
-                  setEditing(false);
-                })
-              }
-            />
-          ) : null}
-          <Button
-            label="حفظ"
-            icon="checkmark"
-            style={{ flex: 2 }}
-            loading={busy}
-            onPress={() =>
-              run(async () => {
-                await updateWhatsappGroup(circle.id, link);
-                setEditing(false);
-              })
-            }
-          />
-        </Row>
-      </Sheet>
-
-      <Sheet visible={inviting} title="ابعت لينك الجروب" onClose={() => setInviting(false)}>
-        <Text variant="caption">دوس على كل عضو، هيفتح واتساب والرسالة جاهزة.</Text>
-        <ScrollView style={{ maxHeight: 380 }}>
-          {withPhone.map((m) => (
-            <Pressable
-              key={m.id}
-              style={({ pressed }) => [styles.inviteRow, pressed && { opacity: 0.6 }]}
-              onPress={() => openUrl(whatsappUrl(m.phone, groupInviteMessage(circle, m, circle.whatsappGroup ?? '')))}
-            >
-              <Ionicons name="person-circle-outline" size={24} color={colors.primary} />
-              <Text style={{ flex: 1 }}>{m.name}</Text>
-              <Ionicons name="logo-whatsapp" size={20} color={colors.whatsapp} />
-            </Pressable>
-          ))}
-        </ScrollView>
-      </Sheet>
-    </Card>
-  );
-}
 
 function Step({ n, text }: { n: number; text: string }) {
   return (
