@@ -63,7 +63,8 @@ module.exports = ({ config }) => {
     ios: { ...config.ios, ...(iosFile && { googleServicesFile: iosFile }) },
     extra: {
       ...config.extra,
-      ...(process.env.EAS_PROJECT_ID && { eas: { projectId: process.env.EAS_PROJECT_ID } }),
+      // Expo project (push notification tokens). Env overrides for other projects.
+      eas: { projectId: process.env.EAS_PROJECT_ID || 'd58ac821-2af9-433a-9cda-c16854d3db91' },
     },
   };
 };
