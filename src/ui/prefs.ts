@@ -7,8 +7,13 @@ import { File, Paths } from 'expo-file-system';
  */
 export type ThemeMode = 'system' | 'light' | 'dark';
 
+export type Lang = 'ar' | 'en';
+
 export interface Prefs {
   theme?: ThemeMode;
+  lang?: Lang;
+  /** My own InstaPay (mobile or address) — prefilled when joining / asking for a payout. */
+  myInstapay?: string;
 }
 
 function prefsFile() {

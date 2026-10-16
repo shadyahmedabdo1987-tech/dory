@@ -7,7 +7,9 @@ import {
   signInAnonymously,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
+  reauthenticateWithCredential,
   updateProfile,
+  verifyBeforeUpdateEmail,
   type User,
 } from 'firebase/auth';
 import { useEffect, useState } from 'react';
@@ -37,6 +39,17 @@ export function useSession(): Session {
   }, []);
 
   return { user, loading, isAccount: !!user && !user.isAnonymous, refresh: () => setTick((t) => t + 1) };
+}
+
+/**
+ * "حسابي": change the sign-in email. Firebase emails a link to the new address
+ * and switches only after it's opened, so a typo can't lock the owner out.
+ */
+export async function changeMyEmail(newEmail: string, password: string): Promise<void> {
+  const u = firebaseAuth().currentUser;
+  if (!u || !u.email) return;
+  await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, password));
+  await verifyBeforeUpdateEmail(u, newEmail.trim());
 }
 
 /** "حسابي": change the name shown in the app. */

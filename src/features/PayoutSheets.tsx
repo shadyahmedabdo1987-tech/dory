@@ -21,6 +21,7 @@ import { Badge, Button, Field, Row, Text } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 
+import { readPrefsSync } from '@/ui/prefs';
 import { MethodPicker, ReceiptChecks, ReceiptPicker, useReceiptVerification } from './PaySheet';
 import type { PickedReceipt } from './receiptImage';
 import { alert } from '@/ui/dialog';
@@ -96,15 +97,16 @@ export function PayoutRequestSheet({
   uid: string;
   onClose: () => void;
 }) {
-  const [method, setMethod] = useState<PaymentMethod>(request?.method ?? 'vodafone_cash');
-  const [account, setAccount] = useState(request?.account ?? '');
+  const myInstapay = readPrefsSync().myInstapay ?? '';
+  const [method, setMethod] = useState<PaymentMethod>(request?.method ?? (myInstapay ? 'instapay' : 'vodafone_cash'));
+  const [account, setAccount] = useState(request?.account ?? myInstapay);
   const [note, setNote] = useState(request?.note ?? '');
   const [showError, setShowError] = useState(false);
   const { busy, run } = useAction();
 
   useEffect(() => {
-    setMethod(request?.method ?? 'vodafone_cash');
-    setAccount(request?.account ?? '');
+    setMethod(request?.method ?? (myInstapay ? 'instapay' : 'vodafone_cash'));
+    setAccount(request?.account ?? myInstapay);
     setNote(request?.note ?? '');
     setShowError(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps

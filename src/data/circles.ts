@@ -621,6 +621,33 @@ export async function updatePayInfo(cid: string, info: PayInfo) {
   await withTimeout(updateDoc(circleRef(firestore(), cid), { payInfo: clean, updatedAt: serverTimestamp() }));
 }
 
+/** Admin ("حسابي"): the InstaPay account members transfer to, in every circle they run. */
+export async function setInstapayForMyCircles(uid: string, instapay: string): Promise<number> {
+  const db = firestore();
+  const snap = await retry(() => getDocs(query(collection(db, 'circles'), where('adminUid', '==', uid))));
+  const value = instapay.trim().slice(0, 60);
+  await Promise.all(
+    snap.docs.map((d) =>
+      withTimeout(updateDoc(d.ref, { 'payInfo.instapay': value, updatedAt: serverTimestamp() })),
+    ),
+  );
+  return snap.size;
+}
+
+/** The InstaPay account saved on the admin's circles (first one found). */
+export async function myAdminInstapay(uid: string): Promise<string> {
+  try {
+    const snap = await getDocs(query(collection(firestore(), 'circles'), where('adminUid', '==', uid)));
+    for (const d of snap.docs) {
+      const v = d.data().payInfo?.instapay;
+      if (typeof v === 'string' && v) return v;
+    }
+  } catch {
+    // offline
+  }
+  return '';
+}
+
 // ---------------------------------------------------------------------------
 // Joining (member side)
 // ---------------------------------------------------------------------------

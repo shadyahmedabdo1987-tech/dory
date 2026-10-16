@@ -26,6 +26,7 @@ import {
   type Member,
 } from '@/core';
 import { Button, Card, Chip, Field, IconButton, Row, Segmented, Text } from '@/ui/components';
+import { isEn, tr } from '@/i18n';
 import { colors, fonts, radius, space } from '@/ui/theme';
 
 import { DrawWheel } from './DrawWheel';
@@ -245,7 +246,7 @@ export function CircleForm({
               </View>
             </View>
             <TextInput
-              placeholder="اسمك"
+              placeholder={tr("اسمك")}
               placeholderTextColor={colors.muted}
               value={members[0]?.name ?? ''}
               maxLength={60}
@@ -256,7 +257,7 @@ export function CircleForm({
               حساب إنستاباي اللي الأعضاء هيحوّلوا عليه
             </Text>
             <TextInput
-              placeholder="رقم الموبايل أو name@instapay (اختياري)"
+              placeholder={tr("رقم الموبايل أو name@instapay (اختياري)")}
               placeholderTextColor={colors.muted}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -338,7 +339,7 @@ export function CircleForm({
                 </Row>
               </Row>
               <TextInput
-                placeholder="الاسم"
+                placeholder={tr("الاسم")}
                 placeholderTextColor={colors.muted}
                 value={m.name}
                 maxLength={60}
@@ -346,7 +347,7 @@ export function CircleForm({
                 style={[styles.input, showErrors && !m.name.trim() && { borderColor: colors.danger }]}
               />
               <TextInput
-                placeholder="إنستاباي: رقم الموبايل أو الإيميل (اختياري)"
+                placeholder={tr("إنستاباي: رقم الموبايل أو الإيميل (اختياري)")}
                 placeholderTextColor={colors.muted}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -444,7 +445,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 15,
     color: colors.text,
-    textAlign: 'right',
+    textAlign: isEn ? 'left' : 'right',
   },
   dayInput: {
     width: 64,

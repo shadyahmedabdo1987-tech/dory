@@ -637,7 +637,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
       <Card>
         <Text variant="heading">تحكّم في الجدول</Text>
         <Row gap={space.sm}>
-          <Button label={`تأجيل ${unit}`} icon="pause-circle-outline" variant="secondary" style={{ flex: 1 }} onPress={() => doPostpone(nextIndex)} />
+          <Button label="تأجيل قسط" icon="pause-circle-outline" variant="secondary" style={{ flex: 1 }} onPress={() => doPostpone(nextIndex)} />
           <Button label="قسط إضافي" icon="add-circle-outline" variant="secondary" style={{ flex: 1 }} onPress={() => setExtraOpen(true)} />
         </Row>
         <Row gap={space.sm}>

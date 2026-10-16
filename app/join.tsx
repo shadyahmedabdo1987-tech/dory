@@ -24,6 +24,8 @@ import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { ensurePushToken } from '@/notifications';
 import { SpinningLogo } from '@/ui/SpinningLogo';
 import { colors, radius, space } from '@/ui/theme';
+import { useAppSession } from '@/data/session';
+import { readPrefsSync, writePrefs } from '@/ui/prefs';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 
 /** The spinner shows at least this long so the screen doesn't flash. */
@@ -258,8 +260,9 @@ function JoinSheet({
   onClose: () => void;
   onSent: (s: { cid: string; circleName: string; name: string }) => void;
 }) {
-  const [name, setName] = useState('');
-  const [account, setAccount] = useState('');
+  const { user } = useAppSession();
+  const [name, setName] = useState(user?.displayName ?? '');
+  const [account, setAccount] = useState(() => readPrefsSync().myInstapay ?? '');
   const { busy, run } = useAction();
   const accountBad = !!account.trim() && !normalizePayAccount(account);
 
@@ -269,6 +272,7 @@ function JoinSheet({
       // So the admin's approval reaches this phone as a notification.
       await ensurePushToken().catch(() => null);
       const result = await requestJoin(circle.id, { name, payAccount: account }, uid);
+      if (normalizePayAccount(account)) writePrefs({ myInstapay: account.trim() });
       if (result.joined) {
         router.dismissAll();
         router.push({ pathname: '/circle/[id]', params: { id: circle.id } });

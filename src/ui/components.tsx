@@ -16,6 +16,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { isEn, tr, trNode } from '@/i18n';
+
 import { colors, fonts, radius, shadow, space } from './theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -61,7 +63,9 @@ export function Text({
         center ? { textAlign: 'center' } : null,
         style,
       ]}
-    />
+    >
+      {trNode(rest.children)}
+    </RNText>
   );
 }
 
@@ -135,7 +139,7 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={tr(label)}
       disabled={disabled || loading}
       onPress={() => {
         tap();
@@ -154,7 +158,7 @@ export function Button({
       ) : (
         <>
           {icon ? <Ionicons name={icon} size={20} color={v.fg} /> : null}
-          <Text weight="bold" color={v.fg} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ flexShrink: 1 }}>
+          <Text weight="bold" color={v.fg} numberOfLines={2} style={{ flexShrink: 1, textAlign: 'center' }}>
             {label}
           </Text>
         </>
@@ -222,6 +226,7 @@ export function Field({
         maxFontSizeMultiplier={1.15}
         placeholderTextColor={colors.muted}
         {...input}
+        placeholder={tr(input.placeholder)}
         style={[styles.input, error ? { borderColor: colors.danger } : null, style]}
       />
       {error ? (
@@ -319,7 +324,7 @@ export function EmptyState({ icon, title, body }: { icon: IconName; title: strin
 }
 
 const styles = StyleSheet.create({
-  text: { color: colors.text, writingDirection: 'rtl', textAlign: 'left' },
+  text: { color: colors.text, writingDirection: isEn ? 'ltr' : 'rtl', textAlign: 'left' },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
@@ -354,7 +359,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 16,
     color: colors.text,
-    textAlign: 'right',
+    textAlign: isEn ? 'left' : 'right',
   },
   segmented: {
     flexDirection: 'row',

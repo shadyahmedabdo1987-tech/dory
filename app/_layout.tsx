@@ -13,11 +13,12 @@ import { BusyHost } from '@/ui/busy';
 import { DialogHost } from '@/ui/dialog';
 import { ErrorScreen } from '@/ui/feedback';
 import { colors, fonts } from '@/ui/theme';
+import { isEn, tr } from '@/i18n';
 
-// Arabic-first app: lay everything out right-to-left.
-if (!I18nManager.isRTL && Platform.OS !== 'web') {
-  I18nManager.allowRTL(true);
-  I18nManager.forceRTL(true);
+// Arabic: right-to-left; English: left-to-right (takes effect from the next launch).
+if (Platform.OS !== 'web' && I18nManager.isRTL === isEn) {
+  I18nManager.allowRTL(!isEn);
+  I18nManager.forceRTL(!isEn);
 }
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -52,12 +53,12 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="auth" options={{ title: 'حساب صاحب الجمعية', presentation: 'modal' }} />
-          <Stack.Screen name="account" options={{ title: 'حسابي', presentation: 'modal' }} />
-          <Stack.Screen name="join" options={{ title: 'كود الدعوة', presentation: 'modal' }} />
-          <Stack.Screen name="new" options={{ title: 'جمعية جديدة', presentation: 'modal' }} />
+          <Stack.Screen name="auth" options={{ title: tr('حساب صاحب الجمعية'), presentation: 'modal' }} />
+          <Stack.Screen name="account" options={{ title: tr('حسابي'), presentation: 'modal' }} />
+          <Stack.Screen name="join" options={{ title: tr('كود الدعوة'), presentation: 'modal' }} />
+          <Stack.Screen name="new" options={{ title: tr('جمعية جديدة'), presentation: 'modal' }} />
           <Stack.Screen name="circle/[id]" options={{ title: '' }} />
-          <Stack.Screen name="circle/settings/[id]" options={{ title: 'إعدادات الجمعية', presentation: 'modal' }} />
+          <Stack.Screen name="circle/settings/[id]" options={{ title: tr('إعدادات الجمعية'), presentation: 'modal' }} />
         </Stack>
         <BusyHost />
         <DialogHost />

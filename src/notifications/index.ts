@@ -15,6 +15,7 @@ import {
   type Payment,
 } from '@/core';
 import { firestore } from '@/data/firebase';
+import { tr } from '@/i18n';
 import { saveCirclePushToken, setMyPushToken } from '@/data/push';
 
 /**
@@ -166,7 +167,7 @@ async function syncReminders(
     const [y, m, d] = r.date.split('-').map(Number);
     await Notifications.scheduleNotificationAsync({
       identifier: r.id,
-      content: { title: r.title, body: r.body, data: { circleId: r.circleId }, sound: 'default' },
+      content: { title: tr(r.title), body: tr(r.body), data: { circleId: r.circleId }, sound: 'default' },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
         date: new Date(y, m - 1, d, REMINDER_HOUR, 0, 0),

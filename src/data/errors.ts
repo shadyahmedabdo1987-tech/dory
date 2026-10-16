@@ -48,6 +48,9 @@ const MESSAGES: Record<string, string> = {
   'auth/too-many-requests': 'محاولات كتير. استنى شوية وجرّب تاني.',
   'auth/network-request-failed': 'مفيش نت. اتأكد من الاتصال وجرّب تاني.',
   'auth/credential-already-in-use': 'الإيميل ده مربوط بحساب تاني.',
+  'auth/requires-recent-login': 'لأمان حسابك، اخرج وادخل تاني وبعدين غيّر الإيميل.',
+  'auth/operation-not-allowed': 'تغيير الإيميل مش متاح دلوقتي. جرّب بعدين.',
+  'auth/missing-password': 'اكتب الباسورد الحالي.',
 };
 
 export function errorCode(error: unknown): string {
@@ -57,7 +60,11 @@ export function errorCode(error: unknown): string {
 
 export function arabicError(error: unknown): string {
   const code = errorCode(error);
-  return MESSAGES[code] ?? MESSAGES[code.replace(/^firestore\//, '')] ?? 'حصلت مشكلة غير متوقعة. جرّب تاني.';
+  const known = MESSAGES[code] ?? MESSAGES[code.replace(/^firestore\//, '')];
+  if (known) return known;
+  // Our own validation messages (thrown as plain Errors) are already user-facing.
+  if (error instanceof Error && /[\u0600-\u06FF]/.test(error.message)) return error.message;
+  return 'حصلت مشكلة غير متوقعة. جرّب تاني.';
 }
 
 /**

@@ -3,18 +3,19 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { BackHandler, Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { BackHandler, I18nManager, Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { formatNumber } from '@/core';
-import { signOut, updateMyName, useMyCircles } from '@/data';
+import { formatNumber, normalizePayAccount } from '@/core';
+import { changeMyEmail, myAdminInstapay, setInstapayForMyCircles, signOut, updateMyName, useMyCircles } from '@/data';
 import { useAppSession } from '@/data/session';
 import { clearReminders, unregisterPush } from '@/notifications';
 import { Badge, Button, Card, Field, Row, Segmented, Text } from '@/ui/components';
 import { alert } from '@/ui/dialog';
 import { confirm, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
-import { writePrefs, type ThemeMode } from '@/ui/prefs';
+import { readPrefsSync, writePrefs, type Lang, type ThemeMode } from '@/ui/prefs';
+import { lang as currentLang } from '@/i18n';
 import { colors, radius, space, themeMode } from '@/ui/theme';
 
 /** "حسابي": personal details, appearance, notifications and sign-out — for admins and members. */
@@ -26,7 +27,25 @@ export default function Account() {
 
   const [name, setName] = useState(user?.displayName ?? '');
   const [theme, setTheme] = useState<ThemeMode>(themeMode);
+  const [language, setLanguage] = useState<Lang>(currentLang);
   const [notif, setNotif] = useState<'on' | 'off' | 'unknown'>('unknown');
+  const [instapay, setInstapay] = useState(() => readPrefsSync().myInstapay ?? '');
+  const [savedInstapay, setSavedInstapay] = useState(instapay);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  // Admins: show the account their circles already use.
+  useEffect(() => {
+    if (!isAccount || !user || instapay) return;
+    myAdminInstapay(user.uid).then((v) => {
+      if (v) {
+        setInstapay(v);
+        setSavedInstapay(v);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAccount, user?.uid]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -51,6 +70,61 @@ export default function Account() {
       },
       { success: 'الاسم اتحفظ ✓' },
     );
+
+  const instapayBad = !!instapay.trim() && !normalizePayAccount(instapay);
+  const saveInstapay = () =>
+    run(
+      async () => {
+        const v = instapay.trim();
+        if (v && !normalizePayAccount(v)) throw new Error('اكتب رقم موبايل متوصل بإنستاباي أو عنوان إنستاباي زي name@instapay.');
+        writePrefs({ myInstapay: v });
+        let n = 0;
+        if (isAccount && v) n = await setInstapayForMyCircles(user.uid, v);
+        setSavedInstapay(v);
+        return n;
+      },
+      {
+        success: isAccount
+          ? 'اتحفظ ✓ — الأعضاء هيحوّلوا على الحساب ده في كل جمعياتك، والإيصالات هتتراجع عليه.'
+          : 'اتحفظ ✓ — هيتكتب لوحده لما تطلب القبض.',
+      },
+    );
+
+  const emailBad = !!newEmail.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(newEmail.trim());
+  const saveEmail = () =>
+    run(
+      async () => {
+        if (!newEmail.trim() || emailBad) throw new Error('اكتب إيميل صحيح.');
+        if (!password) throw new Error('اكتب الباسورد الحالي علشان نتأكد إنه إنت.');
+        await changeMyEmail(newEmail, password);
+        setEmailOpen(false);
+        setPassword('');
+      },
+      { success: `بعتنا رابط تأكيد على ${newEmail.trim()}. افتحه من الإيميل الجديد، وبعدها تدخل بيه.` },
+    );
+
+  const restartPrompt = (title: string, icon: 'moon' | 'sunny' | 'language') =>
+    alert(
+      title,
+      'هيتطبق على كل الشاشات لما تفتح البرنامج تاني.',
+      [
+        ...(Platform.OS === 'android'
+          ? [{ text: 'اقفل البرنامج دلوقتي', icon: 'power' as const, onPress: () => BackHandler.exitApp() }]
+          : []),
+        { text: 'بعدين', style: 'cancel' as const },
+      ],
+      { icon, tone: 'success' },
+    );
+
+  const chooseLanguage = (l: Lang) => {
+    setLanguage(l);
+    writePrefs({ lang: l });
+    if (Platform.OS !== 'web') {
+      I18nManager.allowRTL(l === 'ar');
+      I18nManager.forceRTL(l === 'ar');
+    }
+    if (l !== currentLang) restartPrompt(l === 'en' ? 'Language changed ✓' : 'اللغة اتغيّرت ✓', 'language');
+  };
 
   const chooseTheme = (t: ThemeMode) => {
     setTheme(t);
@@ -124,12 +198,67 @@ export default function Account() {
           </Row>
           <Field label="الاسم" value={name} onChangeText={setName} maxLength={60} placeholder="اسمك" />
           {nameChanged ? <Button label="احفظ الاسم" icon="save-outline" loading={busy} onPress={saveName} /> : null}
+          <Field
+            label={isAccount ? 'حساب إنستاباي اللي الأعضاء بيحوّلوا عليه' : 'حساب إنستاباي بتاعي (للقبض)'}
+            value={instapay}
+            onChangeText={setInstapay}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            placeholder="01xxxxxxxxx أو name@instapay"
+            error={instapayBad ? 'رقم موبايل متوصل بإنستاباي أو عنوان إنستاباي زي name@instapay' : undefined}
+            style={{ textAlign: 'left', writingDirection: 'ltr' }}
+          />
           {isAccount ? (
-            <InfoRow icon="mail-outline" label="الإيميل" value={user.email ?? '—'} />
+            <Text variant="caption">بيتغيّر في كل الجمعيات اللي بتديرها، والإيصالات بتتراجع عليه.</Text>
+          ) : null}
+          {instapay.trim() !== savedInstapay.trim() ? (
+            <Button label="احفظ حساب إنستاباي" icon="flash-outline" loading={busy} disabled={instapayBad} onPress={saveInstapay} />
+          ) : null}
+
+          {isAccount ? (
+            <View style={styles.info}>
+              <Row gap={space.sm}>
+                <Ionicons name="mail-outline" size={18} color={colors.muted} />
+                <Text variant="caption" style={{ flex: 1 }}>
+                  الإيميل
+                </Text>
+                {!emailOpen ? (
+                  <Text variant="caption" weight="bold" color={colors.primary} onPress={() => setEmailOpen(true)}>
+                    تعديل
+                  </Text>
+                ) : null}
+              </Row>
+              <Text
+                weight="semibold"
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+                selectable
+                style={{ writingDirection: 'ltr', textAlign: 'left', marginTop: 2 }}
+              >
+                {user.email ?? '—'}
+              </Text>
+              {emailOpen ? (
+                <View style={{ gap: space.sm, marginTop: space.sm }}>
+                  <Field
+                    label="الإيميل الجديد"
+                    value={newEmail}
+                    onChangeText={setNewEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    error={emailBad ? 'إيميل مش صحيح' : undefined}
+                    style={{ textAlign: 'left', writingDirection: 'ltr' }}
+                  />
+                  <Field label="الباسورد الحالي" value={password} onChangeText={setPassword} secureTextEntry />
+                  <Row gap={space.sm}>
+                    <Button label="غيّر الإيميل" icon="mail" loading={busy} style={{ flex: 2 }} onPress={saveEmail} />
+                    <Button label="إلغاء" variant="ghost" style={{ flex: 1 }} onPress={() => setEmailOpen(false)} />
+                  </Row>
+                </View>
+              ) : null}
+            </View>
           ) : (
-            <Text variant="caption">
-              إنت داخل كعضو. اسمك وحساب إنستاباي بتاعك في كل جمعية بيظهروا لصاحبها لما تبعت طلب الانضمام.
-            </Text>
+            <Text variant="caption">إنت داخل كعضو. اسمك وحساب إنستاباي بيظهروا لصاحب الجمعية لما تبعت طلب الانضمام.</Text>
           )}
         </Card>
 
@@ -148,7 +277,20 @@ export default function Account() {
               { value: 'system', label: 'زي الموبايل' },
             ]}
           />
-          <InfoRow icon="language-outline" label="اللغة" value="العربية" />
+          <Row gap={space.sm} style={styles.info}>
+            <Ionicons name="language-outline" size={18} color={colors.muted} />
+            <Text variant="caption" style={{ flex: 1 }}>
+              اللغة
+            </Text>
+          </Row>
+          <Segmented
+            value={language}
+            onChange={chooseLanguage}
+            options={[
+              { value: 'ar', label: 'العربية' },
+              { value: 'en', label: 'English' },
+            ]}
+          />
         </Card>
 
         {/* Notifications */}
@@ -192,20 +334,6 @@ function Stat({ icon, label, value }: { icon: 'briefcase-outline' | 'people-outl
         {label}
       </Text>
     </View>
-  );
-}
-
-function InfoRow({ icon, label, value }: { icon: 'mail-outline' | 'language-outline'; label: string; value: string }) {
-  return (
-    <Row gap={space.sm} style={styles.info}>
-      <Ionicons name={icon} size={18} color={colors.muted} />
-      <Text variant="caption" style={{ flex: 1 }}>
-        {label}
-      </Text>
-      <Text weight="semibold" numberOfLines={1} selectable style={{ flexShrink: 1 }}>
-        {value}
-      </Text>
-    </Row>
   );
 }
 

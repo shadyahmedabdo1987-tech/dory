@@ -1,6 +1,13 @@
 import type { Circle, Frequency, Member, TimelineEntry } from './types';
 
-const LOCALE = 'ar-EG';
+let LOCALE = 'ar-EG';
+let english = false;
+
+/** The app's display language for numbers, money and dates. */
+export function setFormatLocale(lang: 'ar' | 'en') {
+  english = lang === 'en';
+  LOCALE = english ? 'en-US' : 'ar-EG';
+}
 
 export function formatNumber(n: number): string {
   try {
@@ -27,14 +34,16 @@ const MONTHS = [
   'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
 ];
 
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 export function monthName(m: number): string {
-  return MONTHS[m - 1];
+  return (english ? MONTHS_EN : MONTHS)[m - 1];
 }
 
 /** "15 أكتوبر 2026" — independent of device ICU calendar settings. */
 export function formatDate(iso: string, withYear = true): string {
   const [y, m, d] = iso.split('-').map(Number);
-  const parts = [formatNumber(d), MONTHS[m - 1]];
+  const parts = [formatNumber(d), monthName(m)];
   if (withYear) parts.push(formatNumber(y).replace(/[٬,]/g, ''));
   return parts.join(' ');
 }
