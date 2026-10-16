@@ -24,6 +24,8 @@ module.exports = ({ config }) => {
   if (nativeFirebase) {
     plugins.push('@react-native-firebase/app', '@react-native-firebase/app-check');
   }
+  // Small APK: ML Kit OCR from Google Play services instead of bundled models.
+  plugins.push('./plugins/withMlkitUnbundled');
   plugins.push([
     'expo-build-properties',
     {
