@@ -196,7 +196,9 @@ describe('directory', () => {
     await assertSucceeds(setDoc(doc(admin(), 'directory', CID), listing()));
     await assertFails(setDoc(doc(anon('u1'), 'directory', CID), listing()));
     await assertFails(setDoc(doc(admin(), 'directory', CID), listing({ phone: '201011111111' })));
-    await assertSucceeds(getDocs(query(collection(anon('u1'), 'directory'), where('open', '==', true))));
+    // Reachable by id (through an invite code) but never listable.
+    await assertSucceeds(getDoc(doc(anon('u1'), 'directory', CID)));
+    await assertFails(getDocs(query(collection(anon('u1'), 'directory'), where('open', '==', true))));
   });
 });
 

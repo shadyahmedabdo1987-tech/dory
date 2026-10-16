@@ -142,6 +142,28 @@ export function inviteMessage(circle: Circle, member: Member): string {
   ].join('\n');
 }
 
+/** The invitation the organizer sends by SMS / WhatsApp: circle name, welcome, invite code. */
+export function circleInviteMessage(circle: Pick<Circle, 'name' | 'inviteCode'>): string {
+  return [
+    `أهلًا بيك 👋`,
+    `إنت مدعو تنضم لجمعية "${circle.name}" على تطبيق دوري.`,
+    ``,
+    `كود الدعوة: ${circle.inviteCode}`,
+    ``,
+    `افتح تطبيق دوري ودوس "عندي كود دعوة" واكتب الكود، وصاحب الجمعية هيوافق على طلبك.`,
+  ].join('\n');
+}
+
+/** Opens the SMS app with the message ready for one or more numbers. */
+export function smsUrl(phones: string[], body: string, platform: 'ios' | 'android' | string): string {
+  const list = phones.map((p) => (p.startsWith('20') ? `+${p}` : p));
+  const text = encodeURIComponent(body);
+  if (platform === 'ios') {
+    return list.length > 1 ? `sms:/open?addresses=${list.join(',')}&body=${text}` : `sms:${list[0] ?? ''}&body=${text}`;
+  }
+  return `sms:${list.join(';')}?body=${text}`;
+}
+
 /** Short share text (any app) with the code on its own line. */
 export function shareInviteMessage(circle: Circle): string {
   return [

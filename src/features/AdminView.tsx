@@ -1,9 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking as RNLinking, Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
+  circleInviteMessage,
+  normalizePhone,
+  smsUrl,
+  whatsappUrl,
   addExtraInstallment,
   addExtraTurn,
   currentIndex,
@@ -52,6 +58,7 @@ import {
   usePayouts,
   mutatePeriods,
   removePayment,
+  rotateInviteCode,
   unlinkMember,
   updatePayInfo,
 } from '@/data';
@@ -703,24 +710,7 @@ function MembersTab({ circle, requests }: { circle: Circle; requests: JoinReques
     <View style={{ gap: space.md }}>
       {requests.length > 0 && <JoinRequestsCard circle={circle} requests={requests} />}
       <PayInfoCard circle={circle} />
-      <Card>
-        <Row gap={space.sm}>
-          <Ionicons name={isCircleOpen(circle) ? 'globe-outline' : 'lock-closed-outline'} size={22} color={colors.primary} />
-          <View style={{ flex: 1 }}>
-            <Text weight="semibold">
-              {isCircleOpen(circle) ? 'الجمعية ظاهرة في "انضم لجمعية"' : 'الجمعية كملت ومش ظاهرة للانضمام'}
-            </Text>
-            <Text variant="caption">
-              {circle.slots
-                ? `فيها ${formatNumber(circle.members.length)} من ${formatNumber(circle.slots)} عضو`
-                : `فيها ${formatNumber(circle.members.length)} عضو`}
-              {' • '}دخل من موبايلاتهم {formatNumber(joined)} من {formatNumber(others.length)}
-            </Text>
-          </View>
-        </Row>
-        <ProgressBar value={circle.slots ? Math.min(1, circle.members.length / circle.slots) : 1} />
-        <Text variant="caption">الناس بتختار الجمعية من البرنامج وتبعت طلب باسمها وإنستاباي بتاعها، وإنت بتقبل أو ترفض من هنا.</Text>
-      </Card>
+      <InviteCard circle={circle} joined={joined} others={others.length} />
 
       <Card style={{ gap: 0, paddingVertical: space.sm }}>
         {circle.members.map((m, k) =>
@@ -759,6 +749,150 @@ function MembersTab({ circle, requests }: { circle: Circle; requests: JoinReques
         )}
       </Card>
     </View>
+  );
+}
+
+/**
+ * The invite code + sending it to members' numbers by SMS or WhatsApp.
+ * Numbers typed here are remembered on this device so you can see who was invited.
+ */
+function InviteCard({ circle, joined, others }: { circle: Circle; joined: number; others: number }) {
+  const { run } = useAction();
+  const [copied, setCopied] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [sent, setSent] = useState<string[]>([]);
+  const key = `dory/invited/${circle.id}`;
+  const message = circleInviteMessage(circle);
+  const open = isCircleOpen(circle);
+
+  useEffect(() => {
+    AsyncStorage.getItem(key)
+      .then((raw) => raw && setSent(JSON.parse(raw)))
+      .catch(() => {});
+  }, [key]);
+
+  const remember = (numbers: string[]) => {
+    const next = [...new Set([...sent, ...numbers])];
+    setSent(next);
+    AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {});
+  };
+
+  const typed = normalizePhone(phone);
+  const addAndSend = (via: 'sms' | 'whatsapp') => {
+    if (!typed) return alert('الرقم مش صحيح', 'اكتب رقم موبايل مصري، مثلًا 01012345678.');
+    send(via, [typed]);
+    setPhone('');
+  };
+
+  const send = (via: 'sms' | 'whatsapp', numbers: string[]) => {
+    const url = via === 'sms' ? smsUrl(numbers, message, Platform.OS) : whatsappUrl(numbers[0], message);
+    RNLinking.openURL(url)
+      .then(() => remember(numbers))
+      .catch(() =>
+        alert(via === 'sms' ? 'مقدرناش نفتح الرسائل' : 'واتساب مش متاح', 'جرّب الطريقة التانية، أو انسخ الرسالة وابعتها بنفسك.'),
+      );
+  };
+
+  return (
+    <Card>
+      <Row gap={space.sm}>
+        <Ionicons name="mail-unread-outline" size={22} color={colors.primary} />
+        <Text variant="heading" style={{ flex: 1 }}>
+          دعوة الأعضاء
+        </Text>
+        <Badge label={open ? 'مفتوحة للانضمام' : 'كملت'} tone={open ? 'success' : 'neutral'} />
+      </Row>
+      <Text variant="caption">
+        {circle.slots
+          ? `فيها ${formatNumber(circle.members.length)} من ${formatNumber(circle.slots)} عضو`
+          : `فيها ${formatNumber(circle.members.length)} عضو`}
+        {' • '}دخل من موبايلاتهم {formatNumber(joined)} من {formatNumber(others)}
+      </Text>
+
+      <Text variant="caption" weight="bold">
+        كود الدعوة
+      </Text>
+      <View style={styles.codeBox}>
+        <Text variant="number" selectable style={{ letterSpacing: 6, flex: 1, textAlign: 'center' }}>
+          {circle.inviteCode}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="انسخ الكود"
+          onPress={() => {
+            tap();
+            Clipboard.setStringAsync(circle.inviteCode).catch(() => {});
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }}
+          style={({ pressed }) => [styles.copyBtn, copied && styles.copyBtnDone, pressed && { transform: [{ scale: 0.96 }] }]}
+        >
+          <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color={colors.white} />
+          <Text weight="bold" color={colors.white}>
+            {copied ? 'اتنسخ' : 'نسخ'}
+          </Text>
+        </Pressable>
+      </View>
+
+      <Field
+        label="رقم موبايل العضو"
+        value={phone}
+        onChangeText={setPhone}
+        keyboardType="phone-pad"
+        placeholder="01xxxxxxxxx"
+        hint="هتتبعتله رسالة فيها اسم الجمعية وكود الدعوة"
+      />
+      <Row gap={space.sm}>
+        <Button label="رسالة SMS" icon="chatbubble-ellipses-outline" style={{ flex: 1 }} disabled={!phone.trim()} onPress={() => addAndSend('sms')} />
+        <Button
+          label="واتساب"
+          icon="logo-whatsapp"
+          variant="whatsapp"
+          style={{ flex: 1 }}
+          disabled={!phone.trim()}
+          onPress={() => addAndSend('whatsapp')}
+        />
+      </Row>
+
+      {sent.length > 0 ? (
+        <View style={{ gap: space.xs }}>
+          <Text variant="caption" weight="bold">
+            اتبعتلهم دعوة ({formatNumber(sent.length)})
+          </Text>
+          {sent.map((n) => (
+            <Row key={n} gap={space.sm}>
+              <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+              <Text style={{ flex: 1 }}>{n.startsWith('20') ? `0${n.slice(2)}` : n}</Text>
+              <IconButton icon="chatbubble-ellipses-outline" label="ابعت SMS تاني" onPress={() => send('sms', [n])} />
+            </Row>
+          ))}
+          {sent.length > 1 ? (
+            <Button label="ابعت SMS للكل مرة واحدة" icon="people-outline" variant="secondary" onPress={() => send('sms', sent)} />
+          ) : null}
+        </View>
+      ) : null}
+
+      <Row gap={space.sm}>
+        <Button
+          label="شارك الرسالة"
+          icon="share-outline"
+          variant="secondary"
+          style={{ flex: 1 }}
+          onPress={() => Share.share({ message }).catch(() => {})}
+        />
+        <Button
+          label="غيّر الكود"
+          icon="refresh"
+          variant="ghost"
+          style={{ flex: 1 }}
+          onPress={async () => {
+            if (await confirm('كود جديد؟', 'الكود القديم هيبطل يشتغل، ولازم تبعت الجديد للي لسه ما دخلوش.', 'غيّر')) {
+              run(() => rotateInviteCode(circle));
+            }
+          }}
+        />
+      </Row>
+    </Card>
   );
 }
 

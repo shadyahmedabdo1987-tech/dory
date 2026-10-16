@@ -669,36 +669,31 @@ export async function syncDirectory(circle: Circle, adminName: string) {
   await withTimeout(setDoc(directoryRef(firestore(), circle.id), directoryDoc(circle, adminName)), 15_000);
 }
 
-/** Anyone: live list of circles open for joining, newest first. */
-export function watchDirectory(onData: (items: DirectoryEntry[]) => void, onError: (message: string) => void): Unsubscribe {
-  return onSnapshot(
-    query(collection(firestore(), 'directory'), where('open', '==', true)),
-    (s) =>
-      onData(
-        s.docs
-          .map((d) => {
-            const x = d.data();
-            const ts = x.updatedAt as { toMillis?: () => number } | undefined;
-            return {
-              entry: {
-                id: d.id,
-                name: String(x.name ?? ''),
-                adminName: String(x.adminName ?? ''),
-                installment: Number(x.installment ?? 0),
-                frequency: x.frequency as Frequency,
-                startDate: String(x.startDate ?? ''),
-                memberCount: Number(x.memberCount ?? 0),
-                slots: typeof x.slots === 'number' ? x.slots : undefined,
-                open: x.open === true,
-              },
-              t: ts?.toMillis?.() ?? 0,
-            };
-          })
-          .sort((a, b) => b.t - a.t)
-          .map((x) => x.entry),
-      ),
-    (e) => onError(arabicError(e)),
-  );
+/**
+ * Anyone with the invite code: the circle it belongs to (its public card).
+ * There's no public list — a circle is only found through its code.
+ */
+export async function findCircleByCode(rawCode: string): Promise<DirectoryEntry> {
+  const db = firestore();
+  const code = rawCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const invite = await retry(() => getDoc(inviteRef(db, code)));
+  if (!invite.exists()) throw new AppError('dory/invite-not-found', arabicError({ code: 'dory/invite-not-found' }));
+  const cid = String(invite.data().circleId);
+  const snap = await retry(() => getDoc(directoryRef(db, cid)));
+  if (!snap.exists()) throw new AppError('dory/circle-closed', arabicError({ code: 'dory/circle-closed' }));
+  const x = snap.data();
+  const entry: DirectoryEntry = {
+    id: cid,
+    name: String(x.name ?? ''),
+    adminName: String(x.adminName ?? ''),
+    installment: Number(x.installment ?? 0),
+    frequency: x.frequency as Frequency,
+    startDate: String(x.startDate ?? ''),
+    memberCount: Number(x.memberCount ?? 0),
+    slots: typeof x.slots === 'number' ? x.slots : undefined,
+    open: x.open === true,
+  };
+  return entry;
 }
 
 export interface JoinRequest {

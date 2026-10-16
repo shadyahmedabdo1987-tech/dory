@@ -1,23 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
-import { FREQUENCY_LABEL, formatDate, formatMoney, formatNumber, normalizePayAccount } from '@/core';
+import { extractInviteCode, FREQUENCY_LABEL, formatDate, formatMoney, formatNumber, normalizePayAccount } from '@/core';
 import {
   addPendingJoin,
   cancelJoinRequest,
   ensureSignedIn,
   removePendingJoin,
   requestJoin,
-  useDirectory,
+  arabicError,
+  findCircleByCode,
   useJoinStatus,
   useMyCircles,
   usePendingJoins,
   type DirectoryEntry,
 } from '@/data';
 import { Badge, Button, Card, Field, Row, Text } from '@/ui/components';
+import { alert } from '@/ui/dialog';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { SpinningLogo } from '@/ui/SpinningLogo';
 import { colors, radius, space } from '@/ui/theme';
@@ -25,111 +27,167 @@ import { colors, radius, space } from '@/ui/theme';
 /** The spinner shows at least this long so the screen doesn't flash. */
 const MIN_LOADING_MS = 1500;
 
+type Phase = { kind: 'enter' } | { kind: 'loading' } | { kind: 'found'; circle: DirectoryEntry } | { kind: 'error'; message: string };
+
 export default function JoinScreen() {
+  const params = useLocalSearchParams<{ code?: string }>();
+  const initial = extractInviteCode(params.code ?? '') ?? '';
+  const [code, setCode] = useState(initial);
+  const [phase, setPhase] = useState<Phase>(initial ? { kind: 'loading' } : { kind: 'enter' });
   const [uid, setUid] = useState<string>();
-  const [error, setError] = useState<string>();
-  const [minDone, setMinDone] = useState(false);
-
-  // Browsing circles needs a (silent, anonymous) sign-in.
-  useEffect(() => {
-    ensureSignedIn()
-      .then((u) => setUid(u.uid))
-      .catch(() => setError('مقدرناش نتصل بالسيرفر. اتأكد من النت وجرّب تاني.'));
-    const t = setTimeout(() => setMinDone(true), MIN_LOADING_MS);
-    return () => clearTimeout(t);
-  }, []);
-
-  const directory = useDirectory(!!uid);
   const [sent, setSent] = useState<{ cid: string; circleName: string; name: string } | null>(null);
+
+  const lookup = async (value: string) => {
+    setPhase({ kind: 'loading' });
+    const started = Date.now();
+    try {
+      // Reading a circle card needs a (silent, anonymous) sign-in.
+      const user = await ensureSignedIn();
+      setUid(user.uid);
+      const circle = await findCircleByCode(value);
+      await new Promise((r) => setTimeout(r, Math.max(0, MIN_LOADING_MS - (Date.now() - started))));
+      setPhase({ kind: 'found', circle });
+    } catch (e) {
+      await new Promise((r) => setTimeout(r, Math.max(0, 800 - (Date.now() - started))));
+      setPhase({ kind: 'error', message: arabicError(e) });
+    }
+  };
+
+  // Opened from an invite link with the code already in it.
+  useEffect(() => {
+    if (initial) lookup(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (sent && uid) return <WaitingForApproval {...sent} uid={uid} />;
 
-  const loading = !minDone || !uid || directory.loading;
-  if (error || directory.error) {
+  if (phase.kind === 'loading') {
     return (
       <View style={styles.loadingRoot}>
-        <Ionicons name="cloud-offline-outline" size={56} color={colors.gold} />
-        <Text color={colors.white} center>
-          {error ?? directory.error}
-        </Text>
-        <Button label="رجوع" icon="arrow-forward" variant="secondary" onPress={() => router.back()} />
+        <SpinningLogo label="بنفتح الجمعية بتاعتك…" />
       </View>
     );
   }
-  if (loading) {
-    return (
-      <View style={styles.loadingRoot}>
-        <SpinningLogo label="بندوّر على الجمعيات…" />
-      </View>
-    );
+  if (phase.kind === 'found' && uid) {
+    return <FoundCircle circle={phase.circle} uid={uid} onSent={setSent} onBack={() => setPhase({ kind: 'enter' })} />;
   }
-  return <Directory uid={uid!} items={directory.items ?? []} onSent={setSent} />;
+  return (
+    <EnterCode
+      code={code}
+      setCode={setCode}
+      error={phase.kind === 'error' ? phase.message : undefined}
+      onSubmit={() => lookup(code)}
+    />
+  );
 }
 
-function Directory({
-  uid,
-  items,
-  onSent,
+/** Step 1: the invite code the organizer sent (typed or pasted). */
+function EnterCode({
+  code,
+  setCode,
+  error,
+  onSubmit,
 }: {
-  uid: string;
-  items: DirectoryEntry[];
-  onSent: (s: { cid: string; circleName: string; name: string }) => void;
+  code: string;
+  setCode: (c: string) => void;
+  error?: string;
+  onSubmit: () => void;
 }) {
-  const insets = useSafeAreaInsets();
+  const onChange = (t: string) => setCode(extractInviteCode(t) ?? t.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6));
+  const paste = async () => {
+    const text = await Clipboard.getStringAsync().catch(() => '');
+    const found = extractInviteCode(text ?? '');
+    if (found) setCode(found);
+    else alert('مفيش كود في اللي نسخته', 'انسخ رسالة الدعوة أو كود الجمعية، وبعدين دوس "الصق الكود".');
+  };
+  return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">
+        <View style={styles.hero}>
+          <Ionicons name="key" size={44} color={colors.gold} />
+          <Text variant="heading" color={colors.white} center>
+            ادخل كود الدعوة
+          </Text>
+          <Text variant="caption" color="rgba(255,255,255,0.85)" center>
+            الكود وصلك من صاحب الجمعية في رسالة. هتشوف الجمعية وتبعت طلب انضمام باسمك.
+          </Text>
+        </View>
+        <Card>
+          <Field
+            label="كود الدعوة"
+            value={code}
+            onChangeText={onChange}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            placeholder="مثلًا: K7QX2M"
+            error={error}
+            style={{ letterSpacing: 4, textAlign: 'center', fontSize: 22 }}
+          />
+          <Button label="الصق الكود" icon="clipboard-outline" variant="secondary" onPress={paste} />
+          <Button label="افتح الجمعية" icon="arrow-back" disabled={code.length < 6} onPress={onSubmit} />
+        </Card>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+/** Step 2: the circle behind the code, with the join request. */
+function FoundCircle({
+  circle,
+  uid,
+  onSent,
+  onBack,
+}: {
+  circle: DirectoryEntry;
+  uid: string;
+  onSent: (s: { cid: string; circleName: string; name: string }) => void;
+  onBack: () => void;
+}) {
   const { refs } = useMyCircles(uid);
   const pending = usePendingJoins();
-  const [search, setSearch] = useState('');
-  const [joining, setJoining] = useState<DirectoryEntry | null>(null);
-
-  const mine = useMemo(() => new Set((refs ?? []).map((r) => r.id)), [refs]);
-  const waiting = useMemo(() => new Set(pending.map((p) => p.cid)), [pending]);
-  const shown = items.filter((c) => !search.trim() || c.name.includes(search.trim()) || c.adminName.includes(search.trim()));
+  const [joining, setJoining] = useState(false);
+  const state = (refs ?? []).some((r) => r.id === circle.id)
+    ? 'member'
+    : pending.some((p) => p.cid === circle.id)
+      ? 'waiting'
+      : circle.open
+        ? 'open'
+        : 'closed';
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <FlatList
-        data={shown}
-        keyExtractor={(c) => c.id}
-        contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: insets.bottom + space.xxl }}
-        ListHeaderComponent={
-          <View style={{ gap: space.md }}>
-            <Text variant="heading">اختار الجمعية اللي عايز تدخلها</Text>
-            <Text variant="caption">
-              ابعت طلب انضمام باسمك، وصاحب الجمعية هيشوف بياناتك ويوافق عليك من التطبيق.
-            </Text>
-            {items.length > 4 ? (
-              <Field label="بحث" value={search} onChangeText={setSearch} placeholder="اسم الجمعية أو صاحبها" />
-            ) : null}
-          </View>
-        }
-        ListEmptyComponent={
-          <Card style={{ alignItems: 'center' }}>
-            <Ionicons name="search-outline" size={36} color={colors.muted} />
-            <Text center>{items.length ? 'مفيش جمعية بالاسم ده.' : 'مفيش جمعيات مفتوحة دلوقتي. جرّب كمان شوية.'}</Text>
-          </Card>
-        }
-        renderItem={({ item }) => (
-          <CircleCard
-            item={item}
-            state={mine.has(item.id) ? 'member' : waiting.has(item.id) ? 'waiting' : 'open'}
-            onJoin={() => setJoining(item)}
-            onOpen={() => {
-              router.dismissAll();
-              router.push({ pathname: '/circle/[id]', params: { id: item.id } });
-            }}
-          />
-        )}
-      />
+    <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }}>
+      <Row gap={space.sm}>
+        <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+        <Text variant="heading">الكود ده بتاع الجمعية دي</Text>
+      </Row>
+      {state === 'closed' ? (
+        <Card>
+          <Text weight="bold">{circle.name}</Text>
+          <Text variant="caption">الجمعية دي اكتملت ومش بتستقبل أعضاء جدد. كلّم صاحب الجمعية.</Text>
+          <Button label="رجوع" icon="arrow-forward" variant="secondary" onPress={onBack} />
+        </Card>
+      ) : (
+        <CircleCard
+          item={circle}
+          state={state}
+          onJoin={() => setJoining(true)}
+          onOpen={() => {
+            router.dismissAll();
+            router.push({ pathname: '/circle/[id]', params: { id: circle.id } });
+          }}
+        />
+      )}
+      <Button label="كود تاني" icon="key-outline" variant="ghost" onPress={onBack} />
       <JoinSheet
-        circle={joining}
+        circle={joining ? circle : null}
         uid={uid}
-        onClose={() => setJoining(null)}
+        onClose={() => setJoining(false)}
         onSent={(s) => {
-          setJoining(null);
+          setJoining(false);
           onSent(s);
         }}
       />
-    </View>
+    </ScrollView>
   );
 }
 

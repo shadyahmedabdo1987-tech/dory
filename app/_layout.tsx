@@ -52,7 +52,7 @@ export default function RootLayout() {
         >
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="auth" options={{ title: 'حساب صاحب الجمعية', presentation: 'modal' }} />
-          <Stack.Screen name="join" options={{ title: 'انضم لجمعية', presentation: 'modal' }} />
+          <Stack.Screen name="join" options={{ title: 'كود الدعوة', presentation: 'modal' }} />
           <Stack.Screen name="new" options={{ title: 'جمعية جديدة', presentation: 'modal' }} />
           <Stack.Screen name="circle/[id]" options={{ title: '' }} />
           <Stack.Screen name="circle/settings/[id]" options={{ title: 'إعدادات الجمعية', presentation: 'modal' }} />

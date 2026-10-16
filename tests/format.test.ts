@@ -6,6 +6,8 @@ import {
   groupSummaryMessage,
   inviteMessage,
   extractInviteCode,
+  circleInviteMessage,
+  smsUrl,
   normalizePayAccount,
   normalizePhone,
   parseAmount,
@@ -85,6 +87,20 @@ describe('messages', () => {
     assert.equal(normalizePayAccount('Mona.Ali@InstaPay'), 'mona.ali@instapay');
     assert.equal(normalizePayAccount('mona@'), null);
     assert.equal(normalizePayAccount('abc'), null);
+  });
+
+  it('writes the invitation with the circle name, a welcome and the code', () => {
+    const text = circleInviteMessage({ name: 'جمعية الشغل', inviteCode: 'NAFUAR' });
+    assert.match(text, /أهلًا بيك/);
+    assert.match(text, /جمعية الشغل/);
+    assert.match(text, /NAFUAR/);
+    assert.equal(extractInviteCode(text), 'NAFUAR');
+  });
+
+  it('builds SMS links for one or many numbers', () => {
+    assert.equal(smsUrl(['201012345678'], 'hi', 'android'), 'sms:+201012345678?body=hi');
+    assert.equal(smsUrl(['201012345678', '201112345678'], 'hi', 'android'), 'sms:+201012345678;+201112345678?body=hi');
+    assert.equal(smsUrl(['201012345678'], 'hi', 'ios'), 'sms:+201012345678&body=hi');
   });
 
   it('extracts the invite code from whatever was pasted', () => {

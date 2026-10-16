@@ -8,7 +8,7 @@ rules_version = '2';
 //   phones/{normalizedPhone}         phone -> memberId lookup used when joining
 //   memberships/{uid}                links a signed-in device to a member row
 //   joinRequests/{uid}               "let me in" with my name + InstaPay; the admin approves it in the app
-// directory/{cid}                    public listing of circles open for joining
+// directory/{cid}                    a circle's public card, reached only via its invite code (no listing)
 //   payments/{periodId_memberId}     member may *claim* their own payment; only admin confirms
 //   receipts/{periodId_memberId}     transfer screenshot for a claim (member owner + admin only)
 // invites/{code}                     invite code -> circle id
@@ -364,9 +364,9 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
     }
 
-    // ---------- public directory of circles open for joining ----------
+    // ---------- circle cards, found only through an invite code (no public list) ----------
     match /directory/{cid} {
-      allow read: if signedIn();
+      allow get: if signedIn();
       allow create, update: if signedIn()
         && getAfter(circlePath(cid)).data.adminUid == request.auth.uid
         && request.resource.data.keys().hasOnly(['name', 'adminName', 'installment', 'frequency', 'startDate',

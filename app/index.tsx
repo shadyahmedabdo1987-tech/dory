@@ -56,7 +56,7 @@ function Welcome() {
 
       <View style={{ gap: space.sm, alignSelf: 'stretch' }}>
         <Button label="أنا صاحب جمعية" icon="person-circle-outline" variant="secondary" onPress={() => router.push('/auth')} />
-        <Button label="انضم لجمعية" icon="people-outline" onPress={() => router.push('/join')} style={styles.goldButton} />
+        <Button label="عندي كود دعوة" icon="key-outline" onPress={() => router.push('/join')} style={styles.goldButton} />
       </View>
     </View>
   );
@@ -139,7 +139,7 @@ function Home({ uid }: { uid: string }) {
               body={
                 isAccount
                   ? 'اعمل أول جمعية: حدد القسط وميعاد الدفع، وحدد عدد الأعضاء، والناس هتبعتلك طلبات انضمام توافق عليها.'
-                  : 'دوس "انضم لجمعية" واختار الجمعية اللي عايزها.'
+                  : 'دوس "عندي كود دعوة" واكتب الكود اللي وصلك من صاحب الجمعية.'
               }
             />
           }
@@ -160,7 +160,7 @@ function Home({ uid }: { uid: string }) {
       )}
 
       <View style={[styles.actions, { paddingBottom: insets.bottom + space.lg }]}>
-        <Button label="انضم لجمعية" icon="people-outline" variant="secondary" style={{ flex: 1 }} onPress={() => router.push('/join')} />
+        <Button label="عندي كود دعوة" icon="key-outline" variant="secondary" style={{ flex: 1 }} onPress={() => router.push('/join')} />
         <Button
           label="جمعية جديدة"
           icon="add-circle"
@@ -276,7 +276,7 @@ function PendingJoinCard({ item, uid }: { item: PendingJoin; uid: string }) {
         <View style={{ flex: 1 }}>
           <Text weight="semibold">{rejected ? `صاحب "${item.circleName}" ما وافقش على طلبك` : `طلب انضمام لـ "${item.circleName}"`}</Text>
           <Text variant="caption">
-            {rejected ? 'تقدر تختار جمعية تانية من "انضم لجمعية".' : `باسم ${item.name} • مستني موافقة صاحب الجمعية`}
+            {rejected ? 'اتأكد من الكود مع صاحب الجمعية وابعت طلب جديد.' : `باسم ${item.name} • مستني موافقة صاحب الجمعية`}
           </Text>
         </View>
       </Row>
