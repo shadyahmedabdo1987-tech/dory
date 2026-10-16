@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -26,7 +26,7 @@ import {
   type TimelineEntry,
 } from '@/core';
 import { confirmPayoutReceived, disputePayout, loadPayoutReceipt, loadReceipt, removePayment, usePayouts } from '@/data';
-import { Badge, Button, Card, Field, ProgressBar, Row, Text } from '@/ui/components';
+import { Badge, Button, Card, Field, ProgressBar, Row, Text, tap } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { colors, radius, space } from '@/ui/theme';
@@ -35,6 +35,7 @@ import { AnnouncementsCard } from './Messaging';
 import { PaySheet } from './PaySheet';
 import { describePayout, PAYOUT_TONE, PayoutRequestSheet } from './PayoutSheets';
 import { ReceiptViewer } from './ReceiptViewer';
+import { TurnsSheet } from './TurnsSheet';
 
 const STATE_BADGE: Record<MemberPaymentState, { label: string; tone: 'success' | 'gold' | 'danger' | 'neutral' } | null> = {
   covered: { label: 'دورك — محسوب مدفوع', tone: 'success' },
@@ -71,6 +72,7 @@ export function MemberView({
   const payouts = usePayouts(circle.id, 'member', memberId);
   const [disputing, setDisputing] = useState<string | null>(null);
   const [disputeNote, setDisputeNote] = useState('');
+  const [showTurns, setShowTurns] = useState(false);
 
   const confirmReceived = async (periodId: string, amount: number) => {
     if (await confirm('تأكيد الاستلام', `هتأكد إنك استلمت ${formatMoney(amount)} كاملين.`, 'أيوه استلمت')) {
@@ -93,7 +95,7 @@ export function MemberView({
     <KeyboardScreen>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}>
       {/* Balance card */}
-      <View style={styles.balance}>
+      <Pressable onPress={() => { tap(); setShowTurns(true); }} style={({ pressed }) => [styles.balance, pressed && { opacity: 0.9 }]}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Text variant="caption" color="rgba(255,255,255,0.75)">
             أهلًا يا {acc.member.name}
@@ -117,7 +119,14 @@ export function MemberView({
             من {formatMoney(acc.totalCommitment)}
           </Text>
         </Row>
-      </View>
+        <Row gap={4} style={styles.heroHint}>
+          <Text variant="caption" weight="semibold" color={colors.white}>
+            اضغط تشوف الأدوار والسداد
+          </Text>
+          <Ionicons name="chevron-back" size={14} color={colors.white} />
+        </Row>
+      </Pressable>
+      <TurnsSheet visible={showTurns} onClose={() => setShowTurns(false)} circle={circle} payments={payments} memberId={memberId} />
 
       <AnnouncementsCard circle={circle} />
 
@@ -364,6 +373,7 @@ export function MemberView({
 
 const styles = StyleSheet.create({
   balance: { backgroundColor: colors.primary, borderRadius: radius.lg, padding: space.xl, gap: space.xs },
+  heroHint: { marginTop: space.sm, alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 4 },
   alert: { backgroundColor: colors.dangerSoft, borderRadius: radius.md, padding: space.md, gap: space.sm },
   payout: { backgroundColor: colors.goldSoft, borderRadius: radius.sm, padding: space.md, gap: space.sm },
   confirmBox: { backgroundColor: colors.card, borderRadius: radius.md, padding: space.md, gap: space.sm, borderWidth: 1, borderColor: colors.gold },

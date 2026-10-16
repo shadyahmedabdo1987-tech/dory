@@ -72,6 +72,7 @@ import { MessagesTab } from './Messaging';
 import { AdminPayoutSheet, describePayout, PAYOUT_TONE } from './PayoutSheets';
 import { METHOD_COLOR, METHOD_ICON } from './PaySheet';
 import { ReceiptViewer } from './ReceiptViewer';
+import { TurnsSheet } from './TurnsSheet';
 import { useAppSession } from '@/data/session';
 import { ensurePushToken } from '@/notifications';
 import { alert, type DialogButton } from '@/ui/dialog';
@@ -115,11 +116,12 @@ export function AdminView({
   const payouts = usePayouts(circle.id, 'admin', undefined);
   const o = overview(circle, payments);
   const openPayoutRequests = payouts.filter((r) => r.status === 'requested' || r.status === 'disputed').length;
+  const [showTurns, setShowTurns] = useState(false);
 
   return (
     <KeyboardScreen>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}>
-      <View style={styles.hero}>
+      <Pressable onPress={() => { tap(); setShowTurns(true); }} style={({ pressed }) => [styles.hero, pressed && { opacity: 0.9 }]}>
         <Text variant="caption" color="rgba(255,255,255,0.75)">
           القبض في كل دور
         </Text>
@@ -143,7 +145,14 @@ export function AdminView({
             </Text>
           </Row>
         </View>
-      </View>
+        <Row gap={4} style={styles.heroHint}>
+          <Text variant="caption" weight="semibold" color={colors.white}>
+            اضغط تشوف الأدوار والسداد
+          </Text>
+          <Ionicons name="chevron-back" size={14} color={colors.white} />
+        </Row>
+      </Pressable>
+      <TurnsSheet visible={showTurns} onClose={() => setShowTurns(false)} circle={circle} payments={payments} />
 
       <Segmented
         value={tab}
@@ -1041,6 +1050,7 @@ function PayInfoCard({ circle }: { circle: Circle }) {
 
 const styles = StyleSheet.create({
   hero: { backgroundColor: colors.primary, borderRadius: radius.lg, padding: space.xl, alignItems: 'center', gap: 2 },
+  heroHint: { marginTop: space.sm, alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   pendingRow: { gap: space.sm, paddingVertical: space.xs },
