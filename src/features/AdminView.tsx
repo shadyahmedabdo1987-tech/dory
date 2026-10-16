@@ -399,7 +399,7 @@ function CollectTab({
                           : 'لسه'}
                     </Text>
                   </View>
-                  {!state && (
+                  {!state && m.id !== circle.ownerMemberId && (
                     <IconButton icon="logo-whatsapp" label={`ذكّر ${m.name}`} color={colors.white} bg={colors.whatsapp} onPress={() => remind(m)} />
                   )}
                 </View>
@@ -655,7 +655,9 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
 function MembersTab({ circle }: { circle: Circle }) {
   const { run } = useAction();
   const link = Linking.createURL('/join', { queryParams: { code: circle.inviteCode } });
-  const joined = circle.members.filter((m) => m.uid).length;
+  // The organizer manages from their own account, so they don't "join" as a member.
+  const others = circle.members.filter((m) => m.id !== circle.ownerMemberId);
+  const joined = others.filter((m) => m.uid).length;
 
   const invite = (m: Member) =>
     RNLinking.openURL(whatsappUrl(m.phone, inviteMessage(circle, m, link))).catch(() =>
@@ -697,7 +699,7 @@ function MembersTab({ circle }: { circle: Circle }) {
           </Pressable>
         </View>
         <Text variant="caption" center>
-          كل عضو يدخل بالكود ده + رقم موبايله المسجل. دخل لحد دلوقتي {formatNumber(joined)} من {formatNumber(circle.members.length)}.
+          كل عضو يدخل بالكود ده + رقم موبايله المسجل. دخل لحد دلوقتي {formatNumber(joined)} من {formatNumber(others.length)}.
         </Text>
         <Row gap={space.sm} style={{ alignSelf: 'stretch' }}>
           <Button
@@ -722,7 +724,19 @@ function MembersTab({ circle }: { circle: Circle }) {
       </Card>
 
       <Card style={{ gap: 0, paddingVertical: space.sm }}>
-        {circle.members.map((m, k) => (
+        {circle.members.map((m, k) =>
+          m.id === circle.ownerMemberId ? (
+            <View key={m.id} style={[styles.row, k > 0 && styles.divider]}>
+              <Ionicons name="star" size={22} color={colors.gold} />
+              <View style={{ flex: 1 }}>
+                <Text weight="semibold" numberOfLines={1}>
+                  {m.name} (إنت)
+                </Text>
+                <Text variant="caption">صاحب الجمعية — بتديرها من حسابك</Text>
+              </View>
+              <Badge label="الأدمن" tone="gold" />
+            </View>
+          ) : (
           <View key={m.id} style={[styles.row, k > 0 && styles.divider]}>
             <Ionicons
               name={m.uid ? 'phone-portrait' : 'phone-portrait-outline'}
@@ -741,7 +755,8 @@ function MembersTab({ circle }: { circle: Circle }) {
               <IconButton icon="logo-whatsapp" label={`ابعت دعوة لـ ${m.name}`} color={colors.white} bg={colors.whatsapp} onPress={() => invite(m)} />
             ) : null}
           </View>
-        ))}
+          ),
+        )}
       </Card>
     </View>
   );
