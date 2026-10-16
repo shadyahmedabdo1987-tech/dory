@@ -149,15 +149,19 @@ describe('timeline editing', () => {
 });
 
 describe('payments & approvals', () => {
-  it('summarizes confirmed, claimed and unpaid members', () => {
-    const payments = [pay('p0', 'a'), pay('p0', 'b', 'claimed')];
+  it('summarizes confirmed, claimed and unpaid members; the recipient is covered', () => {
+    // p0 goes to 'a': a doesn't pay that period (a stray claim from 'a' is ignored).
+    const payments = [pay('p0', 'b'), pay('p0', 'a', 'claimed')];
     const s = periodSummary(makeCircle(), payments, 0);
-    assert.deepEqual(s.confirmed.map((m) => m.id), ['a']);
-    assert.deepEqual(s.claimed.map((m) => m.id), ['b']);
+    assert.deepEqual(s.covered.map((m) => m.id), ['a']);
+    assert.deepEqual(s.payers.map((m) => m.id), ['b', 'c']);
+    assert.deepEqual(s.confirmed.map((m) => m.id), ['b']);
+    assert.deepEqual(s.claimed.map((m) => m.id), []);
     assert.deepEqual(s.unpaid.map((m) => m.id), ['c']);
     assert.equal(s.collected, 1000);
-    assert.equal(s.pot, 3000);
+    assert.equal(s.pot, 2000);
     assert.equal(s.isComplete, false);
+    assert.equal(periodSummary(makeCircle(), [pay('p0', 'b'), pay('p0', 'c')], 0).isComplete, true);
   });
 
   it('treats skip periods as complete', () => {
@@ -173,6 +177,10 @@ describe('payments & approvals', () => {
     );
   });
 
+  it('ignores claims for the member\'s own payout period', () => {
+    assert.equal(pendingApprovals(makeCircle(), [pay('p0', 'a', 'claimed')]).length, 0);
+  });
+
   it('ignores payments of removed periods or members', () => {
     const payments = [pay('gone', 'a', 'claimed'), pay('p0', 'zzz', 'claimed')];
     assert.equal(pendingApprovals(makeCircle(), payments).length, 0);
@@ -185,22 +193,23 @@ describe('member account (bank view)', () => {
     const payments = [pay('p0', 'c'), pay('p1', 'c', 'claimed')];
     const acc = memberAccount(circle, payments, 'c', '2026-03-31');
     assert.equal(acc.totalCommitment, 3500);
-    assert.equal(acc.totalPaid, 1000);
+    // p2 is c's own turn: not paid in cash, counted as paid.
+    assert.equal(acc.totalPaid, 2000);
     assert.equal(acc.totalPending, 1000);
-    assert.equal(acc.remaining, 2500);
-    assert.deepEqual(acc.lines.map((l) => l.state), ['confirmed', 'claimed', 'due', 'upcoming']);
-    assert.equal(acc.nextDue?.entry.index, 2);
+    assert.equal(acc.remaining, 1500);
+    assert.deepEqual(acc.lines.map((l) => l.state), ['confirmed', 'claimed', 'covered', 'upcoming']);
+    assert.equal(acc.nextDue?.entry.index, 3);
     assert.equal(acc.nextPayout?.entry.date, '2026-03-31');
     assert.equal(acc.nextPayout?.inDays, 0);
-    assert.equal(acc.nextPayout?.amount, 3000);
+    assert.equal(acc.nextPayout?.amount, 2000);
   });
 
   it('marks periods overdue after the 7-day grace', () => {
-    const acc = memberAccount(makeCircle(), [], 'a', '2026-02-10');
-    assert.deepEqual(acc.lines.map((l) => l.state), ['overdue', 'upcoming', 'upcoming']);
+    const acc = memberAccount(makeCircle(), [], 'c', '2026-02-10');
+    assert.deepEqual(acc.lines.map((l) => l.state), ['overdue', 'upcoming', 'covered']);
     assert.equal(acc.overdueAmount, 1000);
-    const later = memberAccount(makeCircle(), [], 'a', '2026-03-10');
-    assert.deepEqual(later.lines.map((l) => l.state), ['overdue', 'overdue', 'upcoming']);
+    const later = memberAccount(makeCircle(), [], 'c', '2026-03-10');
+    assert.deepEqual(later.lines.map((l) => l.state), ['overdue', 'overdue', 'covered']);
   });
 
   it('reports received payouts', () => {

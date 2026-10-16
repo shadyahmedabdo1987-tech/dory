@@ -96,7 +96,8 @@ export interface TimelineEntry {
   recipient?: Member;
 }
 
-export type MemberPaymentState = 'confirmed' | 'claimed' | 'overdue' | 'due' | 'upcoming' | 'none';
+/** `covered`: the member receives this period's payout, so their own installment is netted out (counts as paid). */
+export type MemberPaymentState = 'covered' | 'confirmed' | 'claimed' | 'overdue' | 'due' | 'upcoming' | 'none';
 
 /** requested → approved/rejected → paid → received (or disputed by the recipient). */
 export type PayoutStatus = 'requested' | 'approved' | 'rejected' | 'paid' | 'received' | 'disputed';

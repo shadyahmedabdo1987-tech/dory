@@ -131,7 +131,8 @@ export const onPayoutWritten = onDocumentWritten('circles/{cid}/payouts/{pid}', 
   if (!circleSnap.exists || !memberSnap.exists) return;
   const circle = circleSnap.data()!;
   const member = memberSnap.data()!;
-  const pot = (Number(circle.installment) || 0) * (Number(circle.memberCount) || 0);
+  // The recipient doesn't pay their own turn, so they're handed the others' installments.
+  const pot = (Number(circle.installment) || 0) * Math.max(0, (Number(circle.memberCount) || 0) - 1);
   const content = payoutMessageFor(kind, circle.name, member.name, after, pot);
   const data = { circleId: cid, type: `payout-${kind}` };
 

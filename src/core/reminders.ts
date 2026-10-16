@@ -1,6 +1,6 @@
 import { addDays, daysBetween, todayISO } from './dates.ts';
 import { formatDate, formatMoney, periodTitle } from './format.ts';
-import { findPayment, payoutPot, timeline } from './schedule.ts';
+import { findPayment, isOwnPayout, payoutNet, timeline } from './schedule.ts';
 import type { Circle, Payment } from './types';
 
 /** A local notification to schedule on this device. */
@@ -50,16 +50,19 @@ export function planReminders(
 
     if (viewer.role === 'member') {
       const paid = findPayment(payments, pid, viewer.memberId);
-      if (entry.due > 0 && !paid) {
+      const ownTurn = isOwnPayout(entry.period, viewer.memberId);
+      if (entry.due > 0 && !paid && !ownTurn) {
         const amount = formatMoney(entry.due, circle.currency);
         push(pid, 'before', addDays(entry.date, -1), `قسط ${circle.name} بكرة`, `${amount} — ${formatDate(entry.date)}`);
         push(pid, 'due', entry.date, `النهارده ميعاد قسط ${circle.name}`, `${amount}. ادخل دوري ودوس "دفعت" بعد ما تدفع.`);
       }
-      if (entry.period.kind === 'payout' && entry.period.recipientId === viewer.memberId && !entry.period.paidOut) {
-        push(pid, 'payout', entry.date, `النهارده دورك تقبض 🎉`, `قبض ${circle.name}: ${formatMoney(payoutPot(circle), circle.currency)}`);
+      if (ownTurn && !entry.period.paidOut) {
+        push(pid, 'payout', entry.date, `النهارده دورك تقبض 🎉`, `قبض ${circle.name}: ${formatMoney(payoutNet(circle), circle.currency)} (من غير ما تدفع قسط الدور ده)`);
       }
     } else if (entry.due > 0) {
-      const missing = circle.members.filter((m) => findPayment(payments, pid, m.id)?.status !== 'confirmed').length;
+      const missing = circle.members.filter(
+        (m) => !isOwnPayout(entry.period, m.id) && findPayment(payments, pid, m.id)?.status !== 'confirmed',
+      ).length;
       if (missing > 0) {
         push(pid, 'collect', entry.date, `ميعاد تحصيل ${circle.name}`, `${periodTitle(entry)} — ${formatDate(entry.date)}`);
         push(pid, 'followup', addDays(entry.date, 3), `متابعة تحصيل ${circle.name}`, 'شوف مين لسه ما دفعش وابعتله تذكير.');

@@ -9,6 +9,7 @@ import {
   METHOD_LABEL,
   PAYOUT_STATUS_LABEL,
   payoutNeedsReceipt,
+  payoutNet,
   validatePayoutRequest,
   type Circle,
   type PaymentMethod,
@@ -109,7 +110,7 @@ export function PayoutRequestSheet({
   }, [entry?.period.id]);
 
   if (!entry) return null;
-  const pot = circle.installment * circle.members.length;
+  const pot = payoutNet(circle);
 
   const submit = () => {
     if (validatePayoutRequest(method, account)) return setShowError(true);
@@ -126,7 +127,7 @@ export function PayoutRequestSheet({
     <Sheet visible title="عايز تقبض إزاي؟" onClose={onClose}>
       <ScrollView contentContainerStyle={{ gap: space.md }} keyboardShouldPersistTaps="handled">
         <Text variant="caption">
-          قبضك {formatMoney(pot, circle.currency)} • {formatDate(entry.date)}
+          قبضك {formatMoney(pot, circle.currency)} • {formatDate(entry.date)} • من غير ما تدفع قسط الدور ده
         </Text>
         {request?.status === 'rejected' && (
           <View style={styles.notice}>
@@ -182,7 +183,7 @@ export function AdminPayoutSheet({
 
   if (!entry) return null;
   const recipient = entry.recipient;
-  const pot = circle.installment * circle.members.length;
+  const pot = payoutNet(circle);
   const paid = !!entry.period.paidOut;
   const edited = !!request && (method !== request.method || (account || '') !== (request.account || ''));
   const needsReceipt = payoutNeedsReceipt(method);

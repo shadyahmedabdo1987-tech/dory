@@ -21,6 +21,7 @@ import {
   movePeriod,
   overview,
   parseAmount,
+  payoutNet,
   payoutPot,
   pendingApprovals,
   periodSummary,
@@ -93,6 +94,9 @@ export function AdminView({
         </Text>
         <Text variant="caption" color="rgba(255,255,255,0.85)">
           {formatNumber(circle.members.length)} عضو × {formatMoney(circle.installment)} {FREQUENCY_LABEL[circle.frequency].every}
+        </Text>
+        <Text variant="caption" color="rgba(255,255,255,0.75)">
+          صاحب الدور ما بيدفعش قسطه وبيستلم {formatMoney(payoutNet(circle))}
         </Text>
         <View style={{ alignSelf: 'stretch', gap: space.xs, marginTop: space.sm }}>
           <ProgressBar value={o.ratio} />
@@ -300,7 +304,7 @@ function CollectTab({
                 اتجمع {formatMoney(s.collected)} من {formatMoney(s.pot)}
               </Text>
               <Text variant="caption" weight="bold">
-                {formatNumber(s.confirmed.length)}/{formatNumber(circle.members.length)}
+                {formatNumber(s.confirmed.length)}/{formatNumber(s.payers.length)}
               </Text>
             </Row>
             <ProgressBar value={s.pot ? s.collected / s.pot : 0} color={s.isComplete ? colors.success : colors.gold} />
@@ -341,6 +345,23 @@ function CollectTab({
 
           <Card style={{ gap: 0, paddingVertical: space.sm }}>
             {circle.members.map((m, k) => {
+              if (s.covered.includes(m)) {
+                return (
+                  <View key={m.id} style={[styles.row, k > 0 && styles.divider]}>
+                    <View style={[styles.check, styles.checkCovered]}>
+                      <Ionicons name="gift" size={18} color={colors.white} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text weight="semibold" numberOfLines={1}>
+                        {m.name}
+                      </Text>
+                      <Text variant="caption" color={colors.success}>
+                        صاحب الدور — قسطه محسوب مدفوع
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
               const p = findPayment(payments, entry.period.id, m.id);
               const state = p?.status;
               return (
@@ -381,9 +402,9 @@ function CollectTab({
               icon="checkmark-done"
               variant="secondary"
               style={{ flex: 1 }}
-              disabled={s.confirmed.length === circle.members.length}
+              disabled={s.confirmed.length === s.payers.length}
               onPress={async () => {
-                const ids = circle.members.filter((m) => !s.confirmed.includes(m)).map((m) => m.id);
+                const ids = s.payers.filter((m) => !s.confirmed.includes(m)).map((m) => m.id);
                 if (await confirm('تأكيد الكل؟', `هتسجل دفع ${formatNumber(ids.length)} عضو.`, 'سجّل')) {
                   run(() => confirmMany(circle.id, entry.period.id, ids, uid));
                 }
@@ -785,6 +806,7 @@ const styles = StyleSheet.create({
   },
   checkOn: { backgroundColor: colors.success, borderColor: colors.success },
   checkClaimed: { backgroundColor: colors.goldSoft, borderColor: colors.gold },
+  checkCovered: { backgroundColor: colors.gold, borderColor: colors.gold },
   num: {
     width: 36,
     height: 36,

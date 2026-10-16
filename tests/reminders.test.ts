@@ -42,8 +42,7 @@ describe('member reminders', () => {
       [
         ['2026-11-09', 'p0:before'],
         ['2026-11-10', 'p0:due'],
-        ['2027-01-09', 'p2:before'],
-        ['2027-01-10', 'p2:due'],
+        // p2 is b's own turn: no installment reminder, just the payout one.
         ['2027-01-10', 'p2:payout'],
       ],
     );

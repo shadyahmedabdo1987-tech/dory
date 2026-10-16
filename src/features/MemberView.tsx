@@ -36,6 +36,7 @@ import { describePayout, PAYOUT_TONE, PayoutRequestSheet } from './PayoutSheets'
 import { ReceiptViewer } from './ReceiptViewer';
 
 const STATE_BADGE: Record<MemberPaymentState, { label: string; tone: 'success' | 'gold' | 'danger' | 'neutral' } | null> = {
+  covered: { label: 'دورك — محسوب مدفوع', tone: 'success' },
   confirmed: { label: 'مدفوع ✓', tone: 'success' },
   claimed: { label: 'مستني التأكيد', tone: 'gold' },
   overdue: { label: 'متأخر', tone: 'danger' },
@@ -166,6 +167,9 @@ export function MemberView({
                     {formatDate(p.entry.date)}
                     {!p.received ? ` • ${relativeDays(daysBetween(today, p.entry.date))}` : ''}
                   </Text>
+                  <Text variant="caption" color={colors.success}>
+                    مش هتدفع قسط الدور ده — محسوب مدفوع
+                  </Text>
                 </View>
                 <Badge
                   label={p.received ? 'استلمت ✓' : `الدور رقم ${formatNumber(p.entry.index + 1)}`}
@@ -268,7 +272,7 @@ export function MemberView({
                 </Text>
                 <Text variant="caption">
                   {formatDate(line.entry.date)}
-                  {line.payment ? ` • ${METHOD_LABEL[methodOf(line.payment)]}` : ''}
+                  {line.payment && line.state !== 'covered' ? ` • ${METHOD_LABEL[methodOf(line.payment)]}` : ''}
                 </Text>
                 {line.payment?.hasReceipt ? (
                   <Text variant="caption" color={colors.primary} weight="semibold" onPress={() => setViewing(line)}>

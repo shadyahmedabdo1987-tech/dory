@@ -43,8 +43,22 @@ export function potFor(circle: Circle, period: Period): number {
   return periodDue(circle, period) * circle.members.length;
 }
 
-export function payoutPot(circle: Circle): number {
+/** Full value of a turn (every member's installment, including the recipient's own). */
+export function payoutPot(circle: Pick<Circle, 'installment' | 'members'>): number {
   return circle.installment * circle.members.length;
+}
+
+/**
+ * What the recipient is actually handed: the others' installments. The
+ * recipient doesn't pay in their own payout period — their share is netted out.
+ */
+export function payoutNet(circle: Pick<Circle, 'installment' | 'members'>): number {
+  return circle.installment * Math.max(0, circle.members.length - 1);
+}
+
+/** True when `memberId` receives this period's payout (so they don't pay it). */
+export function isOwnPayout(period: Period, memberId: string): boolean {
+  return period.kind === 'payout' && period.recipientId === memberId;
 }
 
 /**
@@ -159,8 +173,10 @@ export function paymentState(
   payment: Payment | undefined,
   current: number,
   today: string = todayISO(),
+  memberId?: string,
 ): MemberPaymentState {
   if (entry.due === 0) return 'none';
+  if (memberId && isOwnPayout(entry.period, memberId)) return 'covered';
   if (payment?.status === 'confirmed') return 'confirmed';
   if (payment?.status === 'claimed') return 'claimed';
   if (entry.index > current) return 'upcoming';
@@ -175,6 +191,10 @@ export interface PeriodSummary {
   confirmed: Member[];
   claimed: Member[];
   unpaid: Member[];
+  /** The turn's recipient — doesn't pay this period. */
+  covered: Member[];
+  /** Members who owe this period (everyone except the recipient). */
+  payers: Member[];
   collected: number;
   isComplete: boolean;
 }
@@ -185,18 +205,27 @@ export function periodSummary(circle: Circle, payments: Payment[], index: number
   const confirmed: Member[] = [];
   const claimed: Member[] = [];
   const unpaid: Member[] = [];
+  const covered: Member[] = [];
+  const payers: Member[] = [];
   if (entry.due > 0) {
     for (const m of circle.members) {
+      if (isOwnPayout(entry.period, m.id)) {
+        covered.push(m);
+        continue;
+      }
+      payers.push(m);
       const p = findPayment(payments, entry.period.id, m.id);
       (p?.status === 'confirmed' ? confirmed : p?.status === 'claimed' ? claimed : unpaid).push(m);
     }
   }
   return {
     entry,
-    pot: entry.due * circle.members.length,
+    pot: entry.due * payers.length,
     confirmed,
     claimed,
     unpaid,
+    covered,
+    payers,
     collected: confirmed.length * entry.due,
     isComplete: entry.due === 0 || unpaid.length + claimed.length === 0,
   };
@@ -207,7 +236,13 @@ export function pendingApprovals(circle: Circle, payments: Payment[]) {
   const entries = new Map(timeline(circle).map((e) => [e.period.id, e]));
   const members = new Map(circle.members.map((m) => [m.id, m]));
   return payments
-    .filter((p) => p.status === 'claimed' && entries.has(p.periodId) && members.has(p.memberId))
+    .filter(
+      (p) =>
+        p.status === 'claimed' &&
+        entries.has(p.periodId) &&
+        members.has(p.memberId) &&
+        !isOwnPayout(entries.get(p.periodId)!.period, p.memberId),
+    )
     .map((p) => ({ payment: p, entry: entries.get(p.periodId)!, member: members.get(p.memberId)! }))
     .sort((a, b) => a.entry.index - b.entry.index);
 }
@@ -252,18 +287,19 @@ export function memberAccount(
     return {
       entry,
       payment,
-      state: paymentState(entry, payment, current, today),
-      isMyPayout: entry.period.kind === 'payout' && entry.period.recipientId === memberId,
+      state: paymentState(entry, payment, current, today, memberId),
+      isMyPayout: isOwnPayout(entry.period, memberId),
     };
   });
 
   const sum = (ls: AccountLine[]) => ls.reduce((s, l) => s + l.entry.due, 0);
-  const paid = lines.filter((l) => l.state === 'confirmed');
+  // The member's own payout-period installment is netted out, so it counts as paid.
+  const paid = lines.filter((l) => l.state === 'confirmed' || l.state === 'covered');
   const pending = lines.filter((l) => l.state === 'claimed');
   const overdue = lines.filter((l) => l.state === 'overdue');
   const totalCommitment = sum(lines);
 
-  const pot = payoutPot(circle);
+  const pot = payoutNet(circle);
   const myPayouts = lines
     .filter((l) => l.isMyPayout)
     .map((l) => ({ entry: l.entry, amount: pot, received: !!l.entry.period.paidOut }));
@@ -315,7 +351,7 @@ export function overview(circle: Circle, payments: Payment[], today: string = to
   for (const entry of entries) {
     if (entry.index > current || entry.due === 0) continue;
     for (const m of circle.members) {
-      const state = paymentState(entry, findPayment(payments, entry.period.id, m.id), current, today);
+      const state = paymentState(entry, findPayment(payments, entry.period.id, m.id), current, today, m.id);
       if (state === 'overdue') {
         overdueCount++;
         overdueAmount += entry.due;
