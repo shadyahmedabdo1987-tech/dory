@@ -544,7 +544,7 @@ describe('payment methods & receipts', () => {
     ok.set(doc(db, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'admin'));
     ok.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), confirmed('instapay', { hasReceipt: true, receiptCheck: 'auto' }));
     await assertSucceeds(ok.commit());
-    await assertSucceeds(setDoc(doc(db, 'circles', CID, 'payments', 'p0_m2'), confirmed('cash')));
+    await assertSucceeds(setDoc(doc(db, 'circles', CID, 'payments', 'p0_m2'), confirmed('cash', { memberId: 'm2' })));
   });
 
   it('rejects unknown methods and oversized images', async () => {
