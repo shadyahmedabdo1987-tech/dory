@@ -119,6 +119,18 @@ export function MemberView({
             من {formatMoney(acc.totalCommitment)}
           </Text>
         </Row>
+        {acc.myPayouts.length ? (() => {
+          const t = acc.myPayouts.find((p) => !p.received) ?? acc.myPayouts[acc.myPayouts.length - 1];
+          const d = daysBetween(today, t.entry.date);
+          return (
+            <Row gap={space.xs} style={styles.myTurnPill}>
+              <Ionicons name="gift" size={16} color={colors.white} />
+              <Text variant="caption" weight="bold" color={colors.white}>
+                {t.received ? `قبضت دورك يوم ${formatDate(t.entry.date)} ✓` : `دورك في القبض: ${formatDate(t.entry.date)} (${d === 0 ? 'النهارده' : relativeDays(d)})`}
+              </Text>
+            </Row>
+          );
+        })() : null}
         <Row gap={4} style={styles.heroHint}>
           <Text variant="caption" weight="semibold" color={colors.white}>
             اضغط تشوف الأدوار والسداد
@@ -373,6 +385,7 @@ export function MemberView({
 
 const styles = StyleSheet.create({
   balance: { backgroundColor: colors.primary, borderRadius: radius.lg, padding: space.xl, gap: space.xs },
+  myTurnPill: { marginTop: space.sm, alignSelf: 'stretch', justifyContent: 'center', backgroundColor: '#E8730C', borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm },
   heroHint: { marginTop: space.sm, alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 4 },
   alert: { backgroundColor: colors.dangerSoft, borderRadius: radius.md, padding: space.md, gap: space.sm },
   payout: { backgroundColor: colors.goldSoft, borderRadius: radius.sm, padding: space.md, gap: space.sm },

@@ -27,6 +27,9 @@ import { colors, radius, space } from '@/ui/theme';
 type Tone = 'neutral' | 'success' | 'danger' | 'gold';
 type Filter = 'left' | 'all';
 
+const ORANGE = '#E8730C';
+const ORANGE_SOFT = '#FFF1E3';
+
 /**
  * Every turn of the circle with its date and whether it was paid: for the
  * admin how much of each turn was collected; for a member their own
@@ -61,6 +64,7 @@ export function TurnsSheet({
   return (
     <Sheet visible title="الأدوار" onClose={onClose}>
       <View style={{ gap: space.md }}>
+        {memberId ? <MyTurnBanner entries={entries} numbers={numbers} memberId={memberId} today={today} circle={circle} /> : null}
         <Row style={styles.summary}>
           <Summary label="كل الأدوار" value={formatNumber(turnNo)} />
           <Summary label="اتقبض" value={formatNumber(entries.filter((e) => e.period.kind === 'payout' && e.period.paidOut).length)} tone={colors.success} />
@@ -96,6 +100,44 @@ export function TurnsSheet({
         </ScrollView>
       </View>
     </Sheet>
+  );
+}
+
+function MyTurnBanner({
+  entries,
+  numbers,
+  memberId,
+  today,
+  circle,
+}: {
+  entries: TimelineEntry[];
+  numbers: Map<number, number>;
+  memberId: string;
+  today: string;
+  circle: Circle;
+}) {
+  const mine = entries.filter((e) => e.period.kind === 'payout' && e.period.recipientId === memberId);
+  if (mine.length === 0) return null;
+  const next = mine.find((e) => !e.period.paidOut) ?? mine[mine.length - 1];
+  const done = !!next.period.paidOut;
+  const days = daysBetween(today, next.date);
+  return (
+    <View style={styles.myTurn}>
+      <Row gap={space.sm}>
+        <Ionicons name="gift" size={26} color={colors.white} />
+        <View style={{ flex: 1 }}>
+          <Text variant="caption" color="rgba(255,255,255,0.9)">
+            {done ? 'دورك في القبض (خلص)' : `دورك في القبض — الدور رقم ${formatNumber(numbers.get(next.index) ?? 0)}`}
+          </Text>
+          <Text weight="bold" color={colors.white} style={{ fontSize: 20 }}>
+            {formatDate(next.date)}
+          </Text>
+          <Text variant="caption" weight="semibold" color={colors.white}>
+            {done ? `قبضت ${formatMoney(payoutNet(circle))} ✓` : `${days === 0 ? 'النهارده' : relativeDays(days)} • هتقبض ${formatMoney(payoutNet(circle))}`}
+          </Text>
+        </View>
+      </Row>
+    </View>
   );
 }
 
@@ -175,9 +217,9 @@ function TurnRow({
   return (
     <View style={[styles.row, isCurrent && styles.rowCurrent, mine && styles.rowMine]}>
       <Row gap={space.sm}>
-        <View style={[styles.num, entry.period.paidOut && { backgroundColor: colors.successSoft }]}>
+        <View style={[styles.num, entry.period.paidOut && { backgroundColor: colors.successSoft }, mine && { backgroundColor: ORANGE }]}>
           {number ? (
-            <Text weight="bold" color={entry.period.paidOut ? colors.success : colors.primary}>
+            <Text weight="bold" color={mine ? colors.white : entry.period.paidOut ? colors.success : colors.primary}>
               {formatNumber(number)}
             </Text>
           ) : (
@@ -185,7 +227,7 @@ function TurnRow({
           )}
         </View>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text weight="semibold" numberOfLines={1}>
+          <Text weight="semibold" numberOfLines={1} color={mine ? ORANGE : undefined}>
             {periodTitle(entry)}
             {mine ? ' (دورك)' : ''}
           </Text>
@@ -228,7 +270,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   rowCurrent: { borderColor: colors.primary, borderWidth: 2 },
-  rowMine: { backgroundColor: colors.goldSoft },
+  rowMine: { backgroundColor: ORANGE_SOFT, borderColor: ORANGE, borderWidth: 2 },
+  myTurn: { backgroundColor: ORANGE, borderRadius: radius.lg, padding: space.md },
   num: {
     width: 36,
     height: 36,
