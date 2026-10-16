@@ -763,7 +763,7 @@ function MembersTab({ circle, requests }: { circle: Circle; requests: JoinReques
               </Text>
               <Text variant="caption">
                 {m.uid ? 'داخل من موبايله' : 'لسه ما دخلش'}
-                {m.phone ? ` • ${m.phone.includes('@') ? 'إنستاباي' : 'محفظة/إنستاباي'}: ${m.phone}` : ''}
+                {m.phone ? ` • إنستاباي: ${m.phone}` : ''}
               </Text>
             </View>
             {m.uid ? (

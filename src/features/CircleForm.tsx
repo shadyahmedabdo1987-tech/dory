@@ -37,7 +37,7 @@ const ERRORS: Record<DraftError, string> = {
   startDate: 'التاريخ مش صحيح',
   members: 'محتاج عضوين على الأقل',
   memberName: 'في عضو من غير اسم',
-  duplicatePhone: 'في رقم محفظة أو إيميل إنستاباي متكرر لعضوين',
+  duplicatePhone: 'في رقم أو إيميل إنستاباي متكرر لعضوين',
 };
 
 const blankMember = (): Member => ({ id: newId('new_'), name: '', phone: '' });
@@ -205,7 +205,7 @@ export function CircleForm({
           </Row>
           <Text variant="caption">
             {mode === 'create'
-              ? 'الترتيب هنا هو ترتيب القبض. الأعضاء بيدخلوا بكود الجمعية وإنت بتوافق عليهم من التطبيق. رقم المحفظة أو إيميل إنستاباي (زي name@instapay) اختياري، للقبض بس.'
+              ? 'الترتيب هنا هو ترتيب القبض. الأعضاء بيدخلوا بكود الجمعية وإنت بتوافق عليهم من التطبيق. خانة إنستاباي اختيارية للقبض بس: اكتب رقم الموبايل المتوصل بإنستاباي أو إيميل إنستاباي (زي name@instapay).'
               : 'الأعضاء الجداد بيتضاف دورهم في آخر الجدول. ترتيب الأدوار من تبويب "الجدول".'}
           </Text>
           {mode === 'create' && (
@@ -275,7 +275,7 @@ export function CircleForm({
                 style={[styles.input, showErrors && !m.name.trim() && { borderColor: colors.danger }]}
               />
               <TextInput
-                placeholder="رقم المحفظة أو إيميل إنستاباي (اختياري)"
+                placeholder="إنستاباي: رقم الموبايل أو الإيميل (اختياري)"
                 placeholderTextColor={colors.muted}
                 keyboardType="email-address"
                 autoCapitalize="none"
