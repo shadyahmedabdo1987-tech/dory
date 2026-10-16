@@ -7,6 +7,7 @@ import { arabicError, errorCode } from '@/data/errors';
 
 import { Button, Text } from './components';
 import { colors, radius, space } from './theme';
+import { beginBusy, endBusy } from './busy';
 import { alert } from './dialog';
 
 /**
@@ -21,17 +22,20 @@ export function useAction() {
     if (running.current) return undefined; // ignore double taps
     running.current = true;
     setBusy(true);
+    beginBusy();
+    let message: [string, string] | undefined;
     try {
       const result = await fn();
-      if (options?.success) alert('تمام ✓', options.success);
+      if (options?.success) message = ['تمام ✓', options.success];
       return result;
     } catch (e) {
-      if (errorCode(e) === 'dory/offline-timeout') alert('هيتحفظ قريب', arabicError(e));
-      else alert('معلش', arabicError(e));
+      message = errorCode(e) === 'dory/offline-timeout' ? ['هيتحفظ قريب', arabicError(e)] : ['معلش', arabicError(e)];
       return undefined;
     } finally {
+      await endBusy();
       running.current = false;
       setBusy(false);
+      if (message) alert(message[0], message[1]);
     }
   }, []);
 

@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { isFirebaseConfigured, useSession } from '@/data';
 import { SessionProvider } from '@/data/session';
 import { useNotificationRouting } from '@/notifications';
+import { BusyHost } from '@/ui/busy';
 import { DialogHost } from '@/ui/dialog';
 import { ErrorScreen } from '@/ui/feedback';
 import { colors, fonts } from '@/ui/theme';
@@ -57,6 +58,7 @@ export default function RootLayout() {
           <Stack.Screen name="circle/[id]" options={{ title: '' }} />
           <Stack.Screen name="circle/settings/[id]" options={{ title: 'إعدادات الجمعية', presentation: 'modal' }} />
         </Stack>
+        <BusyHost />
         <DialogHost />
       </SafeAreaProvider>
     </SessionProvider>
