@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 
 import { resetPassword, signInAdmin, signUpAdmin } from '@/data';
 import { Button, Card, Field, Segmented, Text } from '@/ui/components';
 import { useAction } from '@/ui/feedback';
 import { space } from '@/ui/theme';
+import { alert } from '@/ui/dialog';
 
 type Mode = 'signin' | 'signup';
 
@@ -24,7 +25,7 @@ export default function AuthScreen() {
     });
 
   const forgot = () => {
-    if (!email.trim()) return Alert.alert('اكتب إيميلك الأول', 'وبعدين دوس "نسيت كلمة السر".');
+    if (!email.trim()) return alert('اكتب إيميلك الأول', 'وبعدين دوس "نسيت كلمة السر".');
     run(() => resetPassword(email), { success: 'بعتنالك إيميل تغيّر منه كلمة السر.' });
   };
 

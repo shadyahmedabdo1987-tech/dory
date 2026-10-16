@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useState, type ComponentProps } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   formatDate,
@@ -20,6 +20,14 @@ import { Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 
 import { pickReceipt, type PickedReceipt } from './receiptImage';
+import { alert } from '@/ui/dialog';
+
+/** Brand-ish accent per payment method (cash green, InstaPay purple, Vodafone red). */
+export const METHOD_COLOR: Record<PaymentMethod, string> = {
+  cash: '#2E8B57',
+  instapay: '#5B2D90',
+  vodafone_cash: '#E60000',
+};
 
 export const METHOD_ICON: Record<PaymentMethod, ComponentProps<typeof Ionicons>['name']> = {
   cash: 'cash-outline',
@@ -32,6 +40,7 @@ export function MethodPicker({ value, onChange }: { value: PaymentMethod; onChan
     <Row gap={space.sm}>
       {PAYMENT_METHODS.map((m) => {
         const active = m === value;
+        const accent = METHOD_COLOR[m];
         return (
           <Pressable
             key={m}
@@ -41,10 +50,21 @@ export function MethodPicker({ value, onChange }: { value: PaymentMethod; onChan
               tap();
               onChange(m);
             }}
-            style={[styles.method, active && styles.methodActive]}
+            style={({ pressed }) => [
+              styles.method,
+              active && { borderColor: accent, backgroundColor: `${accent}0F` },
+              pressed && { transform: [{ scale: 0.97 }] },
+            ]}
           >
-            <Ionicons name={METHOD_ICON[m]} size={22} color={active ? colors.white : colors.primary} />
-            <Text variant="caption" weight="bold" color={active ? colors.white : colors.text}>
+            {active ? (
+              <View style={[styles.methodCheck, { backgroundColor: accent }]}>
+                <Ionicons name="checkmark" size={12} color={colors.white} />
+              </View>
+            ) : null}
+            <View style={[styles.methodIcon, { backgroundColor: `${accent}1A` }]}>
+              <Ionicons name={METHOD_ICON[m]} size={22} color={accent} />
+            </View>
+            <Text variant="caption" weight="bold" color={active ? accent : colors.text}>
               {METHOD_LABEL[m]}
             </Text>
           </Pressable>
@@ -69,7 +89,7 @@ export function ReceiptPicker({
       const picked = await pickReceipt(source);
       if (picked) onChange(picked);
     } catch {
-      Alert.alert('معلش', 'مقدرناش نفتح الصورة. جرّب تاني.');
+      alert('معلش', 'مقدرناش نفتح الصورة. جرّب تاني.');
     } finally {
       setPicking(false);
     }
@@ -145,7 +165,7 @@ export function PaySheet({
             style={styles.target}
             onPress={() => {
               Clipboard.setStringAsync(target).catch(() => {});
-              Alert.alert('اتنسخ ✓', target);
+              alert('اتنسخ ✓', target);
             }}
           >
             <View style={{ flex: 1 }}>
@@ -186,11 +206,21 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingVertical: space.md,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  methodActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  methodIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  methodCheck: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   target: {
     flexDirection: 'row',
     alignItems: 'center',

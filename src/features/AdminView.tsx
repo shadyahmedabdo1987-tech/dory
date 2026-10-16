@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useMemo, useState } from 'react';
-import { Alert, Linking as RNLinking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Linking as RNLinking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -62,7 +62,9 @@ import { colors, radius, space } from '@/ui/theme';
 import { DrawWheel } from './DrawWheel';
 import { MessagesTab } from './Messaging';
 import { AdminPayoutSheet, describePayout, PAYOUT_TONE } from './PayoutSheets';
+import { METHOD_COLOR, METHOD_ICON } from './PaySheet';
 import { ReceiptViewer } from './ReceiptViewer';
+import { alert, type DialogButton } from '@/ui/dialog';
 
 export type AdminTab = 'collect' | 'schedule' | 'members' | 'messages';
 
@@ -161,7 +163,7 @@ function CollectTab({
 
   const remind = (m: Member) =>
     RNLinking.openURL(whatsappUrl(m.phone, reminderMessage(circle, m, entry))).catch(() =>
-      Alert.alert('واتساب مش متاح', 'اتأكد إن واتساب متسطّب على الموبايل.'),
+      alert('واتساب مش متاح', 'اتأكد إن واتساب متسطّب على الموبايل.'),
     );
 
   const [review, setReview] = useState<{ payment: Payment; member: Member; entry: TimelineEntry } | null>(null);
@@ -177,13 +179,21 @@ function CollectTab({
 
   /** Admin records a payment received directly: ask how it was paid. */
   const record = (m: Member) =>
-    Alert.alert(`${m.name} دفع إزاي؟`, `${formatMoney(entry.due)} • ${periodTitle(entry)}`, [
-      ...PAYMENT_METHODS.map((method) => ({
-        text: METHOD_LABEL[method],
-        onPress: () => run(() => confirmPayment(circle.id, entry.period.id, m.id, uid, method)),
-      })),
-      { text: 'إلغاء', style: 'cancel' as const },
-    ]);
+    alert(
+      `${m.name} دفع إزاي؟`,
+      `${formatMoney(entry.due)} • ${periodTitle(entry)}`,
+      [
+        ...PAYMENT_METHODS.map((method) => ({
+          text: METHOD_LABEL[method],
+          icon: METHOD_ICON[method],
+          color: METHOD_COLOR[method],
+          hint: method === 'cash' ? 'استلمت الفلوس في إيدك' : 'وصل التحويل على حسابك',
+          onPress: () => run(() => confirmPayment(circle.id, entry.period.id, m.id, uid, method)),
+        })),
+        { text: 'إلغاء', style: 'cancel' as const },
+      ],
+      { icon: 'wallet', tone: 'info' },
+    );
 
   const toggle = (m: Member) => {
     tap();
@@ -191,16 +201,18 @@ function CollectTab({
     if (!p) return record(m);
     if (p.status === 'claimed') {
       if (p.hasReceipt) return setReview({ payment: p, member: m, entry });
-      return Alert.alert(`${m.name} بيقول إنه دفع ${METHOD_LABEL[methodOf(p)]}`, `${formatMoney(entry.due)} • ${periodTitle(entry)}`, [
+      return alert(`${m.name} بيقول إنه دفع ${METHOD_LABEL[methodOf(p)]}`, `${formatMoney(entry.due)} • ${periodTitle(entry)}`, [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'رفض', style: 'destructive', onPress: () => reject(p, m) },
-        { text: 'استلمت ✓', onPress: () => approve(p) },
+        { text: 'رفض', style: 'destructive', icon: 'close-circle', onPress: () => reject(p, m) },
+        { text: 'استلمت الفلوس', icon: 'checkmark-circle', color: colors.success, onPress: () => approve(p) },
       ]);
     }
-    Alert.alert('إلغاء الدفع؟', `هتشيل دفع ${m.name} (${METHOD_LABEL[methodOf(p)]}) للفترة دي.`, [
+    alert('إلغاء الدفع؟', `هتشيل دفع ${m.name} (${METHOD_LABEL[methodOf(p)]}) للفترة دي.`, [
       { text: 'لأ', style: 'cancel' },
-      ...(p.hasReceipt ? [{ text: 'عرض الصورة', onPress: () => setReview({ payment: p, member: m, entry }) }] : []),
-      { text: 'شيل', style: 'destructive' as const, onPress: () => run(() => removePayment(circle.id, p)) },
+      ...(p.hasReceipt
+        ? [{ text: 'عرض صورة التحويل', icon: 'image' as const, onPress: () => setReview({ payment: p, member: m, entry }) }]
+        : []),
+      { text: 'شيل الدفع', style: 'destructive' as const, icon: 'trash' as const, onPress: () => run(() => removePayment(circle.id, p)) },
     ]);
   };
 
@@ -508,23 +520,24 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
 
   const actions = (e: TimelineEntry) => {
     const started = e.index <= current;
-    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [];
-    if (!started) buttons.push({ text: `أجّل الفترة دي ${unit}`, onPress: () => doPostpone(e.index) });
+    const buttons: DialogButton[] = [];
+    if (!started) buttons.push({ text: `أجّل الفترة دي ${unit}`, icon: 'time', color: '#B7791F', onPress: () => doPostpone(e.index) });
     if (e.index > 0 && !started)
-      buttons.push({ text: 'طلّعها لفوق', onPress: () => run(() => mutatePeriods(circle.id, (ps) => movePeriod(ps, e.index, e.index - 1))) });
+      buttons.push({ text: 'طلّعها لفوق', icon: 'arrow-up', onPress: () => run(() => mutatePeriods(circle.id, (ps) => movePeriod(ps, e.index, e.index - 1))) });
     if (e.index < entries.length - 1 && !started)
-      buttons.push({ text: 'نزّلها لتحت', onPress: () => run(() => mutatePeriods(circle.id, (ps) => movePeriod(ps, e.index, e.index + 1))) });
+      buttons.push({ text: 'نزّلها لتحت', icon: 'arrow-down', onPress: () => run(() => mutatePeriods(circle.id, (ps) => movePeriod(ps, e.index, e.index + 1))) });
     if (e.period.kind !== 'payout' || !hasPayments(e.period.id)) {
       if (e.period.kind !== 'payout' || circle.periods.filter((p) => p.recipientId === e.period.recipientId).length > 1) {
         buttons.push({
           text: 'احذف الفترة',
           style: 'destructive',
+          icon: 'trash',
           onPress: () => run(() => mutatePeriods(circle.id, (ps) => removePeriod(ps, e.period.id))),
         });
       }
     }
-    if (buttons.length === 0) return Alert.alert('الفترة دي بدأت', 'مينفعش تتعدّل بعد ما ميعادها جه.');
-    Alert.alert(periodTitle(e), formatDate(e.date), [...buttons, { text: 'إلغاء', style: 'cancel' }]);
+    if (buttons.length === 0) return alert('الفترة دي بدأت', 'مينفعش تتعدّل بعد ما ميعادها جه.');
+    alert(periodTitle(e), formatDate(e.date), [...buttons, { text: 'إلغاء', style: 'cancel' }], { icon: 'calendar' });
   };
 
   return (
@@ -657,7 +670,7 @@ function MembersTab({ circle }: { circle: Circle }) {
 
   const invite = (m: Member) =>
     RNLinking.openURL(whatsappUrl(m.phone, inviteMessage(circle, m, link))).catch(() =>
-      Alert.alert('واتساب مش متاح', 'اتأكد إن واتساب متسطّب على الموبايل.'),
+      alert('واتساب مش متاح', 'اتأكد إن واتساب متسطّب على الموبايل.'),
     );
 
   const unlink = async (m: Member) => {
@@ -674,7 +687,7 @@ function MembersTab({ circle }: { circle: Circle }) {
         <Pressable
           onPress={() => {
             Clipboard.setStringAsync(circle.inviteCode).catch(() => {});
-            Alert.alert('اتنسخ ✓', 'الكود اتنسخ.');
+            alert('اتنسخ ✓', 'الكود اتنسخ.');
           }}
         >
           <Text variant="number" style={{ letterSpacing: 6 }}>

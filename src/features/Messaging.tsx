@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
 import {
   currentIndex,
@@ -23,6 +23,7 @@ import { deleteAnnouncement, postAnnouncement, updateWhatsappGroup, useAnnouncem
 import { Badge, Button, Card, Chip, Field, IconButton, Row, Text } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
+import { alert } from '@/ui/dialog';
 
 /** Opens WhatsApp with the text ready; the user picks the group/chat and taps send. */
 export async function openWhatsAppText(text: string) {
@@ -42,7 +43,7 @@ async function openUrl(url: string) {
   try {
     await Linking.openURL(url);
   } catch {
-    Alert.alert('واتساب مش متاح', 'اتأكد إن واتساب متسطّب على الموبايل.');
+    alert('واتساب مش متاح', 'اتأكد إن واتساب متسطّب على الموبايل.');
   }
 }
 
@@ -168,7 +169,7 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
   };
 
   const send = async () => {
-    if (!title.trim()) return Alert.alert('اكتب عنوان', 'الإعلان محتاج عنوان قصير.');
+    if (!title.trim()) return alert('اكتب عنوان', 'الإعلان محتاج عنوان قصير.');
     const sent = await run(async () => {
       await postAnnouncement(circle.id, uid, title, body);
       return true;
@@ -177,9 +178,9 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
     const text = [title.trim(), body.trim()].filter(Boolean).join('\n');
     setTitle('');
     setBody('');
-    Alert.alert('اتبعت لكل الأعضاء ✓', 'تحب تبعته كمان على جروب الواتساب؟', [
+    alert('اتبعت لكل الأعضاء ✓', 'تحب تبعته كمان على جروب الواتساب؟', [
       { text: 'لأ', style: 'cancel' },
-      { text: 'ابعت للجروب', onPress: () => openWhatsAppText(`📢 ${text}`) },
+      { text: 'ابعت للجروب', icon: 'logo-whatsapp', color: colors.whatsapp, onPress: () => openWhatsAppText(`📢 ${text}`) },
     ]);
   };
 
@@ -246,7 +247,7 @@ export function WhatsAppGroupCard({ circle }: { circle: Circle }) {
 
   const copyNumbers = async () => {
     await Clipboard.setStringAsync(numbers.text).catch(() => {});
-    Alert.alert(
+    alert(
       `اتنسخ ${formatNumber(numbers.count)} رقم ✓`,
       numbers.missing.length ? `مفيش رقم لـ: ${numbers.missing.join('، ')}` : 'الصقهم وإنت بتضيف أعضاء الجروب.',
     );

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -29,6 +29,7 @@ import { Button, Card, Chip, Field, IconButton, Row, Segmented, Text } from '@/u
 import { colors, fonts, radius, space } from '@/ui/theme';
 
 import { DrawWheel } from './DrawWheel';
+import { alert } from '@/ui/dialog';
 
 const ERRORS: Record<DraftError, string> = {
   name: 'اكتب اسم للجمعية',
@@ -105,9 +106,9 @@ export function CircleForm({
   const remove = (m: Member) => {
     const doRemove = () => setMembers((list) => list.filter((x) => x.id !== m.id));
     if (mode === 'edit' && !m.id.startsWith('new_')) {
-      Alert.alert('حذف العضو؟', `هيتشال "${m.name}" ودوره في القبض. مدفوعاته القديمة مش هتظهر.`, [
+      alert('حذف العضو؟', `هيتشال "${m.name}" ودوره في القبض. مدفوعاته القديمة مش هتظهر.`, [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'احذف', style: 'destructive', onPress: doRemove },
+        { text: 'احذف', style: 'destructive', icon: 'trash', onPress: doRemove },
       ]);
     } else doRemove();
   };
@@ -115,7 +116,7 @@ export function CircleForm({
   const submit = () => {
     if (errors.length) {
       setShowErrors(true);
-      Alert.alert('ناقص شوية بيانات', errors.map((e) => `• ${ERRORS[e]}`).join('\n'));
+      alert('ناقص شوية بيانات', errors.map((e) => `• ${ERRORS[e]}`).join('\n'));
       return;
     }
     onSubmit({ ...draft, members: members.map((m) => ({ ...m, name: m.name.trim() })) });
@@ -302,7 +303,7 @@ export function CircleForm({
                 onPress={() => {
                   if (members.some((m) => !m.name.trim())) {
                     setShowErrors(true);
-                    return Alert.alert('اكتب الأسماء الأول', 'كل عضو لازم يكون ليه اسم قبل القرعة.');
+                    return alert('اكتب الأسماء الأول', 'كل عضو لازم يكون ليه اسم قبل القرعة.');
                   }
                   setWheelOpen(true);
                 }}

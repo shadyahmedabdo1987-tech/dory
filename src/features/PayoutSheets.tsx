@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   formatDate,
@@ -23,6 +23,7 @@ import { colors, radius, space } from '@/ui/theme';
 
 import { MethodPicker, ReceiptPicker } from './PaySheet';
 import type { PickedReceipt } from './receiptImage';
+import { alert } from '@/ui/dialog';
 
 const ACCOUNT_LABEL: Record<Exclude<PaymentMethod, 'cash'>, { label: string; placeholder: string; keyboard: 'phone-pad' | 'email-address' }> = {
   vodafone_cash: { label: 'رقم فودافون كاش', placeholder: '010xxxxxxxx', keyboard: 'phone-pad' },
@@ -198,7 +199,7 @@ export function AdminPayoutSheet({
 
   const pay = async () => {
     if (method !== 'cash' && validatePayoutRequest(method, account)) return setShowError(true);
-    if (needsReceipt && !receipt) return Alert.alert('صورة التحويل', 'ارفق صورة التحويل علشان توصل لصاحب الدور.');
+    if (needsReceipt && !receipt) return alert('صورة التحويل', 'ارفق صورة التحويل علشان توصل لصاحب الدور.');
     const ok = await confirm(
       'تأكيد تسليم القبض',
       `${formatMoney(pot)} لـ ${recipient?.name ?? ''} — ${method === 'cash' ? 'كاش' : `${METHOD_LABEL[method]} على ${account}`}`,
@@ -250,7 +251,7 @@ export function AdminPayoutSheet({
                   accessibilityLabel="نسخ"
                   onPress={() => {
                     Clipboard.setStringAsync(request.account!).catch(() => {});
-                    Alert.alert('اتنسخ ✓', request.account);
+                    alert('اتنسخ ✓', request.account);
                   }}
                 >
                   <Ionicons name="copy-outline" size={20} color={colors.primary} />

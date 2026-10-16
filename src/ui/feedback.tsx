@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { arabicError, errorCode } from '@/data/errors';
 
 import { Button, Text } from './components';
 import { colors, radius, space } from './theme';
+import { alert } from './dialog';
 
 /**
  * Runs an async action with a busy flag and friendly Arabic errors.
@@ -22,11 +23,11 @@ export function useAction() {
     setBusy(true);
     try {
       const result = await fn();
-      if (options?.success) Alert.alert('تمام ✓', options.success);
+      if (options?.success) alert('تمام ✓', options.success);
       return result;
     } catch (e) {
-      if (errorCode(e) === 'dory/offline-timeout') Alert.alert('هيتحفظ قريب', arabicError(e));
-      else Alert.alert('معلش', arabicError(e));
+      if (errorCode(e) === 'dory/offline-timeout') alert('هيتحفظ قريب', arabicError(e));
+      else alert('معلش', arabicError(e));
       return undefined;
     } finally {
       running.current = false;
@@ -39,7 +40,7 @@ export function useAction() {
 
 export function confirm(title: string, message: string, confirmLabel: string, destructive = false): Promise<boolean> {
   return new Promise((resolve) =>
-    Alert.alert(title, message, [
+    alert(title, message, [
       { text: 'إلغاء', style: 'cancel', onPress: () => resolve(false) },
       { text: confirmLabel, style: destructive ? 'destructive' : 'default', onPress: () => resolve(true) },
     ]),
@@ -97,7 +98,7 @@ export function ErrorScreen({ message, onRetry }: { message: string; onRetry?: (
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(16, 32, 28, 0.45)' },
   sheet: {
     backgroundColor: colors.bg,
     borderTopLeftRadius: radius.lg + 4,

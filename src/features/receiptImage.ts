@@ -1,8 +1,9 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import { Alert, Linking } from 'react-native';
+import { Linking } from 'react-native';
 
 import { MAX_RECEIPT_BASE64 } from '@/core';
+import { alert } from '@/ui/dialog';
 
 export interface PickedReceipt {
   uri: string;
@@ -34,7 +35,7 @@ export async function pickReceipt(source: 'library' | 'camera'): Promise<PickedR
   if (source === 'camera') {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('محتاجين إذن الكاميرا', 'علشان تصوّر إيصال التحويل، اسمح للتطبيق باستخدام الكاميرا من الإعدادات.', [
+      alert('محتاجين إذن الكاميرا', 'علشان تصوّر إيصال التحويل، اسمح للتطبيق باستخدام الكاميرا من الإعدادات.', [
         { text: 'إلغاء', style: 'cancel' },
         { text: 'الإعدادات', onPress: () => Linking.openSettings() },
       ]);
@@ -49,6 +50,6 @@ export async function pickReceipt(source: 'library' | 'camera'): Promise<PickedR
 
   const asset = picked.assets[0];
   const result = await compress(asset.uri, asset.width ?? 2000);
-  if (!result) Alert.alert('الصورة كبيرة جدًا', 'جرّب تقص الصورة على جزء التحويل بس.');
+  if (!result) alert('الصورة كبيرة جدًا', 'جرّب تقص الصورة على جزء التحويل بس.');
   return result;
 }
