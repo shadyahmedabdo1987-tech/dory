@@ -948,7 +948,6 @@ function payoutFromDoc(data: DocumentData): PayoutRequest {
     decidedAt: data.decidedAt ?? undefined,
     paidAt: data.paidAt ?? undefined,
     hasReceipt: data.hasReceipt === true,
-    receiptCheck: data.receiptCheck === 'auto' || data.receiptCheck === 'manual' ? data.receiptCheck : undefined,
     receivedAt: data.receivedAt ?? undefined,
     disputeNote: data.disputeNote ?? undefined,
   };
