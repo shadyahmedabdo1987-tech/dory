@@ -239,8 +239,13 @@ service cloud.firestore {
       match /payments/{pid} {
         allow read: if isAdmin(cid) || isMember(cid);
 
-        // Admin records, confirms and removes payments.
-        allow create, update: if isAdmin(cid) && validPayment(pid, request.resource.data);
+        // Admin records, confirms and removes payments. An InstaPay / Vodafone
+        // Cash payment always carries its transfer screenshot.
+        allow create, update: if isAdmin(cid) && validPayment(pid, request.resource.data)
+          && (!('method' in request.resource.data)
+              || request.resource.data.method == 'cash'
+              || (request.resource.data.hasReceipt == true
+                  && existsAfter(/databases/$(database)/documents/circles/$(cid)/receipts/$(pid))));
         allow delete: if isAdmin(cid);
 
         // Member says "I paid" for themselves only; can't confirm.

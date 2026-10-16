@@ -532,6 +532,21 @@ describe('payment methods & receipts', () => {
     await assertSucceeds(undo.commit());
   });
 
+  it("doesn't let the admin record an InstaPay / wallet payment without its screenshot", async () => {
+    const db = admin();
+    const confirmed = (method, extra = {}) => ({
+      periodId: 'p0', memberId: 'm1', status: 'confirmed', method,
+      confirmedAt: new Date().toISOString(), confirmedBy: 'admin', ...extra,
+    });
+    await assertFails(setDoc(doc(db, 'circles', CID, 'payments', 'p0_m1'), confirmed('instapay')));
+    await assertFails(setDoc(doc(db, 'circles', CID, 'payments', 'p0_m1'), confirmed('vodafone_cash', { hasReceipt: true })));
+    const ok = writeBatch(db);
+    ok.set(doc(db, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'admin'));
+    ok.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), confirmed('instapay', { hasReceipt: true, receiptCheck: 'auto' }));
+    await assertSucceeds(ok.commit());
+    await assertSucceeds(setDoc(doc(db, 'circles', CID, 'payments', 'p0_m2'), confirmed('cash')));
+  });
+
   it('rejects unknown methods and oversized images', async () => {
     const db = anon('u1');
     await joinBatch(db, 'u1');

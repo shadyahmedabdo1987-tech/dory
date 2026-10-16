@@ -42,6 +42,7 @@ import {
   type Payment,
   type TimelineEntry,
   type PayoutRequest,
+  type PaymentMethod,
   PAYOUT_STATUS_LABEL,
 } from '@/core';
 import {
@@ -71,7 +72,7 @@ import { colors, radius, space } from '@/ui/theme';
 import { DrawWheel } from './DrawWheel';
 import { MessagesTab } from './Messaging';
 import { AdminPayoutSheet, describePayout, PAYOUT_TONE } from './PayoutSheets';
-import { METHOD_COLOR, METHOD_ICON } from './PaySheet';
+import { AdminRecordTransferSheet, METHOD_COLOR, METHOD_ICON } from './PaySheet';
 import { ReceiptViewer } from './ReceiptViewer';
 import { TurnsSheet } from './TurnsSheet';
 import { useAppSession } from '@/data/session';
@@ -224,6 +225,7 @@ function CollectTab({
   };
 
   const [review, setReview] = useState<{ payment: Payment; member: Member; entry: TimelineEntry } | null>(null);
+  const [recording, setRecording] = useState<{ member: Member; entry: TimelineEntry; method: PaymentMethod } | null>(null);
   const [payoutFor, setPayoutFor] = useState<TimelineEntry | null>(null);
   const [payoutReceipt, setPayoutReceipt] = useState<string | null>(null);
 
@@ -260,8 +262,11 @@ function CollectTab({
           text: METHOD_LABEL[method],
           icon: METHOD_ICON[method],
           color: METHOD_COLOR[method],
-          hint: method === 'cash' ? 'استلمت الفلوس في إيدك' : 'وصل التحويل على حسابك',
-          onPress: () => run(() => confirmPayment(circle.id, entry.period.id, m.id, uid, method)),
+          hint: method === 'cash' ? 'استلمت الفلوس في إيدك' : 'لازم ترفق إيصال التحويل',
+          onPress: () =>
+            method === 'cash'
+              ? run(() => confirmPayment(circle.id, entry.period.id, m.id, uid, 'cash'))
+              : setRecording({ member: m, entry, method }),
         })),
         { text: 'إلغاء', style: 'cancel' as const },
       ],
@@ -523,13 +528,21 @@ function CollectTab({
               const note = unverified.length
                 ? `\n\nمش هيتأكد معاهم: ${unverified.map((m) => m.name).join('، ')} — إيصالاتهم ما اتراجعتش، أكّدهم لوحدهم بعد ما تتأكد إن الفلوس وصلت.`
                 : '';
-              if (await confirm('تأكيد الكل؟', `هتسجل دفع ${formatNumber(ids.length)} عضو.${note}`, 'سجّل')) {
+              if (await confirm('تأكيد الكل؟', `هتسجل دفع ${formatNumber(ids.length)} عضو كاش. اللي حوّل إنستاباي أو فودافون كاش سجّله لوحده بالإيصال.${note}`, 'سجّل')) {
                 run(() => confirmMany(circle.id, entry.period.id, ids, uid));
               }
             }}
           />
         </>
       )}
+      <AdminRecordTransferSheet
+        circle={circle}
+        entry={recording?.entry ?? null}
+        member={recording?.member ?? null}
+        method={recording?.method ?? 'instapay'}
+        uid={uid}
+        onClose={() => setRecording(null)}
+      />
       <AdminPayoutSheet
         circle={circle}
         entry={payoutFor}

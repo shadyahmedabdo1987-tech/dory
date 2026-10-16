@@ -586,6 +586,47 @@ export async function confirmPayment(
   })();
 }
 
+/**
+ * Admin records a transfer the member made straight to them (InstaPay /
+ * Vodafone Cash) — always with the transfer screenshot, never without.
+ */
+export async function recordTransferPayment(
+  cid: string,
+  periodId: string,
+  memberId: string,
+  adminUid: string,
+  input: { method: PaymentMethod; receiptBase64: string; receiptCheck: 'auto' | 'manual' },
+) {
+  if (!requiresReceipt(input.method) || !input.receiptBase64) {
+    throw new AppError('dory/receipt-required', arabicError({ code: 'dory/receipt-required' }));
+  }
+  const db = firestore();
+  const pid = paymentId(periodId, memberId);
+  const batch = writeBatch(db);
+  batch.set(receiptRef(cid, pid), {
+    image: input.receiptBase64,
+    memberId,
+    periodId,
+    uploadedBy: adminUid,
+    createdAt: serverTimestamp(),
+  });
+  batch.set(paymentRef(cid, periodId, memberId), {
+    periodId,
+    memberId,
+    status: 'confirmed',
+    method: input.method,
+    hasReceipt: true,
+    receiptCheck: input.receiptCheck,
+    confirmedAt: new Date().toISOString(),
+    confirmedBy: adminUid,
+  });
+  await withTimeout(batch.commit(), 30_000);
+  void (async () => {
+    const [circleName, uid] = await Promise.all([circleNameOf(cid), uidOfMember(cid, memberId)]);
+    await pushToUids(cid, [uid], { title: '✅ اتأكد استلام قسطك', body: `صاحب جمعية "${circleName}" أكّد إنه استلم قسطك.` });
+  })();
+}
+
 export async function confirmMany(
   cid: string,
   periodId: string,

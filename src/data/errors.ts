@@ -48,6 +48,7 @@ const MESSAGES: Record<string, string> = {
   'auth/too-many-requests': 'محاولات كتير. استنى شوية وجرّب تاني.',
   'auth/network-request-failed': 'مفيش نت. اتأكد من الاتصال وجرّب تاني.',
   'auth/credential-already-in-use': 'الإيميل ده مربوط بحساب تاني.',
+  'dory/receipt-required': 'لازم ترفق صورة إيصال التحويل لأي دفع بإنستاباي أو فودافون كاش.',
   'dory/phone-taken': 'الرقم ده متسجل لعضو في الجمعية. لو ده إنت، ادخل بكود الجمعية ورقمك.',
   'auth/requires-recent-login': 'لأمان حسابك، اخرج وادخل تاني وبعدين غيّر الإيميل.',
   'auth/operation-not-allowed': 'تغيير الإيميل مش متاح دلوقتي. جرّب بعدين.',

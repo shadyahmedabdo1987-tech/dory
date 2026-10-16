@@ -17,7 +17,7 @@ import {
   type PaymentMethod,
   type TimelineEntry,
 } from '@/core';
-import { claimPayment } from '@/data';
+import { claimPayment, recordTransferPayment } from '@/data';
 import { Button, Field, Row, Text, tap } from '@/ui/components';
 import { Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
@@ -108,6 +108,63 @@ export function ReceiptPicker({
       <Button label="من الصور" icon="images-outline" variant="secondary" style={{ flex: 1 }} loading={picking} onPress={() => choose('library')} />
       <Button label="صوّر" icon="camera-outline" variant="secondary" style={{ flex: 1 }} disabled={picking} onPress={() => choose('camera')} />
     </Row>
+  );
+}
+
+/**
+ * Admin records a member's InstaPay / Vodafone Cash transfer: the screenshot
+ * is required and must show exactly one installment to the admin's account.
+ */
+export function AdminRecordTransferSheet({
+  circle,
+  entry,
+  member,
+  method,
+  uid,
+  onClose,
+}: {
+  circle: Circle;
+  entry: TimelineEntry | null;
+  member: { id: string; name: string } | null;
+  method: PaymentMethod;
+  uid: string;
+  onClose: () => void;
+}) {
+  const [receipt, setReceipt] = useState<PickedReceipt | null>(null);
+  const { busy, run } = useAction();
+  const target = payTarget(method, circle.payInfo);
+  const rc = useReceiptVerification(receipt, entry?.due ?? 0, [target]);
+
+  useEffect(() => setReceipt(null), [entry?.period.id, member?.id, method]);
+
+  if (!entry || !member) return null;
+  const save = () =>
+    receipt &&
+    run(
+      async () => {
+        await recordTransferPayment(circle.id, entry.period.id, member.id, uid, {
+          method,
+          receiptBase64: receipt.base64,
+          receiptCheck: rc.autoOk ? 'auto' : 'manual',
+        });
+        onClose();
+      },
+      { success: `اتسجّل دفع ${member.name} ✓` },
+    );
+
+  return (
+    <Sheet visible title={`${member.name} • ${METHOD_LABEL[method]}`} onClose={onClose}>
+      <ScrollView contentContainerStyle={{ gap: space.md }} keyboardShouldPersistTaps="handled">
+        <Text variant="caption">
+          {formatMoney(entry.due, circle.currency)} • {formatDate(entry.date)}
+        </Text>
+        <Text weight="semibold">صورة التحويل (مطلوبة)</Text>
+        <Text variant="caption">مفيش دفع بإنستاباي أو فودافون كاش بيتسجّل من غير إيصال، ولازم يكون فيه القسط بالظبط على حسابك.</Text>
+        <ReceiptPicker value={receipt} onChange={setReceipt} />
+        {receipt ? <ReceiptChecks rc={rc} amount={entry.due} target={target} receiverLabel="حسابك" /> : null}
+        <Button label="سجّل الدفع" icon="checkmark-done" loading={busy} disabled={!receipt || !rc.verified} onPress={save} />
+      </ScrollView>
+    </Sheet>
   );
 }
 

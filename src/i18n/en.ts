@@ -581,7 +581,12 @@ export const EXACT: Record<string, string> = {
  "الرقم ده مش مسجل في الجمعية. لو دي أول مرة، ابعت طلب انضمام باسمك.": "This number isn't registered in the circle. If it's your first time, send a join request with your name.",
  "الرقم ده داخل الجمعية من موبايل تاني دلوقتي. اعمل تسجيل خروج من هناك الأول، أو اطلب من صاحب الجمعية يفك الربط.": "This number is signed in on another phone. Sign out there first, or ask the organizer to unlink it.",
  "تقدر ترجع تدخل في أي وقت من أي موبايل بكود الجمعية ورقم موبايلك، وهتلاقي اسمك ودورك ومدفوعاتك زي ما هي.": "You can come back any time on any phone with the circle code and your mobile number — your name, turn and payments stay as they are.",
- "موبايل:": "Mobile:"
+ "موبايل:": "Mobile:",
+ "لازم ترفق إيصال التحويل": "Transfer receipt required",
+ "لازم ترفق صورة إيصال التحويل لأي دفع بإنستاباي أو فودافون كاش.": "A transfer screenshot is required for any InstaPay or Vodafone Cash payment.",
+ "مفيش دفع بإنستاباي أو فودافون كاش بيتسجّل من غير إيصال، ولازم يكون فيه القسط بالظبط على حسابك.": "No InstaPay or Vodafone Cash payment is recorded without a receipt, and it must show exactly the installment to your account.",
+ "سجّل الدفع": "Record payment",
+ "حسابك": "your account"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
@@ -621,6 +626,10 @@ export const PATTERNS: [string, string][] = [
  [
   "ارفق صورة التحويل. لازم يكون فيها {0} بالظبط على حساب {1}، وهو هيأكد إن الفلوس وصلته.",
   "Attach the transfer screenshot. It must show exactly {0} to {1}'s account, and they'll confirm the money arrived."
+ ],
+ [
+  "هتسجل دفع {0} عضو كاش. اللي حوّل إنستاباي أو فودافون كاش سجّله لوحده بالإيصال.{1}",
+  "This records {0} members as paid in cash. Record InstaPay / Vodafone Cash payments individually with the receipt.{1}"
  ],
  [
   "أكّد بس لو {0} كاملين وصلوا حسابك أو إيدك فعلًا. بعد التأكيد القبض بيتقفل.",
@@ -983,6 +992,10 @@ export const PATTERNS: [string, string][] = [
   "{0} collection follow-up"
  ],
  [
+  "اتسجّل دفع {0} ✓",
+  "Recorded {0}'s payment ✓"
+ ],
+ [
   "{0} مستني تأكيد",
   "{0} awaiting confirmation"
  ],
@@ -1177,6 +1190,10 @@ export const PATTERNS: [string, string][] = [
  [
   "متأخر {0}",
   "{0} overdue"
+ ],
+ [
+  "{0} • {1}",
+  "{0} • {1}"
  ],
  [
   "{0} جديد",
