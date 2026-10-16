@@ -158,12 +158,9 @@ export function AdminView({
         value={tab}
         onChange={setTab}
         options={[
-          {
-            value: 'collect',
-            label: o.pendingCount + openPayoutRequests ? `التحصيل (${formatNumber(o.pendingCount + openPayoutRequests)})` : 'التحصيل',
-          },
+          { value: 'collect', label: 'التحصيل', badge: o.pendingCount + openPayoutRequests },
           { value: 'schedule', label: 'الجدول' },
-          { value: 'members', label: joinRequests.length ? `الأعضاء (${formatNumber(joinRequests.length)})` : 'الأعضاء' },
+          { value: 'members', label: 'الأعضاء', badge: joinRequests.length },
           { value: 'messages', label: 'الرسائل' },
         ]}
       />
@@ -975,14 +972,31 @@ function JoinRequestsCard({ circle, requests }: { circle: Circle; requests: Join
       </Row>
       {requests.map((r) => (
         <View key={r.uid} style={styles.requestRow}>
-          <View style={{ flex: 1 }}>
-            <Text weight="semibold" numberOfLines={1}>
-              {r.name}
-            </Text>
-            <Text variant="caption">{r.payAccount ? `إنستاباي: ${r.payAccount}` : 'من غير إنستاباي'}</Text>
-          </View>
-          <Button label="رفض" variant="danger" onPress={() => reject(r)} />
-          <Button label="موافقة" icon="checkmark" onPress={() => approve(r)} />
+          <Row gap={space.sm}>
+            <View style={styles.requestAvatar}>
+              <Ionicons name="person" size={20} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text weight="bold" style={{ fontSize: 16 }}>
+                {r.name}
+              </Text>
+              {r.payAccount ? (
+                <Row gap={4}>
+                  <Ionicons name="flash" size={14} color={colors.gold} />
+                  <Text variant="caption">إنستاباي:</Text>
+                  <Text variant="caption" weight="semibold" color={colors.text} numberOfLines={1} style={{ writingDirection: 'ltr' }}>
+                    {r.payAccount}
+                  </Text>
+                </Row>
+              ) : (
+                <Text variant="caption">من غير إنستاباي</Text>
+              )}
+            </View>
+          </Row>
+          <Row gap={space.sm}>
+            <Button label="موافقة" icon="checkmark" onPress={() => approve(r)} style={{ flex: 2 }} />
+            <Button label="رفض" variant="danger" onPress={() => reject(r)} style={{ flex: 1 }} />
+          </Row>
         </View>
       ))}
     </Card>
@@ -1066,7 +1080,8 @@ const styles = StyleSheet.create({
   },
   checkOn: { backgroundColor: colors.success, borderColor: colors.success },
   checkClaimed: { backgroundColor: colors.goldSoft, borderColor: colors.gold },
-  requestRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.xs },
+  requestRow: { gap: space.md, paddingVertical: space.md, borderTopWidth: 1, borderTopColor: colors.border },
+  requestAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   codeBox: {
     alignSelf: 'stretch',
     flexDirection: 'row',

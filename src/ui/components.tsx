@@ -51,6 +51,7 @@ export function Text({
     weight ?? (variant === 'title' || variant === 'number' ? 'bold' : variant === 'heading' ? 'semibold' : 'regular');
   return (
     <RNText
+      maxFontSizeMultiplier={1.15}
       {...rest}
       style={[
         styles.text,
@@ -153,7 +154,7 @@ export function Button({
       ) : (
         <>
           {icon ? <Ionicons name={icon} size={20} color={v.fg} /> : null}
-          <Text weight="bold" color={v.fg}>
+          <Text weight="bold" color={v.fg} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ flexShrink: 1 }}>
             {label}
           </Text>
         </>
@@ -218,6 +219,7 @@ export function Field({
     <View style={{ gap: space.xs }}>
       <Text weight="semibold">{label}</Text>
       <TextInput
+        maxFontSizeMultiplier={1.15}
         placeholderTextColor={colors.muted}
         {...input}
         style={[styles.input, error ? { borderColor: colors.danger } : null, style]}
@@ -238,7 +240,7 @@ export function Segmented<T extends string>({
   value,
   onChange,
 }: {
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; badge?: number }[];
   value: T;
   onChange: (v: T) => void;
 }) {
@@ -257,9 +259,24 @@ export function Segmented<T extends string>({
             }}
             style={[styles.segment, active && styles.segmentActive]}
           >
-            <Text weight={active ? 'bold' : 'regular'} color={active ? colors.white : colors.text}>
+            <Text
+              weight={active ? 'bold' : 'semibold'}
+              color={active ? colors.white : colors.text}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              maxFontSizeMultiplier={1}
+              style={styles.segmentText}
+            >
               {o.label}
             </Text>
+            {o.badge ? (
+              <View style={[styles.segmentBadge, active && { backgroundColor: colors.gold }]}>
+                <Text weight="bold" color={colors.white} maxFontSizeMultiplier={1} style={{ fontSize: 11, lineHeight: 16 }}>
+                  {o.badge > 99 ? '99+' : o.badge.toLocaleString('ar-EG')}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
         );
       })}
@@ -346,7 +363,26 @@ const styles = StyleSheet.create({
     padding: 4,
     gap: 4,
   },
-  segment: { flex: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  segment: {
+    flex: 1,
+    minHeight: 44,
+    flexDirection: 'row',
+    gap: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    paddingHorizontal: 4,
+  },
+  segmentText: { fontSize: 14, lineHeight: 22, flexShrink: 1, textAlign: 'center' },
+  segmentBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   segmentActive: { backgroundColor: colors.primary },
   chip: {
     paddingHorizontal: space.md,
