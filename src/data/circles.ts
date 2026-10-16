@@ -760,6 +760,8 @@ export async function findCircleByCode(rawCode: string): Promise<DirectoryEntry>
 export interface JoinRequest {
   uid: string;
   name: string;
+  /** Mobile number (international digits) — the member's identity in the circle. */
+  phone?: string;
   /** InstaPay mobile number or address the member entered (optional). */
   payAccount?: string;
   /** The requester's push token, so they hear about approval/rejection. */
@@ -769,15 +771,26 @@ export interface JoinRequest {
 
 const joinRequestsCol = (db: Firestore, cid: string) => collection(db, 'circles', cid, 'joinRequests');
 
+/** Is this mobile number already a member of the circle? (Then it signs in instead of asking again.) */
+export async function isPhoneRegistered(cid: string, rawPhone: string): Promise<boolean> {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) return false;
+  const snap = await retry(() => getDoc(phoneRef(firestore(), cid, phone)));
+  return snap.exists();
+}
+
 /** Member: ask to join a circle from the directory with my own details. */
 export async function requestJoin(
   cid: string,
-  input: { name: string; payAccount?: string },
+  input: { name: string; phone: string; payAccount?: string },
   uid: string,
 ): Promise<{ joined: boolean }> {
   const db = firestore();
   const name = input.name.trim().replace(/\s+/g, ' ').slice(0, 60);
   if (!name) throw new AppError('dory/name-missing', arabicError({ code: 'dory/name-missing' }));
+  const phone = normalizePhone(input.phone);
+  if (!phone) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
+  if (await isPhoneRegistered(cid, phone)) throw new AppError('dory/phone-taken', arabicError({ code: 'dory/phone-taken' }));
   const raw = input.payAccount?.trim() ?? '';
   const payAccount = raw ? normalizePayAccount(raw) : null;
   if (raw && !payAccount) throw new AppError('dory/instapay-invalid', arabicError({ code: 'dory/instapay-invalid' }));
@@ -789,6 +802,7 @@ export async function requestJoin(
     setDoc(doc(joinRequestsCol(db, cid), uid), {
       uid,
       name,
+      phone,
       ...(payAccount ? { payAccount } : {}),
       ...(myPushToken() ? { pushToken: myPushToken() } : {}),
       createdAt: serverTimestamp(),
@@ -869,6 +883,7 @@ export function watchJoinRequests(cid: string, onData: (items: JoinRequest[]) =>
             return {
               uid: d.id,
               name: String(data.name ?? ''),
+              phone: data.phone ? String(data.phone) : undefined,
               payAccount: data.payAccount ? String(data.payAccount) : undefined,
               pushToken: data.pushToken ? String(data.pushToken) : undefined,
               createdAt: ts?.toDate?.().toISOString(),
@@ -889,9 +904,17 @@ export async function approveJoin(circle: Circle, request: JoinRequest, existing
   const db = firestore();
   const cid = circle.id;
 
+  if (request.phone) {
+    const taken = await retry(() => getDoc(phoneRef(db, cid, request.phone!)));
+    if (taken.exists() && String(taken.data().memberId) !== existingMemberId) {
+      throw new AppError('dory/phone-taken', arabicError({ code: 'dory/phone-taken' }));
+    }
+  }
+
   if (existingMemberId) {
     const batch = writeBatch(db);
     batch.update(doc(membersCol(db, cid), existingMemberId), { uid: request.uid });
+    if (request.phone) batch.set(phoneRef(db, cid, request.phone), { memberId: existingMemberId });
     if (request.payAccount) batch.set(doc(contactsCol(db, cid), existingMemberId), { phone: request.payAccount });
     batch.set(membershipRef(db, cid, request.uid), {
       uid: request.uid,
@@ -912,6 +935,10 @@ export async function approveJoin(circle: Circle, request: JoinRequest, existing
       const snap = await tx.get(circleRef(db, cid));
       if (!snap.exists()) throw new AppError('not-found', arabicError({ code: 'not-found' }));
       const data = snap.data();
+      if (request.phone) {
+        const taken = await tx.get(phoneRef(db, cid, request.phone));
+        if (taken.exists()) throw new AppError('dory/phone-taken', arabicError({ code: 'dory/phone-taken' }));
+      }
       const count = Number(data.memberCount ?? circle.members.length);
       const slots = typeof data.slots === 'number' ? data.slots : undefined;
       if (slots && count >= slots) throw new AppError('dory/circle-full', arabicError({ code: 'dory/circle-full' }));
@@ -923,7 +950,9 @@ export async function approveJoin(circle: Circle, request: JoinRequest, existing
         order: circle.members.length,
         createdAt: serverTimestamp(),
       });
-      tx.set(doc(contactsCol(db, cid), memberId), { phone: request.payAccount ?? null });
+      tx.set(doc(contactsCol(db, cid), memberId), { phone: request.payAccount ?? request.phone ?? null });
+      // The number is the member's key for signing back in later (code + number).
+      if (request.phone) tx.set(phoneRef(db, cid, request.phone), { memberId });
       tx.set(membershipRef(db, cid, request.uid), {
         uid: request.uid,
         circleId: cid,
@@ -943,6 +972,39 @@ export async function approveJoin(circle: Circle, request: JoinRequest, existing
 export async function rejectJoin(cid: string, requesterUid: string, pushToken?: string) {
   await withTimeout(deleteDoc(doc(joinRequestsCol(firestore(), cid), requesterUid)));
   void sendPush([pushToken], { title: 'طلب الانضمام ما اتقبلش', body: 'صاحب الجمعية ما وافقش على طلبك. اتأكد معاه من الكود واسمك.' });
+}
+
+/**
+ * Member signs out: their rows are freed (name, turn and payments stay), so
+ * they can come back on any phone with the invite code + their number.
+ */
+export async function releaseMyMemberships(uid: string, refs: { id: string; memberId?: string }[]): Promise<void> {
+  await Promise.all(
+    refs.filter((r) => r.memberId).map((r) => leaveCircle(r.id, r.memberId!, uid).catch(() => {})),
+  );
+}
+
+/**
+ * Admin: members who joined before numbers were their sign-in key get a
+ * number → member lookup from the number saved on their row, so they can
+ * sign back in with code + number too.
+ */
+export async function backfillPhones(circle: Circle): Promise<void> {
+  const db = firestore();
+  const existing = await getDocs(collection(db, 'circles', circle.id, 'phones'));
+  const taken = new Set(existing.docs.map((d) => d.id));
+  const linked = new Set(existing.docs.map((d) => String(d.data().memberId)));
+  const batch = writeBatch(db);
+  let n = 0;
+  for (const m of circle.members) {
+    if (linked.has(m.id) || !m.phone || m.phone.includes('@')) continue;
+    const phone = normalizePhone(m.phone);
+    if (!phone || taken.has(phone)) continue;
+    taken.add(phone);
+    batch.set(phoneRef(db, circle.id, phone), { memberId: m.id });
+    n++;
+  }
+  if (n) await withTimeout(batch.commit());
 }
 
 export async function leaveCircle(cid: string, memberId: string, uid: string): Promise<void> {

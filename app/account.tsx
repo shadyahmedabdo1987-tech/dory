@@ -7,7 +7,7 @@ import { BackHandler, I18nManager, Linking, Platform, ScrollView, StyleSheet, Vi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatNumber, normalizePayAccount } from '@/core';
-import { changeMyEmail, myAdminInstapay, setInstapayForMyCircles, signOut, updateMyName, useMyCircles } from '@/data';
+import { changeMyEmail, myAdminInstapay, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles } from '@/data';
 import { useAppSession } from '@/data/session';
 import { clearReminders, unregisterPush } from '@/notifications';
 import { Badge, Button, Card, Field, Row, Segmented, Text } from '@/ui/components';
@@ -148,7 +148,7 @@ export default function Account() {
       'تسجيل الخروج',
       isAccount
         ? `مسجّل بـ ${user.email ?? ''}. تقدر ترجع تدخل بنفس الإيميل في أي وقت.`
-        : 'إنت داخل كعضو من غير حساب. لو خرجت هتحتاج تبعت طلب انضمام وصاحب الجمعية يوافق تاني.',
+        : 'تقدر ترجع تدخل في أي وقت من أي موبايل بكود الجمعية ورقم موبايلك، وهتلاقي اسمك ودورك ومدفوعاتك زي ما هي.',
       'خروج',
       true,
     );
@@ -156,6 +156,8 @@ export default function Account() {
     await run(async () => {
       await unregisterPush(user.uid);
       await clearReminders();
+      // Free my member rows so code + number brings me back to them on any phone.
+      if (!isAccount) await releaseMyMemberships(user.uid, (refs ?? []).filter((r) => r.role === 'member'));
       await signOut();
     });
     if (router.canDismiss()) router.dismissAll();

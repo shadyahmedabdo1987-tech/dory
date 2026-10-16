@@ -14,6 +14,8 @@ export interface Prefs {
   lang?: Lang;
   /** My own InstaPay (mobile or address) — prefilled when joining / asking for a payout. */
   myInstapay?: string;
+  /** My mobile number (the key for signing back in to circles). */
+  myPhone?: string;
 }
 
 function prefsFile() {

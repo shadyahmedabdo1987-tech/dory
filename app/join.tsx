@@ -4,9 +4,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { extractInviteCode, FREQUENCY_LABEL, formatDate, formatMoney, formatNumber, normalizePayAccount } from '@/core';
+import { extractInviteCode, FREQUENCY_LABEL, formatDate, formatMoney, formatNumber, normalizePayAccount, normalizePhone } from '@/core';
 import {
   addPendingJoin,
+  AppError,
+  isPhoneRegistered,
+  joinCircle,
   cancelJoinRequest,
   ensureSignedIn,
   removePendingJoin,
@@ -73,7 +76,7 @@ export default function JoinScreen() {
     );
   }
   if (phase.kind === 'found' && uid) {
-    return <FoundCircle circle={phase.circle} uid={uid} onSent={setSent} onBack={() => setPhase({ kind: 'enter' })} />;
+    return <FoundCircle circle={phase.circle} code={code} uid={uid} onSent={setSent} onBack={() => setPhase({ kind: 'enter' })} />;
   }
   return (
     <EnterCode
@@ -138,11 +141,13 @@ function EnterCode({
 /** Step 2: the circle behind the code, with the join request. */
 function FoundCircle({
   circle,
+  code,
   uid,
   onSent,
   onBack,
 }: {
   circle: DirectoryEntry;
+  code: string;
   uid: string;
   onSent: (s: { cid: string; circleName: string; name: string }) => void;
   onBack: () => void;
@@ -167,7 +172,8 @@ function FoundCircle({
       {state === 'closed' ? (
         <Card>
           <Text weight="bold">{circle.name}</Text>
-          <Text variant="caption">الجمعية دي اكتملت ومش بتستقبل أعضاء جدد. كلّم صاحب الجمعية.</Text>
+          <Text variant="caption">الجمعية دي مش بتستقبل أعضاء جدد. لو إنت عضو فيها، ادخل برقم موبايلك المسجّل.</Text>
+          <Button label="أنا عضو — ادخل برقمي" icon="call-outline" onPress={() => setJoining(true)} />
           <Button label="رجوع" icon="arrow-forward" variant="secondary" onPress={onBack} />
         </Card>
       ) : (
@@ -184,6 +190,8 @@ function FoundCircle({
       <Button label="كود تاني" icon="key-outline" variant="ghost" onPress={onBack} />
       <JoinSheet
         circle={joining ? circle : null}
+        code={code}
+        allowNew={state !== 'closed'}
         uid={uid}
         onClose={() => setJoining(false)}
         onSent={(s) => {
@@ -242,42 +250,75 @@ function CircleCard({
       ) : state === 'waiting' ? (
         <Badge label="طلبك مستني موافقة صاحب الجمعية" tone="gold" />
       ) : (
-        <Button label="انضمام للجمعية" icon="person-add-outline" onPress={onJoin} />
+        <Button label="ادخل الجمعية" icon="log-in-outline" onPress={onJoin} />
       )}
     </Card>
   );
 }
 
-/** The member enters their own details; the admin sees them on the request. */
+/**
+ * Entering a circle with its code. The mobile number is the member's key:
+ * a number already in the circle signs straight back in to its row (same name,
+ * turn and payments — no new request); a new number asks to join with a name.
+ */
 function JoinSheet({
   circle,
+  code,
+  allowNew,
   uid,
   onClose,
   onSent,
 }: {
   circle: DirectoryEntry | null;
+  code: string;
+  allowNew: boolean;
   uid: string;
   onClose: () => void;
   onSent: (s: { cid: string; circleName: string; name: string }) => void;
 }) {
   const { user } = useAppSession();
+  const [step, setStep] = useState<'phone' | 'details'>('phone');
+  const [phone, setPhone] = useState(() => readPrefsSync().myPhone ?? '');
   const [name, setName] = useState(user?.displayName ?? '');
   const [account, setAccount] = useState(() => readPrefsSync().myInstapay ?? '');
   const { busy, run } = useAction();
+  const phoneOk = !!normalizePhone(phone);
   const accountBad = !!account.trim() && !normalizePayAccount(account);
 
+  useEffect(() => {
+    if (circle) setStep('phone');
+  }, [circle?.id]);
+
+  const open = (cid: string) => {
+    router.dismissAll();
+    router.push({ pathname: '/circle/[id]', params: { id: cid } });
+  };
+
+  // Step 1: is this number already a member here?
+  const next = () =>
+    circle &&
+    run(async () => {
+      if (await isPhoneRegistered(circle.id, phone)) {
+        await ensurePushToken().catch(() => null);
+        await joinCircle(code, phone, uid);
+        writePrefs({ myPhone: phone.trim() });
+        alert('أهلًا بيك تاني ✓', 'دخلت باسمك ودورك المسجّلين في الجمعية.');
+        open(circle.id);
+        return;
+      }
+      if (!allowNew) throw new AppError('dory/phone-not-found', arabicError({ code: 'dory/phone-not-found' }));
+      setStep('details');
+    });
+
+  // Step 2: first time — ask the admin to let me in.
   const submit = () =>
     circle &&
     run(async () => {
       // So the admin's approval reaches this phone as a notification.
       await ensurePushToken().catch(() => null);
-      const result = await requestJoin(circle.id, { name, payAccount: account }, uid);
-      if (normalizePayAccount(account)) writePrefs({ myInstapay: account.trim() });
-      if (result.joined) {
-        router.dismissAll();
-        router.push({ pathname: '/circle/[id]', params: { id: circle.id } });
-        return;
-      }
+      const result = await requestJoin(circle.id, { name, phone, payAccount: account }, uid);
+      writePrefs({ myPhone: phone.trim(), ...(normalizePayAccount(account) ? { myInstapay: account.trim() } : {}) });
+      if (result.joined) return open(circle.id);
       await addPendingJoin({ cid: circle.id, circleName: circle.name, name: name.trim() });
       onSent({ cid: circle.id, circleName: circle.name, name: name.trim() });
     });
@@ -287,31 +328,58 @@ function JoinSheet({
       <View>
         <ScrollView contentContainerStyle={{ gap: space.md }} keyboardShouldPersistTaps="handled">
           <Field
-            label="اسمك"
-            value={name}
-            onChangeText={setName}
-            maxLength={60}
-            autoComplete="name"
-            placeholder="الاسم اللي صاحب الجمعية هيشوفه"
+            label="رقم موبايلك"
+            value={phone}
+            onChangeText={(t) => {
+              setPhone(t);
+              if (step === 'details') setStep('phone');
+            }}
+            keyboardType="phone-pad"
+            autoComplete="tel"
+            maxLength={16}
+            placeholder="01xxxxxxxxx"
+            error={phone.trim() && !phoneOk ? 'اكتب رقم موبايل صحيح.' : undefined}
+            hint="لو سجّلت قبل كده، اكتب نفس الرقم وهتدخل على طول باسمك القديم."
+            style={{ textAlign: 'left', writingDirection: 'ltr' }}
           />
-          <Field
-            label="إنستاباي (اختياري)"
-            value={account}
-            onChangeText={setAccount}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholder="رقم الموبايل أو name@instapay"
-            error={accountBad ? 'اكتب رقم موبايل أو إيميل إنستاباي صحيح' : undefined}
-            hint="علشان تقبض عليه لما ييجي دورك"
-          />
-          <Button
-            label="ابعت طلب الانضمام"
-            icon="send"
-            loading={busy}
-            disabled={!name.trim() || accountBad}
-            onPress={submit}
-          />
+          {step === 'phone' ? (
+            <Button label="متابعة" icon="arrow-back" loading={busy} disabled={!phoneOk} onPress={next} />
+          ) : (
+            <>
+              <View style={styles.firstTime}>
+                <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
+                <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
+                  أول مرة تدخل الجمعية دي. اكتب اسمك، وصاحب الجمعية هيوافق على طلبك. بعد كده تدخل بالكود ورقمك بس.
+                </Text>
+              </View>
+              <Field
+                label="اسمك"
+                value={name}
+                onChangeText={setName}
+                maxLength={60}
+                autoComplete="name"
+                placeholder="الاسم اللي صاحب الجمعية هيشوفه"
+              />
+              <Field
+                label="إنستاباي (اختياري)"
+                value={account}
+                onChangeText={setAccount}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder="رقم الموبايل أو name@instapay"
+                error={accountBad ? 'اكتب رقم موبايل أو إيميل إنستاباي صحيح' : undefined}
+                hint="علشان تقبض عليه لما ييجي دورك"
+              />
+              <Button
+                label="ابعت طلب الانضمام"
+                icon="send"
+                loading={busy}
+                disabled={!name.trim() || !phoneOk || accountBad}
+                onPress={submit}
+              />
+            </>
+          )}
         </ScrollView>
       </View>
     </Sheet>
@@ -378,6 +446,7 @@ function WaitingForApproval({ cid, uid, circleName, name }: { cid: string; uid: 
 }
 
 const styles = StyleSheet.create({
+  firstTime: { flexDirection: 'row', gap: space.sm, alignItems: 'flex-start', backgroundColor: colors.primarySoft, borderRadius: radius.md, padding: space.md },
   loadingRoot: {
     flex: 1,
     backgroundColor: colors.primary,

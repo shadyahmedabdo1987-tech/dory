@@ -211,6 +211,7 @@ describe('join requests (picked from the directory, approved in the app)', () =>
     setDoc(doc(db, 'circles', CID, 'joinRequests', uid), {
       uid,
       name: 'سارة',
+      phone: '201077777777',
       payAccount: 'sara@instapay',
       createdAt: serverTimestamp(),
       ...overrides,
@@ -223,7 +224,21 @@ describe('join requests (picked from the directory, approved in the app)', () =>
     await assertFails(request(anon('u1'), 'u2'));
     await assertFails(request(anon('u3'), 'u3', { name: '' }));
     await assertFails(request(anon('u3'), 'u3', { payAccount: 'not valid' }));
+    // A number already registered in the circle can't ask again (it signs back in instead).
     await assertFails(request(anon('u3'), 'u3', { phone: '201011111111' }));
+    await assertFails(request(anon('u3'), 'u3', { phone: 'abc' }));
+    await assertFails(
+      setDoc(doc(anon('u3'), 'circles', CID, 'joinRequests', 'u3'), { uid: 'u3', name: 'سارة', createdAt: serverTimestamp() }),
+    );
+  });
+
+  it('lets a registered member sign back in with the code and their number, keeping their row', async () => {
+    // m1 (phone 201011111111) left / signed out earlier: their row is free again.
+    const db = anon('u9');
+    await assertSucceeds(joinBatch(db, 'u9', 'm1'));
+    await assertSucceeds(getDoc(doc(db, 'circles', CID, 'members', 'm1')));
+    // A second device can't take the same row while it's linked.
+    await assertFails(joinBatch(anon('u10'), 'u10', 'm1'));
   });
 
   it('refuses requests for closed or unlisted circles', async () => {

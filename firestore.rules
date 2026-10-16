@@ -205,7 +205,12 @@ service cloud.firestore {
         allow list: if isAdmin(cid);
         allow create, update: if signedIn()
           && request.auth.uid == rid
-          && request.resource.data.keys().hasOnly(['uid', 'name', 'payAccount', 'pushToken', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'phone', 'payAccount', 'pushToken', 'createdAt'])
+          // Mobile number (international digits). A number already registered in
+          // the circle can't ask again — that member signs back in with it instead.
+          && request.resource.data.phone is string
+          && request.resource.data.phone.matches('^[0-9]{8,15}$')
+          && !exists(/databases/$(database)/documents/circles/$(cid)/phones/$(request.resource.data.phone))
           && (!('pushToken' in request.resource.data) || (request.resource.data.pushToken is string && request.resource.data.pushToken.size() < 256))
           && request.resource.data.uid == rid
           && request.resource.data.name is string

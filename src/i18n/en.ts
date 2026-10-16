@@ -567,7 +567,21 @@ export const EXACT: Record<string, string> = {
  "اللغة اتغيّرت ✓": "Language changed ✓",
  "افتح التطبيق، ودوس \"انضم بكود\"، واكتب الكود واسمك.": "Open the app, tap \"Join with code\", and enter the code and your name.",
  "ده مش لينك جروب واتساب. انسخ لينك الدعوة من إعدادات الجروب.": "That's not a WhatsApp group link. Copy the invite link from the group settings.",
- "التطبيق مش متوصل بالسيرفر. لو إنت المطوّر: انسخ ‎.env.example‎ لـ ‎.env‎ وحط مفاتيح Firebase.": "The app isn't connected to the server."
+ "التطبيق مش متوصل بالسيرفر. لو إنت المطوّر: انسخ ‎.env.example‎ لـ ‎.env‎ وحط مفاتيح Firebase.": "The app isn't connected to the server.",
+ "الجمعية دي مش بتستقبل أعضاء جدد. لو إنت عضو فيها، ادخل برقم موبايلك المسجّل.": "This circle isn't taking new members. If you're a member, sign in with your registered mobile number.",
+ "أنا عضو — ادخل برقمي": "I'm a member — sign in with my number",
+ "ادخل الجمعية": "Enter the circle",
+ "أهلًا بيك تاني ✓": "Welcome back ✓",
+ "دخلت باسمك ودورك المسجّلين في الجمعية.": "You're in with your registered name and turn.",
+ "رقم موبايلك": "Your mobile number",
+ "لو سجّلت قبل كده، اكتب نفس الرقم وهتدخل على طول باسمك القديم.": "If you registered before, enter the same number and you'll be back in with your name.",
+ "متابعة": "Continue",
+ "أول مرة تدخل الجمعية دي. اكتب اسمك، وصاحب الجمعية هيوافق على طلبك. بعد كده تدخل بالكود ورقمك بس.": "First time in this circle. Enter your name and the organizer will approve you. After that, just the code and your number.",
+ "الرقم ده متسجل لعضو في الجمعية. لو ده إنت، ادخل بكود الجمعية ورقمك.": "This number belongs to a member of the circle. If it's you, sign in with the circle code and your number.",
+ "الرقم ده مش مسجل في الجمعية. لو دي أول مرة، ابعت طلب انضمام باسمك.": "This number isn't registered in the circle. If it's your first time, send a join request with your name.",
+ "الرقم ده داخل الجمعية من موبايل تاني دلوقتي. اعمل تسجيل خروج من هناك الأول، أو اطلب من صاحب الجمعية يفك الربط.": "This number is signed in on another phone. Sign out there first, or ask the organizer to unlink it.",
+ "تقدر ترجع تدخل في أي وقت من أي موبايل بكود الجمعية ورقم موبايلك، وهتلاقي اسمك ودورك ومدفوعاتك زي ما هي.": "You can come back any time on any phone with the circle code and your mobile number — your name, turn and payments stay as they are.",
+ "موبايل:": "Mobile:"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */

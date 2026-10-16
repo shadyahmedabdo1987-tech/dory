@@ -45,6 +45,7 @@ import {
   PAYOUT_STATUS_LABEL,
 } from '@/core';
 import {
+  backfillPhones,
   syncDirectory,
   approveJoin,
   rejectJoin,
@@ -115,6 +116,11 @@ export function AdminView({
   }, [listingKey]);
   const payouts = usePayouts(circle.id, 'admin', undefined);
   const o = overview(circle, payments);
+  const phonesKey = circle.members.map((m) => `${m.id}:${m.phone ?? ''}`).join('|');
+  useEffect(() => {
+    backfillPhones(circle).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [circle.id, phonesKey]);
   const openPayoutRequests = payouts.filter((r) => r.status === 'requested' || r.status === 'disputed').length;
   const [showTurns, setShowTurns] = useState(false);
 
@@ -1017,6 +1023,15 @@ function JoinRequestsCard({ circle, requests }: { circle: Circle; requests: Join
               <Text weight="bold" style={{ fontSize: 16 }}>
                 {r.name}
               </Text>
+              {r.phone ? (
+                <Row gap={4}>
+                  <Ionicons name="call-outline" size={14} color={colors.primary} />
+                  <Text variant="caption">موبايل:</Text>
+                  <Text variant="caption" weight="semibold" color={colors.text} numberOfLines={1} style={{ writingDirection: 'ltr' }}>
+                    {r.phone.startsWith('20') ? `0${r.phone.slice(2)}` : `+${r.phone}`}
+                  </Text>
+                </Row>
+              ) : null}
               {r.payAccount ? (
                 <Row gap={4}>
                   <Ionicons name="flash" size={14} color={colors.gold} />
