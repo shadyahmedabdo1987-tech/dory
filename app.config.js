@@ -51,7 +51,13 @@ module.exports = ({ config }) => {
   return {
     ...config,
     plugins,
-    android: { ...config.android, ...(androidFile && { googleServicesFile: androidFile }) },
+    // FCM (push notifications) needs the Android Firebase config. The copy in
+    // config/ is used for push only; native Firebase (App Check) stays off
+    // unless a root/EAS google-services.json is provided.
+    android: {
+      ...config.android,
+      googleServicesFile: androidFile || (fs.existsSync('./config/google-services.json') ? './config/google-services.json' : undefined),
+    },
     ios: { ...config.ios, ...(iosFile && { googleServicesFile: iosFile }) },
     extra: {
       ...config.extra,

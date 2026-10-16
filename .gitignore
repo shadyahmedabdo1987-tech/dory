@@ -37,3 +37,6 @@ google-services.json
 GoogleService-Info.plist
 functions/lib/
 functions/node_modules/
+
+# Firebase Android config used for push (public values, same as config/production.env)
+!config/google-services.json
