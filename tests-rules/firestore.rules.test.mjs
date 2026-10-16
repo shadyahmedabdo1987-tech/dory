@@ -168,6 +168,74 @@ describe('joining', () => {
   });
 });
 
+describe('join requests (approved in the app)', () => {
+  const request = (db, uid, overrides = {}) =>
+    setDoc(doc(db, 'circles', CID, 'joinRequests', uid), {
+      uid,
+      name: 'منى',
+      inviteCode: CODE,
+      createdAt: serverTimestamp(),
+      ...overrides,
+    });
+
+  it('lets anyone with the code ask to join, and only for themselves', async () => {
+    await assertSucceeds(request(anon('u1'), 'u1'));
+    await assertFails(request(anon('u1'), 'u2'));
+    await assertFails(request(anon('u3'), 'u3', { inviteCode: 'ZZZ999' }));
+    await assertFails(request(anon('u3'), 'u3', { name: '' }));
+    await assertFails(request(anon('u3'), 'u3', { phone: '201011111111' }));
+  });
+
+  it('shows requests to the admin and to the requester only', async () => {
+    await request(anon('u1'), 'u1');
+    await assertSucceeds(getDocs(collection(admin(), 'circles', CID, 'joinRequests')));
+    await assertSucceeds(getDoc(doc(anon('u1'), 'circles', CID, 'joinRequests', 'u1')));
+    await assertFails(getDoc(doc(anon('u2'), 'circles', CID, 'joinRequests', 'u1')));
+    await assertFails(getDocs(collection(anon('u2'), 'circles', CID, 'joinRequests')));
+  });
+
+  it('lets the admin approve: link the row + device and remove the request in one batch', async () => {
+    await request(anon('u1'), 'u1');
+    const db = admin();
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'circles', CID, 'members', 'm2'), { uid: 'u1' });
+    batch.set(doc(db, 'circles', CID, 'memberships', 'u1'), {
+      uid: 'u1',
+      circleId: CID,
+      memberId: 'm2',
+      inviteCode: CODE,
+      joinedAt: serverTimestamp(),
+    });
+    batch.delete(doc(db, 'circles', CID, 'joinRequests', 'u1'));
+    await assertSucceeds(batch.commit());
+    // The new member now sees the circle.
+    await assertSucceeds(getDoc(doc(anon('u1'), 'circles', CID)));
+  });
+
+  it('blocks a requester from approving themselves', async () => {
+    await request(anon('u1'), 'u1');
+    const db = anon('u1');
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'circles', CID, 'memberships', 'u1'), {
+      uid: 'u1',
+      circleId: CID,
+      memberId: 'm2',
+      inviteCode: CODE,
+      joinedAt: serverTimestamp(),
+    });
+    await assertFails(batch.commit());
+  });
+
+  it('lets the admin reject and the requester cancel', async () => {
+    await request(anon('u1'), 'u1');
+    await assertSucceeds(deleteDoc(doc(admin(), 'circles', CID, 'joinRequests', 'u1')));
+    await request(anon('u2'), 'u2');
+    await assertSucceeds(deleteDoc(doc(anon('u2'), 'circles', CID, 'joinRequests', 'u2')));
+    await request(anon('u3'), 'u3');
+    await assertFails(deleteDoc(doc(anon('u4'), 'circles', CID, 'joinRequests', 'u3')));
+  });
+});
+
 describe('privacy', () => {
   it('hides circles from strangers', async () => {
     const db = anon('stranger');

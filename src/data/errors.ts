@@ -12,6 +12,7 @@ export class AppError extends Error {
 
 const MESSAGES: Record<string, string> = {
   // App-level
+  'dory/name-missing': 'اكتب اسمك زي ما صاحب الجمعية عارفك.',
   'dory/invite-not-found': 'كود الجمعية مش صحيح. اتأكد منه مع صاحب الجمعية.',
   'dory/phone-not-found': 'الرقم ده مش مسجل في الجمعية. اتأكد إنه نفس الرقم اللي صاحب الجمعية كتبه.',
   'dory/already-linked': 'الرقم ده متسجل بالفعل على موبايل تاني. اطلب من صاحب الجمعية يفك الربط.',

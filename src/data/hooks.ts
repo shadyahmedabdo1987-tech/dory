@@ -6,6 +6,8 @@ import type { Announcement, PayoutRequest } from '@/core';
 import {
   watchAnnouncements,
   watchCircle,
+  watchJoinRequests,
+  type JoinRequest,
   watchMembership,
   watchMyCircles,
   watchPayouts,
@@ -243,6 +245,17 @@ export function useAnnouncements(cid: string | undefined, enabled = true) {
   useEffect(() => {
     if (!cid || !enabled) return;
     return watchAnnouncements(cid, setItems, () => setItems([]));
+  }, [cid, enabled, epoch]);
+  return items;
+}
+
+/** Admin: live join requests for a circle. */
+export function useJoinRequests(cid: string | undefined, enabled = true) {
+  const [items, setItems] = useState<JoinRequest[]>([]);
+  const epoch = useFirestoreEpoch();
+  useEffect(() => {
+    if (!cid || !enabled) return;
+    return watchJoinRequests(cid, setItems);
   }, [cid, enabled, epoch]);
   return items;
 }

@@ -442,14 +442,14 @@ async function deleteInChunks(db: Firestore, refs: DocumentReference[]) {
 export async function deleteCircle(circle: Circle): Promise<void> {
   const db = firestore();
   const cid = circle.id;
-  const [announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members] = await Promise.all(
-    ['announcements', 'payoutReceipts', 'payouts', 'receipts', 'payments', 'memberships', 'phones', 'contacts', 'members'].map((c) =>
+  const [joinRequests, announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members] = await Promise.all(
+    ['joinRequests', 'announcements', 'payoutReceipts', 'payouts', 'receipts', 'payments', 'memberships', 'phones', 'contacts', 'members'].map((c) =>
       retry(() => getDocs(collection(db, 'circles', cid, c))),
     ),
   );
   await deleteInChunks(
     db,
-    [announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members].flatMap((s) => s.docs.map((d) => d.ref)),
+    [joinRequests, announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members].flatMap((s) => s.docs.map((d) => d.ref)),
   );
   const batch = writeBatch(db);
   batch.delete(inviteRef(db, circle.inviteCode));
@@ -620,6 +620,123 @@ export async function joinCircle(rawCode: string, rawPhone: string, uid: string)
     throw e;
   }
   return cid;
+}
+
+// ---------------------------------------------------------------------------
+// Joining with code + name: the member asks, the admin approves in the app
+// ---------------------------------------------------------------------------
+
+export interface JoinRequest {
+  uid: string;
+  name: string;
+  createdAt?: string;
+}
+
+const joinRequestsCol = (db: Firestore, cid: string) => collection(db, 'circles', cid, 'joinRequests');
+
+/** Member: ask to join. Returns the circle id and whether this device is already a member. */
+export async function requestJoin(rawCode: string, rawName: string, uid: string): Promise<{ cid: string; joined: boolean }> {
+  const db = firestore();
+  const code = rawCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const name = rawName.trim().replace(/\s+/g, ' ').slice(0, 60);
+  if (!name) throw new AppError('dory/name-missing', arabicError({ code: 'dory/name-missing' }));
+
+  const invite = await retry(() => getDoc(inviteRef(db, code)));
+  if (!invite.exists()) throw new AppError('dory/invite-not-found', arabicError({ code: 'dory/invite-not-found' }));
+  const cid = String(invite.data().circleId);
+
+  const existing = await retry(() => getDoc(membershipRef(db, cid, uid)));
+  if (existing.exists()) return { cid, joined: true };
+
+  await withTimeout(
+    setDoc(doc(joinRequestsCol(db, cid), uid), { uid, name, inviteCode: code, createdAt: serverTimestamp() }),
+    15_000,
+  );
+  return { cid, joined: false };
+}
+
+/** Member: watch my own pending request ('pending' | 'approved' | 'gone'). */
+export function watchMyJoin(
+  cid: string,
+  uid: string,
+  onData: (status: 'pending' | 'approved' | 'gone') => void,
+): Unsubscribe {
+  const db = firestore();
+  let requested: boolean | undefined;
+  let member: boolean | undefined;
+  const emit = () => {
+    if (requested === undefined || member === undefined) return;
+    onData(member ? 'approved' : requested ? 'pending' : 'gone');
+  };
+  const unsubs = [
+    onSnapshot(
+      doc(joinRequestsCol(db, cid), uid),
+      (s) => {
+        requested = s.exists();
+        emit();
+      },
+      () => {
+        requested = false;
+        emit();
+      },
+    ),
+    onSnapshot(
+      membershipRef(db, cid, uid),
+      (s) => {
+        member = s.exists();
+        emit();
+      },
+      () => {
+        member = false;
+        emit();
+      },
+    ),
+  ];
+  return () => unsubs.forEach((u) => u());
+}
+
+/** Member: withdraw my request. */
+export async function cancelJoinRequest(cid: string, uid: string) {
+  await withTimeout(deleteDoc(doc(joinRequestsCol(firestore(), cid), uid)));
+}
+
+/** Admin: live list of people asking to join. */
+export function watchJoinRequests(cid: string, onData: (items: JoinRequest[]) => void): Unsubscribe {
+  return onSnapshot(
+    joinRequestsCol(firestore(), cid),
+    (s) =>
+      onData(
+        s.docs
+          .map((d) => {
+            const data = d.data();
+            const ts = data.createdAt as { toDate?: () => Date } | undefined;
+            return { uid: d.id, name: String(data.name ?? ''), createdAt: ts?.toDate?.().toISOString() };
+          })
+          .sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? '')),
+      ),
+    () => onData([]),
+  );
+}
+
+/** Admin: approve — link the requester to a member row (atomically removes the request). */
+export async function approveJoin(circle: Pick<Circle, 'id' | 'inviteCode'>, requesterUid: string, memberId: string) {
+  const db = firestore();
+  const batch = writeBatch(db);
+  batch.update(doc(membersCol(db, circle.id), memberId), { uid: requesterUid });
+  batch.set(membershipRef(db, circle.id, requesterUid), {
+    uid: requesterUid,
+    circleId: circle.id,
+    memberId,
+    inviteCode: circle.inviteCode,
+    joinedAt: serverTimestamp(),
+  });
+  batch.delete(doc(joinRequestsCol(db, circle.id), requesterUid));
+  await withTimeout(batch.commit(), 15_000);
+}
+
+/** Admin: reject a request. */
+export async function rejectJoin(cid: string, requesterUid: string) {
+  await withTimeout(deleteDoc(doc(joinRequestsCol(firestore(), cid), requesterUid)));
 }
 
 export async function leaveCircle(cid: string, memberId: string, uid: string): Promise<void> {

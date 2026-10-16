@@ -123,14 +123,19 @@ export function inviteMessage(circle: Circle, member: Member): string {
     // Monospace block: stands out in WhatsApp and is easy to select.
     '```' + circle.inviteCode + '```',
     ``,
-    `ادخل برقم موبايلك المسجل عندي.`,
+    `حمّل تطبيق دوري، ودوس "انضم بكود"، واكتب الكود واسمك — وأنا هوافق عليك من التطبيق.`,
     `💡 تقدر تنسخ الرسالة كلها وتدوس "الصق الكود" في التطبيق.`,
   ].join('\n');
 }
 
 /** Short share text (any app) with the code on its own line. */
 export function shareInviteMessage(circle: Circle): string {
-  return [`انضم لجمعية "${circle.name}" على تطبيق دوري.`, `كود الجمعية 👇`, '```' + circle.inviteCode + '```'].join('\n');
+  return [
+    `انضم لجمعية "${circle.name}" على تطبيق دوري.`,
+    `كود الجمعية 👇`,
+    '```' + circle.inviteCode + '```',
+    `افتح التطبيق، ودوس "انضم بكود"، واكتب الكود واسمك.`,
+  ].join('\n');
 }
 
 const INVITE_CODE = '[A-HJ-NP-Z2-9]{6}';

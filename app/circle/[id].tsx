@@ -42,7 +42,7 @@ export default function CircleScreen() {
 
   const onLeave = async () => {
     if (!myMember) return;
-    const ok = await confirm('الخروج من الجمعية؟', 'هتقدر ترجع تدخل بالكود ورقمك في أي وقت.', 'اخرج', true);
+    const ok = await confirm('الخروج من الجمعية؟', 'هتقدر ترجع تبعت طلب بالكود واسمك في أي وقت.', 'اخرج', true);
     if (ok) {
       await run(async () => {
         await leaveCircle(circle.id, myMember.id, user.uid);

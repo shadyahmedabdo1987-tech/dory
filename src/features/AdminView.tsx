@@ -40,6 +40,10 @@ import {
   PAYOUT_STATUS_LABEL,
 } from '@/core';
 import {
+  approveJoin,
+  rejectJoin,
+  useJoinRequests,
+  type JoinRequest,
   postAnnouncement,
   confirmMany,
   confirmPayment,
@@ -78,6 +82,7 @@ export function AdminView({
 }) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<AdminTab>(initialTab);
+  const joinRequests = useJoinRequests(circle.id);
   const payouts = usePayouts(circle.id, 'admin', undefined);
   const o = overview(circle, payments);
   const openPayoutRequests = payouts.filter((r) => r.status === 'requested' || r.status === 'disputed').length;
@@ -119,14 +124,14 @@ export function AdminView({
             label: o.pendingCount + openPayoutRequests ? `التحصيل (${formatNumber(o.pendingCount + openPayoutRequests)})` : 'التحصيل',
           },
           { value: 'schedule', label: 'الجدول' },
-          { value: 'members', label: 'الأعضاء' },
+          { value: 'members', label: joinRequests.length ? `الأعضاء (${formatNumber(joinRequests.length)})` : 'الأعضاء' },
           { value: 'messages', label: 'الرسائل' },
         ]}
       />
 
       {tab === 'collect' && <CollectTab circle={circle} payments={payments} payouts={payouts} uid={uid} />}
       {tab === 'schedule' && <ScheduleTab circle={circle} payments={payments} />}
-      {tab === 'members' && <MembersTab circle={circle} />}
+      {tab === 'members' && <MembersTab circle={circle} requests={joinRequests} />}
       {tab === 'messages' && <MessagesTab circle={circle} payments={payments} uid={uid} />}
     </ScrollView>
   );
@@ -665,7 +670,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
 // Members: invites & device links
 // ---------------------------------------------------------------------------
 
-function MembersTab({ circle }: { circle: Circle }) {
+function MembersTab({ circle, requests }: { circle: Circle; requests: JoinRequest[] }) {
   const { run } = useAction();
   // The organizer manages from their own account, so they don't "join" as a member.
   const others = circle.members.filter((m) => m.id !== circle.ownerMemberId);
@@ -682,6 +687,7 @@ function MembersTab({ circle }: { circle: Circle }) {
 
   return (
     <View style={{ gap: space.md }}>
+      {requests.length > 0 && <JoinRequestsCard circle={circle} requests={requests} />}
       <PayInfoCard circle={circle} />
       <Card style={{ alignItems: 'center' }}>
         <Text variant="caption">كود الجمعية</Text>
@@ -707,7 +713,7 @@ function MembersTab({ circle }: { circle: Circle }) {
           </Pressable>
         </View>
         <Text variant="caption" center>
-          كل عضو يدخل بالكود ده + رقم موبايله المسجل. دخل لحد دلوقتي {formatNumber(joined)} من {formatNumber(others.length)}.
+          كل عضو يدخل بالكود ده واسمه، وإنت بتوافق عليه من هنا. دخل لحد دلوقتي {formatNumber(joined)} من {formatNumber(others.length)}.
         </Text>
         <Row gap={space.sm} style={{ alignSelf: 'stretch' }}>
           <Button
@@ -755,7 +761,10 @@ function MembersTab({ circle }: { circle: Circle }) {
               <Text weight="semibold" numberOfLines={1}>
                 {m.name}
               </Text>
-              <Text variant="caption">{m.uid ? 'داخل من موبايله' : m.phone ? 'لسه ما دخلش' : 'مفيش رقم — مش هيقدر يدخل'}</Text>
+              <Text variant="caption">
+                {m.uid ? 'داخل من موبايله' : 'لسه ما دخلش'}
+                {m.phone ? ` • محفظة/إنستاباي: ${m.phone}` : ''}
+              </Text>
             </View>
             {m.uid ? (
               <IconButton icon="unlink-outline" label="فك الربط" color={colors.danger} bg={colors.dangerSoft} onPress={() => unlink(m)} />
@@ -765,6 +774,63 @@ function MembersTab({ circle }: { circle: Circle }) {
         )}
       </Card>
     </View>
+  );
+}
+
+/** People who entered the code + their name and wait for the admin to let them in. */
+function JoinRequestsCard({ circle, requests }: { circle: Circle; requests: JoinRequest[] }) {
+  const { run } = useAction();
+  const open = circle.members.filter((m) => !m.uid && m.id !== circle.ownerMemberId);
+  const norm = (t: string) => t.trim().replace(/\s+/g, ' ').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+
+  const approve = (r: JoinRequest) => {
+    if (open.length === 0) {
+      return alert('مفيش مكان فاضي', 'كل الأعضاء متربطين بموبايلات. ضيف العضو ده من الإعدادات الأول، أو فك ربط عضو.');
+    }
+    // Same name first.
+    const sorted = [...open].sort((a, b) => Number(norm(b.name) === norm(r.name)) - Number(norm(a.name) === norm(r.name)));
+    alert(
+      `"${r.name}" هيدخل باسم مين؟`,
+      'اختار العضو اللي في الجدول علشان يشوف دوره وأقساطه.',
+      [
+        ...sorted.map((m) => ({
+          text: m.name,
+          icon: 'person' as const,
+          hint: norm(m.name) === norm(r.name) ? 'نفس الاسم ✓' : undefined,
+          onPress: () => run(() => approveJoin(circle, r.uid, m.id), { success: `${m.name} دخل الجمعية ✓` }),
+        })),
+        { text: 'إلغاء', style: 'cancel' as const },
+      ],
+      { icon: 'person-add', tone: 'question' },
+    );
+  };
+
+  const reject = async (r: JoinRequest) => {
+    if (await confirm('رفض الطلب؟', `"${r.name}" مش هيدخل الجمعية.`, 'رفض', true)) run(() => rejectJoin(circle.id, r.uid));
+  };
+
+  return (
+    <Card style={{ borderWidth: 1.5, borderColor: colors.gold }}>
+      <Row gap={space.sm}>
+        <Ionicons name="person-add" size={20} color={colors.gold} />
+        <Text variant="heading" style={{ flex: 1 }}>
+          طلبات الانضمام
+        </Text>
+        <Badge label={formatNumber(requests.length)} tone="gold" />
+      </Row>
+      {requests.map((r) => (
+        <View key={r.uid} style={styles.requestRow}>
+          <View style={{ flex: 1 }}>
+            <Text weight="semibold" numberOfLines={1}>
+              {r.name}
+            </Text>
+            <Text variant="caption">دخل بكود الجمعية ومستني موافقتك</Text>
+          </View>
+          <Button label="رفض" variant="danger" onPress={() => reject(r)} />
+          <Button label="موافقة" icon="checkmark" onPress={() => approve(r)} />
+        </View>
+      ))}
+    </Card>
   );
 }
 
@@ -842,6 +908,7 @@ const styles = StyleSheet.create({
   },
   checkOn: { backgroundColor: colors.success, borderColor: colors.success },
   checkClaimed: { backgroundColor: colors.goldSoft, borderColor: colors.gold },
+  requestRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.xs },
   codeBox: {
     alignSelf: 'stretch',
     flexDirection: 'row',

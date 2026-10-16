@@ -37,7 +37,7 @@ const ERRORS: Record<DraftError, string> = {
   startDate: 'التاريخ مش صحيح',
   members: 'محتاج عضوين على الأقل',
   memberName: 'في عضو من غير اسم',
-  duplicatePhone: 'في رقم موبايل متكرر لعضوين',
+  duplicatePhone: 'في رقم محفظة متكرر لعضوين',
 };
 
 const blankMember = (): Member => ({ id: newId('new_'), name: '', phone: '' });
@@ -205,7 +205,7 @@ export function CircleForm({
           </Row>
           <Text variant="caption">
             {mode === 'create'
-              ? 'الترتيب هنا هو ترتيب القبض. رقم الموبايل مهم علشان العضو يدخل ويتابع حسابه.'
+              ? 'الترتيب هنا هو ترتيب القبض. الأعضاء بيدخلوا بكود الجمعية وإنت بتوافق عليهم من التطبيق. رقم المحفظة أو إنستاباي اختياري، للقبض بس.'
               : 'الأعضاء الجداد بيتضاف دورهم في آخر الجدول. ترتيب الأدوار من تبويب "الجدول".'}
           </Text>
           {mode === 'create' && (
@@ -275,7 +275,7 @@ export function CircleForm({
                 style={[styles.input, showErrors && !m.name.trim() && { borderColor: colors.danger }]}
               />
               <TextInput
-                placeholder="رقم الموبايل"
+                placeholder="رقم المحفظة / إنستاباي (اختياري)"
                 placeholderTextColor={colors.muted}
                 keyboardType="phone-pad"
                 value={m.phone ?? ''}

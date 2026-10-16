@@ -15,7 +15,17 @@ import {
   payoutPot,
   relativeDays,
 } from '@/core';
-import { reloadCircle, signOut, useCircleData, useMyCircles, type CircleRef } from '@/data';
+import {
+  reloadCircle,
+  removePendingJoin,
+  signOut,
+  useCircleData,
+  useJoinStatus,
+  useMyCircles,
+  usePendingJoins,
+  type CircleRef,
+  type PendingJoin,
+} from '@/data';
 import { useAppSession } from '@/data/session';
 import { clearReminders, registerForPush, unregisterPush, useCircleReminders } from '@/notifications';
 import { Badge, Button, Card, EmptyState, ProgressBar, Row, Text } from '@/ui/components';
@@ -76,13 +86,14 @@ function Home({ uid }: { uid: string }) {
   const insets = useSafeAreaInsets();
   const { user, isAccount } = useAppSession();
   const { refs, error, loading } = useMyCircles(uid);
+  const pending = usePendingJoins();
 
   const menu = async () => {
     const ok = await confirm(
       'تسجيل الخروج',
       isAccount
         ? `مسجّل بـ ${user?.email ?? ''}. تقدر ترجع تدخل بنفس الإيميل في أي وقت.`
-        : 'إنت داخل كعضو من غير حساب. لو خرجت هتحتاج كود الدعوة ورقمك تاني.',
+        : 'إنت داخل كعضو من غير حساب. لو خرجت هتحتاج كود الجمعية وموافقة صاحب الجمعية تاني.',
       'خروج',
       true,
     );
@@ -103,7 +114,10 @@ function Home({ uid }: { uid: string }) {
 
   const admin = refs?.filter((r) => r.role === 'admin') ?? [];
   const member = refs?.filter((r) => r.role === 'member') ?? [];
-  const sections: (CircleRef | { header: string })[] = [
+  const memberIds = new Set(member.map((r) => r.id));
+  const waiting = pending.filter((p) => !memberIds.has(p.cid));
+  const sections: (CircleRef | { header: string } | { pending: PendingJoin })[] = [
+    ...(waiting.length ? [{ header: 'طلبات مستنية موافقة' }, ...waiting.map((p) => ({ pending: p }))] : []),
     ...(member.length ? [{ header: 'جمعيات أنا فيها' }, ...member] : []),
     ...(admin.length ? [{ header: 'جمعيات بديرها' }, ...admin] : []),
   ];
@@ -131,7 +145,9 @@ function Home({ uid }: { uid: string }) {
       ) : (
         <FlatList
           data={sections}
-          keyExtractor={(item) => ('header' in item ? item.header : `${item.role}-${item.id}`)}
+          keyExtractor={(item) =>
+            'header' in item ? item.header : 'pending' in item ? `pending-${item.pending.cid}` : `${item.role}-${item.id}`
+          }
           contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: insets.bottom + 160 }}
           ListEmptyComponent={
             <EmptyState
@@ -149,6 +165,8 @@ function Home({ uid }: { uid: string }) {
               <Text variant="heading" style={{ marginTop: space.sm }}>
                 {item.header}
               </Text>
+            ) : 'pending' in item ? (
+              <PendingJoinCard item={item.pending} uid={uid} />
             ) : item.role === 'admin' ? (
               <AdminCard id={item.id} uid={uid} />
             ) : (
@@ -257,6 +275,30 @@ function MemberCard({ id, uid }: { id: string; uid: string }) {
       </Row>
       <ProgressBar value={acc.totalCommitment ? acc.totalPaid / acc.totalCommitment : 0} color={colors.success} />
     </CardShell>
+  );
+}
+
+function PendingJoinCard({ item, uid }: { item: PendingJoin; uid: string }) {
+  const status = useJoinStatus(item.cid, uid);
+  useEffect(() => {
+    // Approved: the circle now shows up under "my circles".
+    if (status === 'approved') removePendingJoin(item.cid);
+  }, [status, item.cid]);
+  if (status === 'approved') return null;
+  const rejected = status === 'gone';
+  return (
+    <Card>
+      <Row gap={space.sm}>
+        <Ionicons name={rejected ? 'close-circle' : 'hourglass-outline'} size={24} color={rejected ? colors.danger : colors.gold} />
+        <View style={{ flex: 1 }}>
+          <Text weight="semibold">{rejected ? 'صاحب الجمعية ما وافقش على طلبك' : `طلب انضمام باسم "${item.name}"`}</Text>
+          <Text variant="caption">
+            {rejected ? 'اتأكد من الكود واسمك وابعت طلب جديد.' : `كود ${item.code} • مستني موافقة صاحب الجمعية`}
+          </Text>
+        </View>
+      </Row>
+      {rejected ? <Button label="تمام" icon="checkmark" variant="secondary" onPress={() => removePendingJoin(item.cid)} /> : null}
+    </Card>
   );
 }
 

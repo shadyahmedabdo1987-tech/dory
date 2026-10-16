@@ -7,6 +7,7 @@ rules_version = '2';
 //   contacts/{mid}                   members' phone numbers — admin only, never visible to other members
 //   phones/{normalizedPhone}         phone -> memberId lookup used when joining
 //   memberships/{uid}                links a signed-in device to a member row
+//   joinRequests/{uid}               "let me in" (code + name); the admin approves it in the app
 //   payments/{periodId_memberId}     member may *claim* their own payment; only admin confirms
 //   receipts/{periodId_memberId}     transfer screenshot for a claim (member owner + admin only)
 // invites/{code}                     invite code -> circle id
@@ -175,7 +176,33 @@ service cloud.firestore {
           && request.resource.data.joinedAt == request.time
           && getAfter(/databases/$(database)/documents/circles/$(cid)/members/$(request.resource.data.memberId)).data.uid == uid;
 
+        // The admin approves a join request: links the member row and the
+        // requester's device in one batch (together with deleting the request).
+        allow create: if isAdmin(cid)
+          && request.resource.data.keys().hasOnly(['uid', 'circleId', 'memberId', 'inviteCode', 'joinedAt'])
+          && request.resource.data.uid == uid
+          && request.resource.data.circleId == cid
+          && request.resource.data.memberId is string
+          && request.resource.data.inviteCode == get(circlePath(cid)).data.inviteCode
+          && request.resource.data.joinedAt == request.time
+          && getAfter(/databases/$(database)/documents/circles/$(cid)/members/$(request.resource.data.memberId)).data.uid == uid;
+
         allow delete: if signedIn() && (request.auth.uid == uid || isAdmin(cid));
+      }
+
+      // ---------- join requests (code + name; the admin approves in the app) ----------
+      match /joinRequests/{rid} {
+        allow get: if signedIn() && (request.auth.uid == rid || isAdmin(cid));
+        allow list: if isAdmin(cid);
+        allow create, update: if signedIn()
+          && request.auth.uid == rid
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'inviteCode', 'createdAt'])
+          && request.resource.data.uid == rid
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
+          && request.resource.data.inviteCode == get(circlePath(cid)).data.inviteCode
+          && request.resource.data.createdAt == request.time;
+        allow delete: if signedIn() && (request.auth.uid == rid || isAdmin(cid));
       }
 
       // ---------- payments ----------
