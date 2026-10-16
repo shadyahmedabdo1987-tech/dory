@@ -228,7 +228,7 @@ export function CircleForm({
           {members.map((m, i) => (
             <View key={m.id} style={styles.member}>
               <Row style={{ justifyContent: 'space-between' }}>
-                <Row gap={space.xs}>
+                <Row gap={space.xs} style={{ flexShrink: 1 }}>
                   {mode === 'create' ? (
                     <View style={[styles.pill, locked(i) && { backgroundColor: colors.goldSoft }]}>
                       <Text variant="caption" weight="bold" color={locked(i) ? '#8A6A1C' : colors.primary}>
@@ -245,7 +245,7 @@ export function CircleForm({
                   ) : null}
                 </Row>
                 <Row gap={space.xs}>
-                  {mode === 'create' && (
+                  {mode === 'create' && !locked(i) && (
                     <>
                       <IconButton
                         icon="arrow-up"

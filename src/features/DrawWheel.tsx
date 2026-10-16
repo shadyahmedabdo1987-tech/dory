@@ -108,10 +108,12 @@ export function DrawWheel({
 
   const n = remaining.length;
   const slice = n > 0 ? 360 / n : 360;
-  const fontSize = n <= 6 ? 18 : n <= 10 ? 15 : n <= 16 ? 13 : n <= 24 ? 11 : 9;
+  const fontSize = n <= 4 ? 22 : n <= 6 ? 19 : n <= 10 ? 16 : n <= 16 ? 13 : n <= 24 ? 11 : 9;
   // Radial room for a name: from just outside the hub to just inside the rim.
-  const labelWidth = r * 0.66;
-  const labelHeight = fontSize * 1.8;
+  const labelWidth = r * 0.68;
+  const labelHeight = fontSize * 2.6;
+  // Size each name to its length (Cairo bold ≈ 0.62em per Arabic letter) — no auto-shrink, which collapses on Android.
+  const nameSize = (name: string) => Math.max(9, Math.min(fontSize, Math.floor(labelWidth / (Math.max(name.length, 1) * 0.62))));
   const maxChars = n <= 8 ? 16 : n <= 16 ? 12 : 9;
 
   const slices = useMemo(
@@ -256,10 +258,15 @@ export function DrawWheel({
                       <Text
                         weight="bold"
                         numberOfLines={1}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.6}
                         color={n === 1 ? colors.white : style.text}
-                        style={{ fontSize, lineHeight: fontSize * 1.6, textAlign: 'center', writingDirection: 'rtl' }}
+                        style={{
+                          fontSize: nameSize(shortName(e.name, maxChars)),
+                          lineHeight: Math.round(nameSize(shortName(e.name, maxChars)) * 1.7),
+                          width: labelWidth,
+                          textAlign: 'center',
+                          writingDirection: 'rtl',
+                          includeFontPadding: false,
+                        }}
                       >
                         {shortName(e.name, maxChars)}
                       </Text>
