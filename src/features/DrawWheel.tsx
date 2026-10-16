@@ -3,11 +3,11 @@ import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Modal, Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle as SvgCircle, G, Path, Polygon, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle as SvgCircle, Path, Polygon } from 'react-native-svg';
 
 import { formatNumber, ordinal, spinTarget } from '@/core';
 import { Button, Row, Text } from '@/ui/components';
-import { colors, fonts, radius, space } from '@/ui/theme';
+import { colors, radius, space } from '@/ui/theme';
 
 export interface WheelEntry {
   /** Unique per slot (a member with two turns appears twice). */
@@ -108,8 +108,11 @@ export function DrawWheel({
 
   const n = remaining.length;
   const slice = n > 0 ? 360 / n : 360;
-  const fontSize = n <= 6 ? 15 : n <= 12 ? 13 : n <= 20 ? 11 : 9;
-  const maxChars = n <= 8 ? 12 : n <= 16 ? 9 : 7;
+  const fontSize = n <= 6 ? 18 : n <= 10 ? 15 : n <= 16 ? 13 : n <= 24 ? 11 : 9;
+  // Radial room for a name: from just outside the hub to just inside the rim.
+  const labelWidth = r * 0.66;
+  const labelHeight = fontSize * 1.8;
+  const maxChars = n <= 8 ? 16 : n <= 16 ? 12 : 9;
 
   const slices = useMemo(
     () =>
@@ -223,22 +226,46 @@ export function DrawWheel({
                       <Path key={e.key} d={slicePath(c, c, r, start, end)} fill={style.fill} stroke={colors.white} strokeWidth={1.5} />
                     ))
                   )}
-                  {slices.map(({ e, center, style }) => (
-                    <G key={`t-${e.key}`} rotation={center - 90} origin={`${c}, ${c}`}>
-                      <SvgText
-                        x={c + r * 0.6}
-                        y={c + fontSize / 3}
-                        fill={n === 1 ? colors.white : style.text}
-                        fontSize={fontSize}
-                        fontFamily={fonts.bold}
-                        textAnchor="middle"
-                      >
-                        {shortName(e.name, maxChars)}
-                      </SvgText>
-                    </G>
-                  ))}
                   <SvgCircle cx={c} cy={c} r={size * 0.09} fill={colors.white} stroke={colors.gold} strokeWidth={4} />
                 </Svg>
+                {/* Names are native Text (proper Arabic shaping), laid out with transforms so RTL can't mirror them. */}
+                {slices.map(({ e, center, style }) => {
+                  const rad = (center * Math.PI) / 180;
+                  const rho = r * 0.6;
+                  // Read along the radius; flip on the left half so names are never upside down.
+                  const angle = center <= 180 ? center - 90 : center + 90;
+                  return (
+                    <View
+                      key={`t-${e.key}`}
+                      pointerEvents="none"
+                      style={[
+                        styles.label,
+                        {
+                          width: labelWidth,
+                          height: labelHeight,
+                          top: c - labelHeight / 2,
+                          left: c - labelWidth / 2,
+                          transform: [
+                            { translateX: rho * Math.sin(rad) },
+                            { translateY: -rho * Math.cos(rad) },
+                            { rotate: `${angle}deg` },
+                          ],
+                        },
+                      ]}
+                    >
+                      <Text
+                        weight="bold"
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.6}
+                        color={n === 1 ? colors.white : style.text}
+                        style={{ fontSize, lineHeight: fontSize * 1.6, textAlign: 'center', writingDirection: 'rtl' }}
+                      >
+                        {shortName(e.name, maxChars)}
+                      </Text>
+                    </View>
+                  );
+                })}
               </Animated.View>
             </View>
           )}
@@ -307,6 +334,7 @@ export function DrawWheel({
 }
 
 const styles = StyleSheet.create({
+  label: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   root: { flex: 1, backgroundColor: colors.primaryDark },
   header: { paddingHorizontal: space.lg, marginBottom: space.sm },
   pointerWrap: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', zIndex: 2 },
