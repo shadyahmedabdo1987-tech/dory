@@ -36,6 +36,8 @@ import {
   type CircleDraft,
   type Frequency,
   requiresReceipt,
+  passwordProof,
+  MIN_PASSWORD,
   validateClaim,
   type Announcement,
   type Member,
@@ -50,7 +52,7 @@ import {
   cleanGroupLink,
 } from '@/core';
 
-import { AppError, arabicError, retry, withTimeout } from './errors';
+import { AppError, arabicError, errorCode, retry, withTimeout } from './errors';
 import { firestore } from './firebase';
 import { circleNameOf, memberNameOf, myPushToken, pushToAdmin, pushToMembers, pushToUids, sendPush, uidOfMember } from './push';
 
@@ -67,6 +69,7 @@ const membersCol = (db: Firestore, cid: string) => collection(db, 'circles', cid
 const paymentsCol = (db: Firestore, cid: string) => collection(db, 'circles', cid, 'payments');
 const contactsCol = (db: Firestore, cid: string) => collection(db, 'circles', cid, 'contacts');
 const phoneRef = (db: Firestore, cid: string, phone: string) => doc(db, 'circles', cid, 'phones', phone);
+const secretRef = (db: Firestore, cid: string, memberId: string) => doc(db, 'circles', cid, 'secrets', memberId);
 const membershipRef = (db: Firestore, cid: string, uid: string) => doc(db, 'circles', cid, 'memberships', uid);
 const inviteRef = (db: Firestore, code: string) => doc(db, 'invites', code);
 
@@ -125,6 +128,7 @@ function paymentFromDoc(id: string, data: DocumentData): Payment {
     method: data.method ?? undefined,
     hasReceipt: data.hasReceipt === true,
     receiptCheck: data.receiptCheck === 'auto' || data.receiptCheck === 'manual' ? data.receiptCheck : undefined,
+    receiptRef: typeof data.receiptRef === 'string' ? data.receiptRef : undefined,
     claimedAt: data.claimedAt ?? undefined,
     confirmedAt: data.confirmedAt ?? undefined,
     note: data.note ?? undefined,
@@ -441,7 +445,34 @@ export async function unlinkMember(circle: Circle, member: Member): Promise<void
   const batch = writeBatch(db);
   batch.delete(membershipRef(db, circle.id, member.uid));
   batch.update(doc(membersCol(db, circle.id), member.id), { uid: null });
+  // Forgot password / lost phone: they choose a new password when they sign back in.
+  batch.delete(secretRef(db, circle.id, member.id));
   await withTimeout(batch.commit());
+}
+
+/** Member: do I already have a password in this circle? */
+export async function hasMyPassword(cid: string, memberId: string): Promise<boolean> {
+  try {
+    return (await getDoc(secretRef(firestore(), cid, memberId))).exists();
+  } catch {
+    return true; // offline: don't nag
+  }
+}
+
+/** Member: choose / change my password (and register my number if the circle doesn't have it yet). */
+export async function setMyPassword(cid: string, memberId: string, rawPhone: string, password: string): Promise<void> {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
+  if (password.length < MIN_PASSWORD) throw new AppError('auth/weak-password', arabicError({ code: 'auth/weak-password' }));
+  const db = firestore();
+  const lookup = await retry(() => getDoc(phoneRef(db, cid, phone)));
+  if (lookup.exists() && String(lookup.data().memberId) !== memberId) {
+    throw new AppError('dory/phone-taken', arabicError({ code: 'dory/phone-taken' }));
+  }
+  const batch = writeBatch(db);
+  if (!lookup.exists()) batch.set(phoneRef(db, cid, phone), { memberId });
+  batch.set(secretRef(db, cid, memberId), { proof: passwordProof(cid, phone, password) });
+  await withTimeout(batch.commit(), 15_000);
 }
 
 async function deleteInChunks(db: Firestore, refs: DocumentReference[]) {
@@ -458,8 +489,8 @@ export async function deleteCircle(circle: Circle): Promise<void> {
   await withTimeout(deleteDoc(directoryRef(firestore(), circle.id))).catch(() => {});
   const db = firestore();
   const cid = circle.id;
-  const [joinRequests, announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members] = await Promise.all(
-    ['joinRequests', 'announcements', 'payoutReceipts', 'payouts', 'receipts', 'payments', 'memberships', 'phones', 'contacts', 'members'].map((c) =>
+  const [joinRequests, announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members, secrets, receiptRefs] = await Promise.all(
+    ['joinRequests', 'announcements', 'payoutReceipts', 'payouts', 'receipts', 'payments', 'memberships', 'phones', 'contacts', 'members', 'secrets', 'receiptRefs'].map((c) =>
       retry(() => getDocs(collection(db, 'circles', cid, c))),
     ),
   );
@@ -472,7 +503,7 @@ export async function deleteCircle(circle: Circle): Promise<void> {
   );
   await deleteInChunks(
     db,
-    [joinRequests, announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members].flatMap((s) => s.docs.map((d) => d.ref)),
+    [joinRequests, announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members, secrets, receiptRefs].flatMap((s) => s.docs.map((d) => d.ref)),
   );
   const batch = writeBatch(db);
   batch.delete(inviteRef(db, circle.inviteCode));
@@ -488,6 +519,16 @@ const paymentRef = (cid: string, periodId: string, memberId: string) =>
   doc(paymentsCol(firestore(), cid), paymentId(periodId, memberId));
 
 const receiptRef = (cid: string, pid: string) => doc(firestore(), 'circles', cid, 'receipts', pid);
+const receiptPrintRef = (cid: string, ref: string) => doc(firestore(), 'circles', cid, 'receiptRefs', ref);
+
+/** Was this receipt (by its fingerprint) already used in the circle? */
+export async function isReceiptUsed(cid: string, ref: string): Promise<boolean> {
+  try {
+    return (await getDoc(receiptPrintRef(cid, ref))).exists();
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Member: "I paid". Transfers (InstaPay / Vodafone Cash) carry a compressed
@@ -498,7 +539,7 @@ export async function claimPayment(
   periodId: string,
   memberId: string,
   uid: string,
-  input: { method: PaymentMethod; receiptBase64?: string; note?: string; receiptCheck?: 'auto' | 'manual' },
+  input: { method: PaymentMethod; receiptBase64?: string; note?: string; receiptCheck?: 'auto' | 'manual'; receiptRef?: string },
 ) {
   const problem = validateClaim(input);
   if (problem) throw new AppError(`dory/${problem}`, arabicError({ code: `dory/${problem}` }));
@@ -508,6 +549,7 @@ export async function claimPayment(
   const withReceipt = requiresReceipt(input.method);
   const batch = writeBatch(db);
   if (withReceipt) {
+    if (!input.receiptRef) throw new AppError('dory/receipt-required', arabicError({ code: 'dory/receipt-required' }));
     batch.set(receiptRef(cid, pid), {
       image: input.receiptBase64,
       memberId,
@@ -515,6 +557,7 @@ export async function claimPayment(
       uploadedBy: uid,
       createdAt: serverTimestamp(),
     });
+    batch.set(receiptPrintRef(cid, input.receiptRef), { memberId, periodId, createdAt: serverTimestamp() });
   }
   batch.set(paymentRef(cid, periodId, memberId), {
     periodId,
@@ -522,12 +565,19 @@ export async function claimPayment(
     status: 'claimed',
     method: input.method,
     hasReceipt: withReceipt,
-    ...(withReceipt ? { receiptCheck: input.receiptCheck ?? 'manual' } : {}),
+    ...(withReceipt ? { receiptCheck: input.receiptCheck ?? 'manual', receiptRef: input.receiptRef } : {}),
     claimedAt: new Date().toISOString(),
     claimedBy: uid,
     ...(input.note?.trim() ? { note: input.note.trim().slice(0, 200) } : {}),
   });
-  await withTimeout(batch.commit(), 30_000);
+  try {
+    await withTimeout(batch.commit(), 30_000);
+  } catch (e) {
+    if (withReceipt && errorCode(e) === 'permission-denied' && (await isReceiptUsed(cid, input.receiptRef!))) {
+      throw new AppError('dory/receipt-used', arabicError({ code: 'dory/receipt-used' }));
+    }
+    throw e;
+  }
   void (async () => {
     const [circleName, who] = await Promise.all([circleNameOf(cid), memberNameOf(cid, memberId)]);
     await pushToAdmin(cid, {
@@ -540,11 +590,12 @@ export async function claimPayment(
 }
 
 /** Member withdraws a claim, or admin rejects one / removes a recorded payment (with its screenshot). */
-export async function removePayment(cid: string, payment: Pick<Payment, 'periodId' | 'memberId' | 'hasReceipt'>) {
+export async function removePayment(cid: string, payment: Pick<Payment, 'periodId' | 'memberId' | 'hasReceipt' | 'receiptRef'>) {
   const db = firestore();
   const batch = writeBatch(db);
   batch.delete(paymentRef(cid, payment.periodId, payment.memberId));
   if (payment.hasReceipt) batch.delete(receiptRef(cid, paymentId(payment.periodId, payment.memberId)));
+  if (payment.receiptRef) batch.delete(receiptPrintRef(cid, payment.receiptRef));
   await withTimeout(batch.commit());
 }
 
@@ -595,9 +646,9 @@ export async function recordTransferPayment(
   periodId: string,
   memberId: string,
   adminUid: string,
-  input: { method: PaymentMethod; receiptBase64: string; receiptCheck: 'auto' | 'manual' },
+  input: { method: PaymentMethod; receiptBase64: string; receiptCheck: 'auto' | 'manual'; receiptRef: string },
 ) {
-  if (!requiresReceipt(input.method) || !input.receiptBase64) {
+  if (!requiresReceipt(input.method) || !input.receiptBase64 || !input.receiptRef) {
     throw new AppError('dory/receipt-required', arabicError({ code: 'dory/receipt-required' }));
   }
   const db = firestore();
@@ -617,10 +668,19 @@ export async function recordTransferPayment(
     method: input.method,
     hasReceipt: true,
     receiptCheck: input.receiptCheck,
+    receiptRef: input.receiptRef,
     confirmedAt: new Date().toISOString(),
     confirmedBy: adminUid,
   });
-  await withTimeout(batch.commit(), 30_000);
+  batch.set(receiptPrintRef(cid, input.receiptRef), { memberId, periodId, createdAt: serverTimestamp() });
+  try {
+    await withTimeout(batch.commit(), 30_000);
+  } catch (e) {
+    if (errorCode(e) === 'permission-denied' && (await isReceiptUsed(cid, input.receiptRef))) {
+      throw new AppError('dory/receipt-used', arabicError({ code: 'dory/receipt-used' }));
+    }
+    throw e;
+  }
   void (async () => {
     const [circleName, uid] = await Promise.all([circleNameOf(cid), uidOfMember(cid, memberId)]);
     await pushToUids(cid, [uid], { title: '✅ اتأكد استلام قسطك', body: `صاحب جمعية "${circleName}" أكّد إنه استلم قسطك.` });
@@ -658,42 +718,55 @@ export async function confirmMany(
 export async function updatePayInfo(cid: string, info: PayInfo) {
   const clean: PayInfo = {};
   if (info.instapay?.trim()) clean.instapay = info.instapay.trim().slice(0, 60);
+  if (info.instapayAddress?.trim()) clean.instapayAddress = info.instapayAddress.trim().toLowerCase().slice(0, 60);
   if (info.vodafoneCash?.trim()) clean.vodafoneCash = info.vodafoneCash.trim().slice(0, 20);
   await withTimeout(updateDoc(circleRef(firestore(), cid), { payInfo: clean, updatedAt: serverTimestamp() }));
 }
 
 /** Admin ("حسابي"): the InstaPay account members transfer to, in every circle they run. */
-export async function setInstapayForMyCircles(uid: string, instapay: string): Promise<number> {
+export async function setInstapayForMyCircles(uid: string, instapay: { number: string; address: string }): Promise<number> {
   const db = firestore();
   const snap = await retry(() => getDocs(query(collection(db, 'circles'), where('adminUid', '==', uid))));
-  const value = instapay.trim().slice(0, 60);
+  const number = instapay.number.trim().slice(0, 60);
+  const address = instapay.address.trim().toLowerCase().slice(0, 60);
   await Promise.all(
     snap.docs.map((d) =>
-      withTimeout(updateDoc(d.ref, { 'payInfo.instapay': value, updatedAt: serverTimestamp() })),
+      withTimeout(
+        updateDoc(d.ref, {
+          'payInfo.instapay': number ? number : deleteField(),
+          'payInfo.instapayAddress': address ? address : deleteField(),
+          updatedAt: serverTimestamp(),
+        }),
+      ),
     ),
   );
   return snap.size;
 }
 
-/** The InstaPay account saved on the admin's circles (first one found). */
-export async function myAdminInstapay(uid: string): Promise<string> {
+/** The InstaPay number and address saved on the admin's circles (first circle that has them). */
+export async function myAdminInstapay(uid: string): Promise<{ number: string; address: string }> {
   try {
     const snap = await getDocs(query(collection(firestore(), 'circles'), where('adminUid', '==', uid)));
     for (const d of snap.docs) {
-      const v = d.data().payInfo?.instapay;
-      if (typeof v === 'string' && v) return v;
+      const p = d.data().payInfo ?? {};
+      const a = typeof p.instapay === 'string' ? p.instapay : '';
+      const b = typeof p.instapayAddress === 'string' ? p.instapayAddress : '';
+      if (a || b) {
+        // Older circles kept an address in the number field.
+        return a.includes('@') ? { number: '', address: b || a } : { number: a, address: b };
+      }
     }
   } catch {
     // offline
   }
-  return '';
+  return { number: '', address: '' };
 }
 
 // ---------------------------------------------------------------------------
 // Joining (member side)
 // ---------------------------------------------------------------------------
 
-export async function joinCircle(rawCode: string, rawPhone: string, uid: string): Promise<string> {
+export async function joinCircle(rawCode: string, rawPhone: string, uid: string, password?: string): Promise<string> {
   const db = firestore();
   const code = rawCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
   const phone = normalizePhone(rawPhone);
@@ -719,13 +792,14 @@ export async function joinCircle(rawCode: string, rawPhone: string, uid: string)
     memberId,
     inviteCode: code,
     joinedAt: serverTimestamp(),
+    ...(password ? { proof: passwordProof(cid, phone, password) } : {}),
   });
   try {
     await withTimeout(batch.commit(), 15_000);
   } catch (e) {
-    // The member row is already linked to another device.
+    // Wrong password, or the member row is still linked to another phone.
     if ((e as { code?: string }).code === 'permission-denied') {
-      throw new AppError('dory/already-linked', arabicError({ code: 'dory/already-linked' }));
+      throw new AppError('dory/signin-failed', arabicError({ code: 'dory/signin-failed' }));
     }
     throw e;
   }
@@ -803,6 +877,8 @@ export interface JoinRequest {
   name: string;
   /** Mobile number (international digits) — the member's identity in the circle. */
   phone?: string;
+  /** Salted hash of the password they chose (copied to secrets on approval). */
+  proof?: string;
   /** InstaPay mobile number or address the member entered (optional). */
   payAccount?: string;
   /** The requester's push token, so they hear about approval/rejection. */
@@ -823,7 +899,7 @@ export async function isPhoneRegistered(cid: string, rawPhone: string): Promise<
 /** Member: ask to join a circle from the directory with my own details. */
 export async function requestJoin(
   cid: string,
-  input: { name: string; phone: string; payAccount?: string },
+  input: { name: string; phone: string; password: string; payAccount?: string },
   uid: string,
 ): Promise<{ joined: boolean }> {
   const db = firestore();
@@ -832,6 +908,7 @@ export async function requestJoin(
   const phone = normalizePhone(input.phone);
   if (!phone) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
   if (await isPhoneRegistered(cid, phone)) throw new AppError('dory/phone-taken', arabicError({ code: 'dory/phone-taken' }));
+  if (input.password.length < MIN_PASSWORD) throw new AppError('auth/weak-password', arabicError({ code: 'auth/weak-password' }));
   const raw = input.payAccount?.trim() ?? '';
   const payAccount = raw ? normalizePayAccount(raw) : null;
   if (raw && !payAccount) throw new AppError('dory/instapay-invalid', arabicError({ code: 'dory/instapay-invalid' }));
@@ -844,6 +921,7 @@ export async function requestJoin(
       uid,
       name,
       phone,
+      proof: passwordProof(cid, phone, input.password),
       ...(payAccount ? { payAccount } : {}),
       ...(myPushToken() ? { pushToken: myPushToken() } : {}),
       createdAt: serverTimestamp(),
@@ -925,6 +1003,7 @@ export function watchJoinRequests(cid: string, onData: (items: JoinRequest[]) =>
               uid: d.id,
               name: String(data.name ?? ''),
               phone: data.phone ? String(data.phone) : undefined,
+              proof: typeof data.proof === 'string' ? data.proof : undefined,
               payAccount: data.payAccount ? String(data.payAccount) : undefined,
               pushToken: data.pushToken ? String(data.pushToken) : undefined,
               createdAt: ts?.toDate?.().toISOString(),
@@ -956,6 +1035,7 @@ export async function approveJoin(circle: Circle, request: JoinRequest, existing
     const batch = writeBatch(db);
     batch.update(doc(membersCol(db, cid), existingMemberId), { uid: request.uid });
     if (request.phone) batch.set(phoneRef(db, cid, request.phone), { memberId: existingMemberId });
+    if (request.proof) batch.set(secretRef(db, cid, existingMemberId), { proof: request.proof });
     if (request.payAccount) batch.set(doc(contactsCol(db, cid), existingMemberId), { phone: request.payAccount });
     batch.set(membershipRef(db, cid, request.uid), {
       uid: request.uid,
@@ -994,6 +1074,7 @@ export async function approveJoin(circle: Circle, request: JoinRequest, existing
       tx.set(doc(contactsCol(db, cid), memberId), { phone: request.payAccount ?? request.phone ?? null });
       // The number is the member's key for signing back in later (code + number).
       if (request.phone) tx.set(phoneRef(db, cid, request.phone), { memberId });
+      if (request.proof) tx.set(secretRef(db, cid, memberId), { proof: request.proof });
       tx.set(membershipRef(db, cid, request.uid), {
         uid: request.uid,
         circleId: cid,

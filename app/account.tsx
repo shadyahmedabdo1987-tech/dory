@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { BackHandler, I18nManager, Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { formatNumber, normalizePayAccount } from '@/core';
+import { formatNumber, INSTAPAY_ADDRESS, normalizePayAccount, normalizePhone } from '@/core';
 import { changeMyEmail, myAdminInstapay, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles } from '@/data';
 import { useAppSession } from '@/data/session';
 import { clearReminders, unregisterPush } from '@/notifications';
@@ -31,18 +31,21 @@ export default function Account() {
   const [notif, setNotif] = useState<'on' | 'off' | 'unknown'>('unknown');
   const [instapay, setInstapay] = useState(() => readPrefsSync().myInstapay ?? '');
   const [savedInstapay, setSavedInstapay] = useState(instapay);
+  // Admin: InstaPay number and address members transfer to (receipts may show either).
+  const [ipNumber, setIpNumber] = useState('');
+  const [ipAddress, setIpAddress] = useState('');
+  const [savedIp, setSavedIp] = useState({ number: '', address: '' });
   const [emailOpen, setEmailOpen] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [password, setPassword] = useState('');
 
   // Admins: show the account their circles already use.
   useEffect(() => {
-    if (!isAccount || !user || instapay) return;
+    if (!isAccount || !user) return;
     myAdminInstapay(user.uid).then((v) => {
-      if (v) {
-        setInstapay(v);
-        setSavedInstapay(v);
-      }
+      setIpNumber(v.number);
+      setIpAddress(v.address);
+      setSavedIp(v);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAccount, user?.uid]);
@@ -72,21 +75,29 @@ export default function Account() {
     );
 
   const instapayBad = !!instapay.trim() && !normalizePayAccount(instapay);
+  const ipNumberBad = !!ipNumber.trim() && !normalizePhone(ipNumber);
+  const ipAddressBad = !!ipAddress.trim() && !INSTAPAY_ADDRESS.test(ipAddress.trim());
+  const ipChanged = ipNumber.trim() !== savedIp.number.trim() || ipAddress.trim() !== savedIp.address.trim();
+  const saveAdminInstapay = () =>
+    run(
+      async () => {
+        if (!ipNumber.trim() && !ipAddress.trim()) throw new Error('اكتب رقم إنستاباي أو عنوان إنستاباي على الأقل.');
+        if (ipNumberBad || ipAddressBad) throw new Error('راجع رقم أو عنوان إنستاباي.');
+        await setInstapayForMyCircles(user.uid, { number: ipNumber, address: ipAddress });
+        setSavedIp({ number: ipNumber, address: ipAddress });
+      },
+      { success: 'اتحفظ ✓ — في كل جمعياتك. الإيصال بيتقبل لو فيه الرقم أو العنوان.' },
+    );
   const saveInstapay = () =>
     run(
       async () => {
         const v = instapay.trim();
         if (v && !normalizePayAccount(v)) throw new Error('اكتب رقم موبايل متوصل بإنستاباي أو عنوان إنستاباي زي name@instapay.');
         writePrefs({ myInstapay: v });
-        let n = 0;
-        if (isAccount && v) n = await setInstapayForMyCircles(user.uid, v);
         setSavedInstapay(v);
-        return n;
       },
       {
-        success: isAccount
-          ? 'اتحفظ ✓ — الأعضاء هيحوّلوا على الحساب ده في كل جمعياتك، والإيصالات هتتراجع عليه.'
-          : 'اتحفظ ✓ — هيتكتب لوحده لما تطلب القبض.',
+        success: 'اتحفظ ✓ — هيتكتب لوحده لما تطلب القبض.',
       },
     );
 
@@ -200,22 +211,50 @@ export default function Account() {
           </Row>
           <Field label="الاسم" value={name} onChangeText={setName} maxLength={60} placeholder="اسمك" />
           {nameChanged ? <Button label="احفظ الاسم" icon="save-outline" loading={busy} onPress={saveName} /> : null}
-          <Field
-            label={isAccount ? 'حساب إنستاباي اللي الأعضاء بيحوّلوا عليه' : 'حساب إنستاباي بتاعي (للقبض)'}
-            value={instapay}
-            onChangeText={setInstapay}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            placeholder="01xxxxxxxxx أو name@instapay"
-            error={instapayBad ? 'رقم موبايل متوصل بإنستاباي أو عنوان إنستاباي زي name@instapay' : undefined}
-            style={{ textAlign: 'left', writingDirection: 'ltr' }}
-          />
           {isAccount ? (
-            <Text variant="caption">بيتغيّر في كل الجمعيات اللي بتديرها، والإيصالات بتتراجع عليه.</Text>
-          ) : null}
-          {instapay.trim() !== savedInstapay.trim() ? (
-            <Button label="احفظ حساب إنستاباي" icon="flash-outline" loading={busy} disabled={instapayBad} onPress={saveInstapay} />
-          ) : null}
+            <>
+              <Text weight="semibold">إنستاباي اللي الأعضاء بيحوّلوا عليه</Text>
+              <Field
+                label="رقم إنستاباي"
+                value={ipNumber}
+                onChangeText={setIpNumber}
+                keyboardType="phone-pad"
+                placeholder="01xxxxxxxxx"
+                error={ipNumberBad ? 'رقم موبايل مش صحيح' : undefined}
+                style={{ textAlign: 'left', writingDirection: 'ltr' }}
+              />
+              <Field
+                label="عنوان إنستاباي"
+                value={ipAddress}
+                onChangeText={setIpAddress}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                placeholder="name@instapay"
+                error={ipAddressBad ? 'العنوان لازم يكون زي name@instapay' : undefined}
+                style={{ textAlign: 'left', writingDirection: 'ltr' }}
+              />
+              <Text variant="caption">بيتغيّر في كل جمعياتك. الإيصال بيتقبل لو فيه الرقم أو العنوان.</Text>
+              {ipChanged ? (
+                <Button label="احفظ إنستاباي" icon="flash-outline" loading={busy} disabled={ipNumberBad || ipAddressBad} onPress={saveAdminInstapay} />
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Field
+                label="حساب إنستاباي بتاعي (للقبض)"
+                value={instapay}
+                onChangeText={setInstapay}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                placeholder="01xxxxxxxxx أو name@instapay"
+                error={instapayBad ? 'رقم موبايل متوصل بإنستاباي أو عنوان إنستاباي زي name@instapay' : undefined}
+                style={{ textAlign: 'left', writingDirection: 'ltr' }}
+              />
+              {instapay.trim() !== savedInstapay.trim() ? (
+                <Button label="احفظ حساب إنستاباي" icon="flash-outline" loading={busy} disabled={instapayBad} onPress={saveInstapay} />
+              ) : null}
+            </>
+          )}
 
           {isAccount ? (
             <View style={styles.info}>

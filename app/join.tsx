@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { extractInviteCode, FREQUENCY_LABEL, formatDate, formatMoney, formatNumber, normalizePayAccount, normalizePhone } from '@/core';
+import { extractInviteCode, FREQUENCY_LABEL, formatDate, formatMoney, formatNumber, normalizePayAccount, normalizePhone, MIN_PASSWORD } from '@/core';
 import {
   addPendingJoin,
   AppError,
@@ -277,16 +277,24 @@ function JoinSheet({
   onSent: (s: { cid: string; circleName: string; name: string }) => void;
 }) {
   const { user } = useAppSession();
-  const [step, setStep] = useState<'phone' | 'details'>('phone');
+  const [step, setStep] = useState<'phone' | 'login' | 'details'>('phone');
   const [phone, setPhone] = useState(() => readPrefsSync().myPhone ?? '');
+  const [password, setPassword] = useState('');
+  const [password2, setPassword2] = useState('');
   const [name, setName] = useState(user?.displayName ?? '');
   const [account, setAccount] = useState(() => readPrefsSync().myInstapay ?? '');
   const { busy, run } = useAction();
   const phoneOk = !!normalizePhone(phone);
   const accountBad = !!account.trim() && !normalizePayAccount(account);
+  const passwordShort = !!password && password.length < MIN_PASSWORD;
+  const mismatch = !!password2 && password2 !== password;
 
   useEffect(() => {
-    if (circle) setStep('phone');
+    if (circle) {
+      setStep('phone');
+      setPassword('');
+      setPassword2('');
+    }
   }, [circle?.id]);
 
   const open = (cid: string) => {
@@ -294,30 +302,35 @@ function JoinSheet({
     router.push({ pathname: '/circle/[id]', params: { id: cid } });
   };
 
-  // Step 1: is this number already a member here?
+  // Step 1: is this number already a member here? → sign in with the password; otherwise register.
   const next = () =>
     circle &&
     run(async () => {
-      if (await isPhoneRegistered(circle.id, phone)) {
-        await ensurePushToken().catch(() => null);
-        await joinCircle(code, phone, uid);
-        writePrefs({ myPhone: phone.trim() });
-        alert('أهلًا بيك تاني ✓', 'دخلت باسمك ودورك المسجّلين في الجمعية.');
-        open(circle.id);
-        return;
-      }
+      if (await isPhoneRegistered(circle.id, phone)) return setStep('login');
       if (!allowNew) throw new AppError('dory/phone-not-found', arabicError({ code: 'dory/phone-not-found' }));
       setStep('details');
     });
 
-  // Step 2: first time — ask the admin to let me in.
+  // Registered member: number + password → straight back in, same name and turn.
+  const login = () =>
+    circle &&
+    run(async () => {
+      await ensurePushToken().catch(() => null);
+      await joinCircle(code, phone, uid, password);
+      writePrefs({ myPhone: phone.trim() });
+      alert('أهلًا بيك تاني ✓', 'دخلت باسمك ودورك المسجّلين في الجمعية.');
+      open(circle.id);
+    });
+
+  // First time: name + password, and the admin approves.
   const submit = () =>
     circle &&
     run(async () => {
+      if (password.length < MIN_PASSWORD || password !== password2) throw new AppError('auth/weak-password', arabicError({ code: 'auth/weak-password' }));
       // So the admin's approval reaches this phone as a notification.
       await ensurePushToken().catch(() => null);
-      const result = await requestJoin(circle.id, { name, phone, payAccount: account }, uid);
-      writePrefs({ myPhone: phone.trim(), ...(normalizePayAccount(account) ? { myInstapay: account.trim() } : {}) });
+      const result = await requestJoin(circle.id, { name, phone, password, payAccount: account || phone }, uid);
+      writePrefs({ myPhone: phone.trim(), ...(normalizePayAccount(account || phone) ? { myInstapay: (account || phone).trim() } : {}) });
       if (result.joined) return open(circle.id);
       await addPendingJoin({ cid: circle.id, circleName: circle.name, name: name.trim() });
       onSent({ cid: circle.id, circleName: circle.name, name: name.trim() });
@@ -332,24 +345,38 @@ function JoinSheet({
             value={phone}
             onChangeText={(t) => {
               setPhone(t);
-              if (step === 'details') setStep('phone');
+              if (step !== 'phone') setStep('phone');
             }}
             keyboardType="phone-pad"
             autoComplete="tel"
             maxLength={16}
             placeholder="01xxxxxxxxx"
             error={phone.trim() && !phoneOk ? 'اكتب رقم موبايل صحيح.' : undefined}
-            hint="لو سجّلت قبل كده، اكتب نفس الرقم وهتدخل على طول باسمك القديم."
+            hint="لو سجّلت قبل كده، اكتب نفس الرقم والباسورد وهتدخل باسمك القديم."
             style={{ textAlign: 'left', writingDirection: 'ltr' }}
           />
           {step === 'phone' ? (
             <Button label="متابعة" icon="arrow-back" loading={busy} disabled={!phoneOk} onPress={next} />
+          ) : step === 'login' ? (
+            <>
+              <View style={styles.firstTime}>
+                <Ionicons name="lock-closed-outline" size={18} color={colors.primary} />
+                <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
+                  الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك وهتدخل على طول.
+                </Text>
+              </View>
+              <Field label="الباسورد" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
+              <Button label="دخول" icon="log-in-outline" loading={busy} disabled={!password} onPress={login} />
+              <Text variant="caption" center>
+                نسيت الباسورد؟ اطلب من صاحب الجمعية يفك الربط، وبعدها تدخل بالكود ورقمك وتختار باسورد جديد.
+              </Text>
+            </>
           ) : (
             <>
               <View style={styles.firstTime}>
                 <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
                 <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
-                  أول مرة تدخل الجمعية دي. اكتب اسمك، وصاحب الجمعية هيوافق على طلبك. بعد كده تدخل بالكود ورقمك بس.
+                  أول مرة تدخل الجمعية دي. اكتب اسمك واختار باسورد، وصاحب الجمعية هيوافق على طلبك. بعد كده تدخل بالكود ورقمك والباسورد.
                 </Text>
               </View>
               <Field
@@ -361,13 +388,29 @@ function JoinSheet({
                 placeholder="الاسم اللي صاحب الجمعية هيشوفه"
               />
               <Field
+                label="الباسورد"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                error={passwordShort ? '٦ حروف أو أكتر' : undefined}
+              />
+              <Field
+                label="اكتب الباسورد تاني"
+                value={password2}
+                onChangeText={setPassword2}
+                secureTextEntry
+                autoCapitalize="none"
+                error={mismatch ? 'الباسورد مش زي اللي فوق' : undefined}
+              />
+              <Field
                 label="إنستاباي (اختياري)"
                 value={account}
                 onChangeText={setAccount}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                placeholder="رقم الموبايل أو name@instapay"
+                placeholder="لو فاضي هنستخدم رقم موبايلك"
                 error={accountBad ? 'اكتب رقم موبايل أو إيميل إنستاباي صحيح' : undefined}
                 hint="علشان تقبض عليه لما ييجي دورك"
               />
@@ -375,7 +418,7 @@ function JoinSheet({
                 label="ابعت طلب الانضمام"
                 icon="send"
                 loading={busy}
-                disabled={!name.trim() || !phoneOk || accountBad}
+                disabled={!name.trim() || !phoneOk || accountBad || password.length < MIN_PASSWORD || password !== password2}
                 onPress={submit}
               />
             </>

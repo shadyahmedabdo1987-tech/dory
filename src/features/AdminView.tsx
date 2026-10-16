@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   circleInviteMessage,
   normalizePhone,
+  INSTAPAY_ADDRESS,
   smsUrl,
   whatsappUrl,
   addExtraInstallment,
@@ -782,7 +783,7 @@ function MembersTab({ circle, requests }: { circle: Circle; requests: JoinReques
 
 
   const unlink = async (m: Member) => {
-    if (await confirm('فك ربط الموبايل؟', `${m.name} هيخرج من التطبيق، ويقدر يبعت طلب انضمام تاني وتربطه بنفس اسمه (مثلًا لو غيّر موبايله).`, 'فك الربط', true)) {
+    if (await confirm('فك ربط الموبايل؟', `${m.name} هيخرج من التطبيق والباسورد بتاعه هيتمسح. يدخل تاني بكود الجمعية ورقمه ويختار باسورد جديد — بنفس اسمه ودوره (لو نسي الباسورد أو غيّر موبايله).`, 'فك الربط', true)) {
       run(() => unlinkMember(circle, m));
     }
   };
@@ -1073,11 +1074,17 @@ function PayInfoCard({ circle }: { circle: Circle }) {
   const [open, setOpen] = useState(false);
   // Older circles: fall back to the organizer's own InstaPay so it's never typed twice.
   const ownerInstapay = circle.members.find((m) => m.id === circle.ownerMemberId)?.phone ?? '';
-  const [instapay, setInstapay] = useState(circle.payInfo?.instapay ?? ownerInstapay);
-  const [vodafone, setVodafone] = useState(circle.payInfo?.vodafoneCash ?? '');
-  const { busy, run } = useAction();
   const info = circle.payInfo;
-  const empty = !info?.instapay && !info?.vodafoneCash;
+  const legacyNumber = info?.instapay ?? ownerInstapay;
+  const initialNumber = legacyNumber.includes('@') ? '' : legacyNumber;
+  const initialAddress = info?.instapayAddress ?? (legacyNumber.includes('@') ? legacyNumber : '');
+  const [number, setNumber] = useState(initialNumber);
+  const [address, setAddress] = useState(initialAddress);
+  const [vodafone, setVodafone] = useState(info?.vodafoneCash ?? '');
+  const { busy, run } = useAction();
+  const empty = !info?.instapay && !info?.instapayAddress && !info?.vodafoneCash;
+  const numberBad = !!number.trim() && !normalizePhone(number);
+  const addressBad = !!address.trim() && !INSTAPAY_ADDRESS.test(address.trim());
 
   return (
     <Card>
@@ -1088,37 +1095,52 @@ function PayInfoCard({ circle }: { circle: Circle }) {
           icon="create-outline"
           variant="ghost"
           onPress={() => {
-            setInstapay(info?.instapay ?? ownerInstapay);
+            setNumber(initialNumber);
+            setAddress(initialAddress);
             setVodafone(info?.vodafoneCash ?? '');
             setOpen(true);
           }}
         />
       </Row>
       {empty ? (
-        <Text variant="caption">ضيف حساب إنستاباي ورقم فودافون كاش علشان الأعضاء يعرفوا يحوّلوا على فين.</Text>
+        <Text variant="caption">ضيف رقم وعنوان إنستاباي ورقم فودافون كاش علشان الأعضاء يعرفوا يحوّلوا على فين.</Text>
       ) : (
         <View style={{ gap: space.xs }}>
-          {info?.instapay ? <Text>⚡ إنستاباي: <Text weight="bold">{info.instapay}</Text></Text> : null}
+          {initialNumber ? <Text>⚡ رقم إنستاباي: <Text weight="bold">{initialNumber}</Text></Text> : null}
+          {initialAddress ? <Text>⚡ عنوان إنستاباي: <Text weight="bold">{initialAddress}</Text></Text> : null}
           {info?.vodafoneCash ? <Text>📱 فودافون كاش: <Text weight="bold">{info.vodafoneCash}</Text></Text> : null}
         </View>
       )}
       <Sheet visible={open} title="بيانات التحويل" onClose={() => setOpen(false)}>
         <Field
+          label="رقم إنستاباي"
+          value={number}
+          onChangeText={setNumber}
+          keyboardType="phone-pad"
+          placeholder="01xxxxxxxxx"
+          maxLength={20}
+          error={numberBad ? 'رقم موبايل مش صحيح' : undefined}
+        />
+        <Field
           label="عنوان إنستاباي"
-          value={instapay}
-          onChangeText={setInstapay}
+          value={address}
+          onChangeText={setAddress}
           autoCapitalize="none"
-          placeholder="name@instapay أو رقم الموبايل"
+          keyboardType="email-address"
+          placeholder="name@instapay"
           maxLength={60}
+          error={addressBad ? 'العنوان لازم يكون زي name@instapay' : undefined}
+          hint="الإيصال بيتقبل لو فيه الرقم أو العنوان"
         />
         <Field label="رقم فودافون كاش" value={vodafone} onChangeText={setVodafone} keyboardType="phone-pad" placeholder="010xxxxxxxx" maxLength={20} />
         <Button
           label="حفظ"
           icon="checkmark"
           loading={busy}
+          disabled={numberBad || addressBad}
           onPress={() =>
             run(async () => {
-              await updatePayInfo(circle.id, { instapay, vodafoneCash: vodafone });
+              await updatePayInfo(circle.id, { instapay: number, instapayAddress: address, vodafoneCash: vodafone });
               setOpen(false);
             })
           }

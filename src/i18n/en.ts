@@ -586,11 +586,49 @@ export const EXACT: Record<string, string> = {
  "لازم ترفق صورة إيصال التحويل لأي دفع بإنستاباي أو فودافون كاش.": "A transfer screenshot is required for any InstaPay or Vodafone Cash payment.",
  "مفيش دفع بإنستاباي أو فودافون كاش بيتسجّل من غير إيصال، ولازم يكون فيه القسط بالظبط على حسابك.": "No InstaPay or Vodafone Cash payment is recorded without a receipt, and it must show exactly the installment to your account.",
  "سجّل الدفع": "Record payment",
- "حسابك": "your account"
+ "حسابك": "your account",
+ "الباسورد": "Password",
+ "اكتب الباسورد تاني": "Repeat password",
+ "الباسورد مش زي اللي فوق": "Passwords don't match",
+ "الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك وهتدخل على طول.": "This number is registered in the circle. Enter your password to sign in.",
+ "نسيت الباسورد؟ اطلب من صاحب الجمعية يفك الربط، وبعدها تدخل بالكود ورقمك وتختار باسورد جديد.": "Forgot your password? Ask the organizer to unlink you, then sign in with the code and your number and choose a new one.",
+ "أول مرة تدخل الجمعية دي. اكتب اسمك واختار باسورد، وصاحب الجمعية هيوافق على طلبك. بعد كده تدخل بالكود ورقمك والباسورد.": "First time in this circle. Enter your name and choose a password; the organizer will approve you. After that, sign in with the code, your number and password.",
+ "لو فاضي هنستخدم رقم موبايلك": "If empty we'll use your mobile number",
+ "لو سجّلت قبل كده، اكتب نفس الرقم والباسورد وهتدخل باسمك القديم.": "If you registered before, enter the same number and password to get back in.",
+ "اختار باسورد لحسابك": "Choose a password for your account",
+ "علشان محدش يقدر يدخل مكانك. لما تعمل خروج وترجع، هتدخل بكود الجمعية ورقم موبايلك والباسورد ده.": "So nobody else can sign in as you. When you sign out and come back, use the circle code, your number and this password.",
+ "احفظ الباسورد": "Save password",
+ "الباسورد اتحفظ ✓ — بعد كده تدخل بالكود ورقمك والباسورد.": "Password saved ✓ — next time sign in with the code, your number and password.",
+ "الباسورد غلط، أو الرقم ده داخل من موبايل تاني دلوقتي. لو نسيت الباسورد، اطلب من صاحب الجمعية يفك الربط.": "Wrong password, or this number is signed in on another phone. If you forgot the password, ask the organizer to unlink you.",
+ "الإيصال ده اتستخدم قبل كده في الجمعية. ارفع إيصال التحويل بتاعك إنت.": "This receipt was already used in the circle. Upload your own transfer receipt.",
+ "الإيصال ده اتستخدم قبل كده في الجمعية": "This receipt was already used in the circle",
+ "تاريخ الإيصال قديم — مش بتاع القسط ده": "The receipt date is too old — not for this installment",
+ "الإيصال مش هيتضاف": "The receipt won't be added",
+ "الإيصال صحيح ✓": "Receipt verified ✓",
+ "اتضاف للطلب — دوس \"ابعت\" علشان يوصل.": "Added — tap \"Send\" to submit.",
+ "الإيصال مش هيتضاف. ارفع الإيصال الصح.": "The receipt won't be added. Upload the correct one.",
+ "أو على": "or to",
+ "إنستاباي اللي الأعضاء بيحوّلوا عليه": "InstaPay members transfer to",
+ "رقم إنستاباي": "InstaPay number",
+ "رقم موبايل مش صحيح": "Invalid mobile number",
+ "العنوان لازم يكون زي name@instapay": "The address must look like name@instapay",
+ "بيتغيّر في كل جمعياتك. الإيصال بيتقبل لو فيه الرقم أو العنوان.": "Applies to all your circles. A receipt is accepted if it shows the number or the address.",
+ "احفظ إنستاباي": "Save InstaPay",
+ "اتحفظ ✓ — في كل جمعياتك. الإيصال بيتقبل لو فيه الرقم أو العنوان.": "Saved ✓ in all your circles. A receipt is accepted if it shows the number or the address.",
+ "اكتب رقم إنستاباي أو عنوان إنستاباي على الأقل.": "Enter at least an InstaPay number or address.",
+ "راجع رقم أو عنوان إنستاباي.": "Check the InstaPay number or address.",
+ "ضيف رقم وعنوان إنستاباي ورقم فودافون كاش علشان الأعضاء يعرفوا يحوّلوا على فين.": "Add your InstaPay number and address and Vodafone Cash number so members know where to transfer.",
+ "الإيصال بيتقبل لو فيه الرقم أو العنوان": "A receipt is accepted if it shows the number or the address",
+ "⚡ رقم إنستاباي:": "⚡ InstaPay number:",
+ "⚡ عنوان إنستاباي:": "⚡ InstaPay address:"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
 export const PATTERNS: [string, string][] = [
+ [
+  "{0} هيخرج من التطبيق والباسورد بتاعه هيتمسح. يدخل تاني بكود الجمعية ورقمه ويختار باسورد جديد — بنفس اسمه ودوره (لو نسي الباسورد أو غيّر موبايله).",
+  "{0} will be signed out and their password cleared. They sign back in with the circle code and their number and choose a new password — same name and turn."
+ ],
  [
   "اكتب المبلغ والرقم اللي حوّلت عليه زي ما هما في الإيصال، ولازم يطابقوا {0} و{1}. والفلوس مش هتتحسب غير لما المستلم يتأكد إنها وصلت حسابه.",
   "Type the amount and the account exactly as on the receipt; they must match {0} and {1}. The money only counts once the receiver confirms it arrived."

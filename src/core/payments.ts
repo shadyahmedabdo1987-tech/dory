@@ -20,9 +20,16 @@ export function methodOf(payment: { method?: PaymentMethod } | undefined): Payme
 
 /** Where to send money for a method, if the admin configured it. */
 export function payTarget(method: PaymentMethod, info: PayInfo | undefined): string | undefined {
-  if (method === 'instapay') return info?.instapay?.trim() || undefined;
+  if (method === 'instapay') return info?.instapay?.trim() || info?.instapayAddress?.trim() || undefined;
   if (method === 'vodafone_cash') return info?.vodafoneCash?.trim() || undefined;
   return undefined;
+}
+
+/** Every account a transfer for this method may show on the receipt (InstaPay: number and address). */
+export function payAccounts(method: PaymentMethod, info: PayInfo | undefined): string[] {
+  const list =
+    method === 'instapay' ? [info?.instapay, info?.instapayAddress] : method === 'vodafone_cash' ? [info?.vodafoneCash] : [];
+  return [...new Set(list.map((x) => x?.trim()).filter((x): x is string => !!x))];
 }
 
 /** Base64 receipts are stored in Firestore documents (1 MiB max); stay well below. */
@@ -174,4 +181,73 @@ export function checkReceiptText(text: string, expected: { amount: number; accou
     return forms.some((f) => flatDigits.includes(f)) || maskedMatches(text, forms);
   });
   return { amount, account };
+}
+
+// ---------------------------------------------------------------------------
+// Receipt fingerprint (the same receipt can't be used twice) and date
+// ---------------------------------------------------------------------------
+
+const REF_LABEL =
+  /(reference|ref\.?|transaction|trx|txn|operation|رقم\s*المرجع|المرجع|الرقم\s*المرجعي|رقم\s*العملي[ةه]|رقم\s*المعامل[ةه])\s*(no\.?|number|id|#|رقم)?[^A-Za-z0-9٠-٩]{0,12}([A-Za-z0-9٠-٩]{6,40})/i;
+
+/**
+ * The transaction reference printed on an InstaPay / wallet receipt, or the
+ * longest run of digits that isn't the amount or an account number.
+ */
+export function receiptReference(text: string, exclude: { accounts?: (string | undefined)[] } = {}): string | null {
+  const ascii = asciiDigits(text);
+  const labeled = ascii.match(REF_LABEL);
+  if (labeled && /\d/.test(labeled[3])) return labeled[3].toUpperCase();
+  const skip = new Set(exclude.accounts?.flatMap((a) => (a ? phoneForms(a) : [])) ?? []);
+  const runs = (ascii.match(/\d{10,30}/g) ?? []).filter((r) => ![...skip].some((f) => r.includes(f) || f.includes(r)));
+  runs.sort((a, b) => b.length - a.length);
+  return runs[0] ?? null;
+}
+
+const MONTH_WORDS: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+  يناير: 1, فبراير: 2, مارس: 3, أبريل: 4, ابريل: 4, مايو: 5, يونيو: 6, يوليو: 7, أغسطس: 8, اغسطس: 8, سبتمبر: 9, أكتوبر: 10, اكتوبر: 10, نوفمبر: 11, ديسمبر: 12,
+};
+
+function iso(y: number, m: number, d: number): string | null {
+  if (y < 100) y += 2000;
+  if (m < 1 || m > 12 || d < 1 || d > 31 || y < 2000 || y > 2100) return null;
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/** Dates written on a receipt (dd/mm/yyyy, yyyy-mm-dd, "16 Oct 2026", "16 أكتوبر 2026"). */
+export function receiptDates(text: string): string[] {
+  const t = asciiDigits(text);
+  const out = new Set<string>();
+  for (const m of t.matchAll(/\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b/g)) {
+    const v = iso(+m[1], +m[2], +m[3]);
+    if (v) out.add(v);
+  }
+  for (const m of t.matchAll(/\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})\b/g)) {
+    const v = iso(+m[3], +m[2], +m[1]);
+    if (v) out.add(v);
+  }
+  for (const m of t.matchAll(/(\d{1,2})\s*([A-Za-z؀-ۿ]{3,9})[,\s]+(\d{4})/g)) {
+    const month = MONTH_WORDS[m[2].toLowerCase().slice(0, m[2].match(/[A-Za-z]/) ? 3 : undefined)];
+    if (month) {
+      const v = iso(+m[3], month, +m[1]);
+      if (v) out.add(v);
+    }
+  }
+  return [...out];
+}
+
+/**
+ * Is the receipt recent enough for this installment? null when no date could
+ * be read (then it isn't held against the receipt).
+ */
+export function receiptDateOk(text: string, dueISO: string, todayISO: string, graceDays = 45): boolean | null {
+  const dates = receiptDates(text);
+  if (dates.length === 0) return null;
+  const from = new Date(`${dueISO}T00:00:00Z`).getTime() - graceDays * 86_400_000;
+  const to = new Date(`${todayISO}T00:00:00Z`).getTime() + 2 * 86_400_000;
+  return dates.some((d) => {
+    const t = new Date(`${d}T00:00:00Z`).getTime();
+    return t >= from && t <= to;
+  });
 }

@@ -212,6 +212,7 @@ describe('join requests (picked from the directory, approved in the app)', () =>
       uid,
       name: 'سارة',
       phone: '201077777777',
+      proof: 'a'.repeat(64),
       payAccount: 'sara@instapay',
       createdAt: serverTimestamp(),
       ...overrides,
@@ -230,6 +231,35 @@ describe('join requests (picked from the directory, approved in the app)', () =>
     await assertFails(
       setDoc(doc(anon('u3'), 'circles', CID, 'joinRequests', 'u3'), { uid: 'u3', name: 'سارة', createdAt: serverTimestamp() }),
     );
+  });
+
+  it('needs the password to sign back in once the member has one', async () => {
+    const proof = 'b'.repeat(64);
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'circles', CID, 'secrets', 'm1'), { proof }));
+    const signIn = (db, uid, p) => {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'circles', CID, 'members', 'm1'), { uid });
+      batch.set(doc(db, 'circles', CID, 'memberships', uid), {
+        uid, circleId: CID, memberId: 'm1', inviteCode: CODE, joinedAt: serverTimestamp(), ...(p ? { proof: p } : {}),
+      });
+      return batch.commit();
+    };
+    await assertFails(signIn(anon('x1'), 'x1'));
+    await assertFails(signIn(anon('x2'), 'x2', 'c'.repeat(64)));
+    await assertSucceeds(signIn(anon('x3'), 'x3', proof));
+    // Nobody else can read it; the member can see their own.
+    await assertFails(getDoc(doc(anon('x4'), 'circles', CID, 'secrets', 'm1')));
+    await assertSucceeds(getDoc(doc(anon('x3'), 'circles', CID, 'secrets', 'm1')));
+    await assertFails(getDoc(doc(admin(), 'circles', CID, 'secrets', 'm1')));
+  });
+
+  it('lets a member set their own password, and the admin reset it', async () => {
+    const db = anon('u1');
+    await joinBatch(db, 'u1');
+    await assertSucceeds(setDoc(doc(db, 'circles', CID, 'secrets', 'm1'), { proof: 'd'.repeat(64) }));
+    await assertFails(setDoc(doc(db, 'circles', CID, 'secrets', 'm2'), { proof: 'd'.repeat(64) }));
+    await assertFails(setDoc(doc(db, 'circles', CID, 'secrets', 'm1'), { proof: 'short' }));
+    await assertSucceeds(deleteDoc(doc(admin(), 'circles', CID, 'secrets', 'm1')));
   });
 
   it('lets a registered member sign back in with the code and their number, keeping their row', async () => {
@@ -453,6 +483,7 @@ describe('payment methods & receipts', () => {
     method,
     ...extra,
   });
+  const refDoc = (memberId) => ({ memberId, periodId: 'p0', createdAt: serverTimestamp() });
   const receipt = (memberId, by) => ({
     image: 'data',
     memberId,
@@ -480,7 +511,8 @@ describe('payment methods & receipts', () => {
     await joinBatch(db, 'u1');
     const batch = writeBatch(db);
     batch.set(doc(db, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'u1'));
-    batch.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'vodafone_cash', { hasReceipt: true }));
+    batch.set(doc(db, 'circles', CID, 'receiptRefs', 'REF123456'), refDoc('m1'));
+    batch.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'vodafone_cash', { hasReceipt: true, receiptRef: 'REF123456' }));
     await assertSucceeds(batch.commit());
 
     // Owner and admin can see it; another member can't.
@@ -493,7 +525,8 @@ describe('payment methods & receipts', () => {
     await joinBatch(db, 'u1');
     const ok = writeBatch(db);
     ok.set(doc(db, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'u1'));
-    ok.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'instapay', { hasReceipt: true, receiptCheck: 'manual' }));
+    ok.set(doc(db, 'circles', CID, 'receiptRefs', 'REF222222'), refDoc('m1'));
+    ok.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'instapay', { hasReceipt: true, receiptCheck: 'manual', receiptRef: 'REF222222' }));
     await assertSucceeds(ok.commit());
 
     const other = anon('u2');
@@ -509,7 +542,8 @@ describe('payment methods & receipts', () => {
     await joinBatch(owner, 'u1');
     const batch = writeBatch(owner);
     batch.set(doc(owner, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'u1'));
-    batch.set(doc(owner, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'instapay', { hasReceipt: true }));
+    batch.set(doc(owner, 'circles', CID, 'receiptRefs', 'REF333333'), refDoc('m1'));
+    batch.set(doc(owner, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'instapay', { hasReceipt: true, receiptRef: 'REF333333' }));
     await batch.commit();
 
     const other = anon('u2');
@@ -523,12 +557,14 @@ describe('payment methods & receipts', () => {
     await joinBatch(db, 'u1');
     const create = writeBatch(db);
     create.set(doc(db, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'u1'));
-    create.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'instapay', { hasReceipt: true }));
-    await create.commit();
+    create.set(doc(db, 'circles', CID, 'receiptRefs', 'REF444444'), refDoc('m1'));
+    create.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'instapay', { hasReceipt: true, receiptRef: 'REF444444' }));
+    await assertSucceeds(create.commit());
 
     const undo = writeBatch(db);
     undo.delete(doc(db, 'circles', CID, 'payments', 'p0_m1'));
     undo.delete(doc(db, 'circles', CID, 'receipts', 'p0_m1'));
+    undo.delete(doc(db, 'circles', CID, 'receiptRefs', 'REF444444'));
     await assertSucceeds(undo.commit());
   });
 
@@ -542,9 +578,33 @@ describe('payment methods & receipts', () => {
     await assertFails(setDoc(doc(db, 'circles', CID, 'payments', 'p0_m1'), confirmed('vodafone_cash', { hasReceipt: true })));
     const ok = writeBatch(db);
     ok.set(doc(db, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'admin'));
-    ok.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), confirmed('instapay', { hasReceipt: true, receiptCheck: 'auto' }));
+    ok.set(doc(db, 'circles', CID, 'receiptRefs', 'REF555555'), refDoc('m1'));
+    ok.set(doc(db, 'circles', CID, 'payments', 'p0_m1'), confirmed('instapay', { hasReceipt: true, receiptCheck: 'auto', receiptRef: 'REF555555' }));
     await assertSucceeds(ok.commit());
     await assertSucceeds(setDoc(doc(db, 'circles', CID, 'payments', 'p0_m2'), confirmed('cash', { memberId: 'm2' })));
+  });
+
+  it("doesn't accept the same receipt twice", async () => {
+    const a = anon('u1');
+    await joinBatch(a, 'u1');
+    const first = writeBatch(a);
+    first.set(doc(a, 'circles', CID, 'receipts', 'p0_m1'), receipt('m1', 'u1'));
+    first.set(doc(a, 'circles', CID, 'receiptRefs', 'TRX987654'), refDoc('m1'));
+    first.set(doc(a, 'circles', CID, 'payments', 'p0_m1'), claimDoc('m1', 'u1', 'instapay', { hasReceipt: true, receiptRef: 'TRX987654' }));
+    await assertSucceeds(first.commit());
+
+    const b = anon('u2');
+    await joinBatch(b, 'u2', 'm2');
+    const second = writeBatch(b);
+    second.set(doc(b, 'circles', CID, 'receipts', 'p0_m2'), receipt('m2', 'u2'));
+    second.set(doc(b, 'circles', CID, 'receiptRefs', 'TRX987654'), refDoc('m2'));
+    second.set(doc(b, 'circles', CID, 'payments', 'p0_m2'), claimDoc('m2', 'u2', 'instapay', { hasReceipt: true, receiptRef: 'TRX987654' }));
+    await assertFails(second.commit());
+    // …and not without a fingerprint either.
+    const third = writeBatch(b);
+    third.set(doc(b, 'circles', CID, 'receipts', 'p0_m2'), receipt('m2', 'u2'));
+    third.set(doc(b, 'circles', CID, 'payments', 'p0_m2'), claimDoc('m2', 'u2', 'instapay', { hasReceipt: true }));
+    await assertFails(third.commit());
   });
 
   it('rejects unknown methods and oversized images', async () => {

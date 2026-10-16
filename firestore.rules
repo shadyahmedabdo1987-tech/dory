@@ -82,8 +82,9 @@ service cloud.firestore {
 
     function validPayInfo(p) {
       return p is map
-        && p.keys().hasOnly(['instapay', 'vodafoneCash'])
-        && optionalString(p, 'instapay', 60) && optionalString(p, 'vodafoneCash', 20);
+        && p.keys().hasOnly(['instapay', 'instapayAddress', 'vodafoneCash'])
+        && optionalString(p, 'instapay', 60) && optionalString(p, 'instapayAddress', 60)
+        && optionalString(p, 'vodafoneCash', 20);
     }
 
     function validMember(d) {
@@ -97,8 +98,9 @@ service cloud.firestore {
     function validPayment(pid, d) {
       return d.keys().hasAll(['periodId', 'memberId', 'status'])
         && d.keys().hasOnly(['periodId', 'memberId', 'status', 'claimedAt', 'claimedBy',
-                             'confirmedAt', 'confirmedBy', 'note', 'method', 'hasReceipt', 'receiptCheck'])
+                             'confirmedAt', 'confirmedBy', 'note', 'method', 'hasReceipt', 'receiptCheck', 'receiptRef'])
         && (!('receiptCheck' in d) || d.receiptCheck in ['auto', 'manual'])
+        && (!('receiptRef' in d) || (d.receiptRef is string && d.receiptRef.matches('^[A-Za-z0-9_-]{6,80}$')))
         && (!('method' in d) || d.method in ['cash', 'instapay', 'vodafone_cash'])
         && (!('hasReceipt' in d) || d.hasReceipt is bool)
         && d.periodId is string && d.memberId is string
@@ -111,6 +113,12 @@ service cloud.firestore {
 
     // ---------- circles ----------
     match /circles/{cid} {
+      // The receipt's fingerprint is registered in the same write and wasn't used before.
+      function freshReceiptRef(d) {
+        return d.receiptRef is string
+          && !exists(/databases/$(database)/documents/circles/$(cid)/receiptRefs/$(d.receiptRef))
+          && existsAfter(/databases/$(database)/documents/circles/$(cid)/receiptRefs/$(d.receiptRef));
+      }
       allow get: if signedIn() && (resource.data.adminUid == request.auth.uid || isMember(cid));
       allow list: if signedIn() && resource.data.adminUid == request.auth.uid;
 
@@ -167,6 +175,27 @@ service cloud.firestore {
         allow create, update: if isAdminAfter(cid)
           && request.resource.data.keys().hasOnly(['memberId'])
           && request.resource.data.memberId is string;
+        // A member who joined before numbers were the sign-in key registers theirs.
+        allow create: if isMember(cid)
+          && phone.matches('^[0-9]{8,15}$')
+          && request.resource.data.keys().hasOnly(['memberId'])
+          && request.resource.data.memberId == myMemberId(cid);
+        allow delete: if isAdmin(cid);
+      }
+
+      // ---------- member passwords (salted hash only; nobody can read another's) ----------
+      match /secrets/{mid} {
+        function validSecret() {
+          return request.resource.data.keys().hasOnly(['proof'])
+            && request.resource.data.proof is string
+            && request.resource.data.proof.matches('^[0-9a-f]{64}$');
+        }
+        allow get: if isMember(cid) && myMemberId(cid) == mid;
+        // Copied from the join request when the admin approves it.
+        allow create: if isAdminAfter(cid) && validSecret();
+        // A member sets / changes their own password.
+        allow create, update: if isMember(cid) && myMemberId(cid) == mid && validSecret();
+        // Admin resets a forgotten password (together with unlinking the phone).
         allow delete: if isAdmin(cid);
       }
 
@@ -175,9 +204,13 @@ service cloud.firestore {
         allow get: if signedIn() && (request.auth.uid == uid || isAdmin(cid));
         allow list: if isAdmin(cid);
 
+        // A member signs (back) in with the invite code + their number — and their
+        // password once they have one (stored only as a salted hash).
         allow create: if signedIn()
           && request.auth.uid == uid
-          && request.resource.data.keys().hasOnly(['uid', 'circleId', 'memberId', 'inviteCode', 'joinedAt'])
+          && request.resource.data.keys().hasOnly(['uid', 'circleId', 'memberId', 'inviteCode', 'joinedAt', 'proof'])
+          && (!exists(/databases/$(database)/documents/circles/$(cid)/secrets/$(request.resource.data.memberId))
+              || request.resource.data.get('proof', '') == get(/databases/$(database)/documents/circles/$(cid)/secrets/$(request.resource.data.memberId)).data.proof)
           && request.resource.data.uid == uid
           && request.resource.data.circleId == cid
           && request.resource.data.memberId is string
@@ -205,7 +238,8 @@ service cloud.firestore {
         allow list: if isAdmin(cid);
         allow create, update: if signedIn()
           && request.auth.uid == rid
-          && request.resource.data.keys().hasOnly(['uid', 'name', 'phone', 'payAccount', 'pushToken', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'phone', 'payAccount', 'pushToken', 'createdAt', 'proof'])
+          && request.resource.data.proof is string && request.resource.data.proof.matches('^[0-9a-f]{64}$')
           // Mobile number (international digits). A number already registered in
           // the circle can't ask again — that member signs back in with it instead.
           && request.resource.data.phone is string
@@ -245,7 +279,10 @@ service cloud.firestore {
           && (!('method' in request.resource.data)
               || request.resource.data.method == 'cash'
               || (request.resource.data.hasReceipt == true
-                  && existsAfter(/databases/$(database)/documents/circles/$(cid)/receipts/$(pid))));
+                  && existsAfter(/databases/$(database)/documents/circles/$(cid)/receipts/$(pid))
+                  // A new transfer (not confirming a member's claim) registers its
+                  // receipt fingerprint — the same receipt can't be used twice.
+                  && (resource != null || freshReceiptRef(request.resource.data))));
         allow delete: if isAdmin(cid);
 
         // Member says "I paid" for themselves only; can't confirm.
@@ -259,7 +296,8 @@ service cloud.firestore {
           && (!('method' in request.resource.data)
               || request.resource.data.method == 'cash'
               || (request.resource.data.hasReceipt == true
-                  && existsAfter(/databases/$(database)/documents/circles/$(cid)/receipts/$(pid))));
+                  && existsAfter(/databases/$(database)/documents/circles/$(cid)/receipts/$(pid))
+                  && freshReceiptRef(request.resource.data)));
 
         // Member withdraws a claim that the admin hasn't confirmed yet.
         allow delete: if isMember(cid)
@@ -322,6 +360,21 @@ service cloud.firestore {
         || (ownsReceipt()
             && (!exists(/databases/$(database)/documents/circles/$(cid)/payments/$(pid))
                 || get(/databases/$(database)/documents/circles/$(cid)/payments/$(pid)).data.status == 'claimed'));
+    }
+
+    // ---------- receipt fingerprints (one use per receipt) ----------
+    match /circles/{cid}/receiptRefs/{ref} {
+      allow get: if isAdmin(cid) || isMember(cid);
+      allow create: if ref.matches('^[A-Za-z0-9_-]{6,80}$')
+        && request.resource.data.keys().hasOnly(['memberId', 'periodId', 'createdAt'])
+        && request.resource.data.memberId is string && request.resource.data.periodId is string
+        && request.resource.data.createdAt == request.time
+        && (isAdmin(cid) || (isMember(cid) && request.resource.data.memberId == myMemberId(cid)));
+      // Freed again when the payment is withdrawn or rejected.
+      allow delete: if isAdmin(cid)
+        || (isMember(cid) && resource.data.memberId == myMemberId(cid)
+            && (!exists(/databases/$(database)/documents/circles/$(cid)/payments/$(resource.data.periodId + '_' + resource.data.memberId))
+                || get(/databases/$(database)/documents/circles/$(cid)/payments/$(resource.data.periodId + '_' + resource.data.memberId)).data.status == 'claimed'));
     }
 
     // ---------- payout requests (turn recipient <-> admin) ----------

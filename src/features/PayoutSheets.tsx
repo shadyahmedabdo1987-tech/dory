@@ -185,7 +185,7 @@ export function AdminPayoutSheet({
   }, [entry?.period.id, request?.status]);
 
   // The admin's receipt must show exactly the payout, sent to the recipient's account.
-  const rc = useReceiptVerification(receipt, payoutNet(circle), [account]);
+  const rc = useReceiptVerification(receipt, payoutNet(circle), [account], { due: entry?.date });
 
   if (!entry) return null;
   const recipient = entry.recipient;

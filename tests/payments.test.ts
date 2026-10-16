@@ -127,3 +127,25 @@ describe('receipt check', () => {
   });
 });
 
+
+describe('receipt fingerprint and date', () => {
+  it('finds the labelled transaction reference', async () => {
+    const { receiptReference } = await import('../src/core/payments.ts');
+    assert.equal(receiptReference('InstaPay\nReference Number: 2310456789123\nAmount 1,000 EGP'), '2310456789123');
+    assert.equal(receiptReference('رقم العملية: ٥٥٤٤٣٣٢٢١١٠٠'), '554433221100');
+    // Falls back to the longest number that isn't the receiver's mobile.
+    assert.equal(receiptReference('to 01012345678 1000 EGP 88776655443322', { accounts: ['201012345678'] }), '88776655443322');
+    assert.equal(receiptReference('1000 EGP to shady@instapay'), null);
+  });
+
+  it('reads receipt dates and checks they belong to this installment', async () => {
+    const { receiptDates, receiptDateOk } = await import('../src/core/payments.ts');
+    assert.deepEqual(receiptDates('16/10/2026 10:22 PM'), ['2026-10-16']);
+    assert.deepEqual(receiptDates('2026-10-16'), ['2026-10-16']);
+    assert.deepEqual(receiptDates('16 Oct 2026'), ['2026-10-16']);
+    assert.deepEqual(receiptDates('١٦ أكتوبر ٢٠٢٦'), ['2026-10-16']);
+    assert.equal(receiptDateOk('16/10/2026', '2026-11-01', '2026-10-16'), true);
+    assert.equal(receiptDateOk('01/01/2026', '2026-11-01', '2026-10-16'), false);
+    assert.equal(receiptDateOk('no date here', '2026-11-01', '2026-10-16'), null);
+  });
+});

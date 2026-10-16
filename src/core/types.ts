@@ -56,6 +56,8 @@ export interface Payment {
    * typed them — the admin must check the money actually arrived.
    */
   receiptCheck?: 'auto' | 'manual';
+  /** Fingerprint of the receipt (transaction reference or image hash) — one use only. */
+  receiptRef?: string;
   /** Member said "I paid" (ISO timestamp). */
   claimedAt?: string;
   /** Admin confirmed receipt (ISO timestamp). */
@@ -88,8 +90,10 @@ export interface Circle {
 }
 
 export interface PayInfo {
-  /** InstaPay address (e.g. name@instapay) or mobile number. */
+  /** InstaPay mobile number (older circles may hold an address here). */
   instapay?: string;
+  /** InstaPay address (name@instapay) — receipts may show either one. */
+  instapayAddress?: string;
   /** Vodafone Cash wallet number. */
   vodafoneCash?: string;
 }

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import { useEffect, useState, type ComponentProps } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { Animated, Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   checkReceiptText,
@@ -12,12 +12,17 @@ import {
   METHOD_LABEL,
   PAYMENT_METHODS,
   payTarget,
+  payAccounts,
+  receiptDateOk,
+  receiptReference,
   requiresReceipt,
+  sha256,
+  todayISO,
   type Circle,
   type PaymentMethod,
   type TimelineEntry,
 } from '@/core';
-import { claimPayment, recordTransferPayment } from '@/data';
+import { claimPayment, isReceiptUsed, recordTransferPayment } from '@/data';
 import { Button, Field, Row, Text, tap } from '@/ui/components';
 import { Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
@@ -133,7 +138,7 @@ export function AdminRecordTransferSheet({
   const [receipt, setReceipt] = useState<PickedReceipt | null>(null);
   const { busy, run } = useAction();
   const target = payTarget(method, circle.payInfo);
-  const rc = useReceiptVerification(receipt, entry?.due ?? 0, [target]);
+  const rc = useReceiptVerification(receipt, entry?.due ?? 0, payAccounts(method, circle.payInfo), { cid: circle.id, due: entry?.date });
 
   useEffect(() => setReceipt(null), [entry?.period.id, member?.id, method]);
 
@@ -146,6 +151,7 @@ export function AdminRecordTransferSheet({
           method,
           receiptBase64: receipt.base64,
           receiptCheck: rc.autoOk ? 'auto' : 'manual',
+          receiptRef: rc.ref!,
         });
         onClose();
       },
@@ -195,8 +201,9 @@ export function PaySheet({
   }, [entry?.period.id]);
 
   const target = payTarget(method, circle.payInfo);
-  // One installment, to the admin's InstaPay (number or address) / wallet.
-  const rc = useReceiptVerification(receipt, entry?.due ?? 0, [target]);
+  const accounts = payAccounts(method, circle.payInfo);
+  // One installment, to the admin's InstaPay (number or address) / wallet, recent, never used before.
+  const rc = useReceiptVerification(receipt, entry?.due ?? 0, accounts, { cid: circle.id, due: entry?.date });
 
   if (!entry) return null;
   const needsReceipt = requiresReceipt(method);
@@ -210,6 +217,7 @@ export function PaySheet({
           method,
           receiptBase64: needsReceipt ? receipt?.base64 : undefined,
           receiptCheck: needsReceipt ? (autoOk ? 'auto' : 'manual') : undefined,
+          receiptRef: needsReceipt ? (rc.ref ?? undefined) : undefined,
           note,
         });
         onClose();
@@ -232,23 +240,24 @@ export function PaySheet({
         <Text weight="semibold">دفعت إزاي؟</Text>
         <MethodPicker value={method} onChange={setMethod} />
 
-        {target && (
+        {accounts.map((acc, i) => (
           <Pressable
+            key={acc}
             style={styles.target}
             onPress={() => {
-              Clipboard.setStringAsync(target).catch(() => {});
-              alert('اتنسخ ✓', target);
+              Clipboard.setStringAsync(acc).catch(() => {});
+              alert('اتنسخ ✓', acc);
             }}
           >
             <View style={{ flex: 1 }}>
-              <Text variant="caption">حوّل على</Text>
-              <Text weight="bold" selectable>
-                {target}
+              <Text variant="caption">{i === 0 ? 'حوّل على' : 'أو على'}</Text>
+              <Text weight="bold" selectable style={{ writingDirection: 'ltr', textAlign: 'left' }}>
+                {acc}
               </Text>
             </View>
             <Ionicons name="copy-outline" size={20} color={colors.primary} />
           </Pressable>
-        )}
+        ))}
 
         {needsReceipt && (
           <View style={{ gap: space.sm }}>
@@ -277,12 +286,22 @@ export function PaySheet({
 /**
  * Checks a transfer screenshot: the app reads it and looks for exactly
  * `amount` sent to one of `accounts` (mobile number — also masked — or InstaPay
- * address). If it reads the receipt and it doesn't match, it's blocked; if it
- * can't read it, the sender types both and they must match.
+ * address), dated around the installment, and never used before in the circle
+ * (by its transaction reference, or the image itself). If it reads the receipt
+ * and anything doesn't match, it's blocked; if it can't read it, the sender
+ * types amount + account and they must match (the receiver then double-checks).
  */
-export function useReceiptVerification(receipt: PickedReceipt | null, amount: number, accounts: (string | undefined)[]) {
+export function useReceiptVerification(
+  receipt: PickedReceipt | null,
+  amount: number,
+  accounts: (string | undefined)[],
+  opts: { cid?: string; due?: string } = {},
+) {
   const [checking, setChecking] = useState(false);
   const [auto, setAuto] = useState<ReceiptCheck | null>(null);
+  const [dateOk, setDateOk] = useState<boolean | null>(null);
+  const [ref, setRef] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState(false);
   const [typedAmount, setTypedAmount] = useState('');
   const [typedAccount, setTypedAccount] = useState('');
   const known = accounts.filter((a): a is string => !!a && !!a.trim());
@@ -290,37 +309,156 @@ export function useReceiptVerification(receipt: PickedReceipt | null, amount: nu
 
   useEffect(() => {
     setAuto(null);
+    setDateOk(null);
+    setRef(null);
+    setDuplicate(false);
     setTypedAmount('');
     setTypedAccount('');
     if (!receipt || !amount) return;
     let cancelled = false;
     setChecking(true);
-    readReceiptText(receipt.sourceUri ?? receipt.uri)
-      .then((text) => {
-        if (cancelled) return;
-        if (!text) return setAuto(null);
-        const c = checkReceiptText(text, { amount, accounts: known });
-        // No saved account to compare with: only the amount can be checked.
-        setAuto({ amount: c.amount, account: c.account || known.length === 0 });
-      })
-      .finally(() => !cancelled && setChecking(false));
+    (async () => {
+      const text = await readReceiptText(receipt.sourceUri ?? receipt.uri).catch(() => null);
+      if (cancelled) return;
+      // The receipt's fingerprint: its transaction reference, else the image itself.
+      const printed = text ? receiptReference(text, { accounts: known }) : null;
+      const fingerprint = cleanRef(printed ? `T${printed}` : `I${sha256(`${receipt.base64.length}:${receipt.base64.slice(0, 40_000)}`).slice(0, 40)}`);
+      setRef(fingerprint);
+      if (opts.cid && (await isReceiptUsed(opts.cid, fingerprint))) {
+        if (!cancelled) setDuplicate(true);
+      }
+      if (cancelled || !text) return;
+      const c = checkReceiptText(text, { amount, accounts: known });
+      // No saved account to compare with: only the amount can be checked.
+      setAuto({ amount: c.amount, account: c.account || known.length === 0 });
+      if (opts.due) setDateOk(receiptDateOk(text, opts.due, todayISO()));
+    })().finally(() => !cancelled && setChecking(false));
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [receipt?.uri, amount, key]);
+  }, [receipt?.uri, amount, key, opts.cid, opts.due]);
 
   const manual: ReceiptCheck = {
     amount: Math.abs(parseAmount(typedAmount) - amount) < 0.01,
     account: known.length === 0 || checkReceiptText(typedAccount, { amount: 0, accounts: known }).account,
   };
-  const autoOk = !!auto && auto.amount && auto.account;
-  const blocked = !!auto && !autoOk;
-  const verified = !!receipt && !checking && !blocked && (autoOk || (manual.amount && manual.account));
-  return { checking, auto, autoOk, blocked, verified, manual, typedAmount, setTypedAmount, typedAccount, setTypedAccount };
+  const autoOk = !!auto && auto.amount && auto.account && dateOk !== false && !duplicate;
+  const blocked = duplicate || dateOk === false || (!!auto && !(auto.amount && auto.account));
+  const verified = !!receipt && !checking && !!ref && !blocked && (autoOk || (manual.amount && manual.account));
+  return {
+    checking,
+    auto,
+    autoOk,
+    blocked,
+    verified,
+    dateOk,
+    duplicate,
+    ref,
+    manual,
+    typedAmount,
+    setTypedAmount,
+    typedAccount,
+    setTypedAccount,
+  };
+}
+
+function cleanRef(raw: string): string {
+  const v = raw.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
+  return v.length >= 6 ? v : `${v}000000`.slice(0, 6);
 }
 
 export type ReceiptVerification = ReturnType<typeof useReceiptVerification>;
+
+/**
+ * Full-screen verdict once the receipt is read: a green check that pops in
+ * ("الإيصال صحيح") or a red X with exactly what's wrong.
+ */
+function ReceiptResult({
+  rc,
+  amount,
+  target,
+  receiverLabel,
+}: {
+  rc: ReceiptVerification;
+  amount: number;
+  target?: string;
+  receiverLabel: string;
+}) {
+  const verdict: 'ok' | 'bad' | null = rc.checking
+    ? null
+    : rc.duplicate || rc.dateOk === false || (rc.auto && !(rc.auto.amount && rc.auto.account))
+      ? 'bad'
+      : rc.autoOk
+        ? 'ok'
+        : null;
+  const key = verdict ? `${rc.ref}:${verdict}` : null;
+  const [shown, setShown] = useState<string | null>(null);
+  const scale = useRef(new Animated.Value(0)).current;
+  const visible = !!key && shown !== key;
+
+  useEffect(() => {
+    if (!visible) return;
+    scale.setValue(0);
+    Animated.spring(scale, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }).start();
+  }, [visible, scale]);
+
+  if (!visible || !verdict) return null;
+  const ok = verdict === 'ok';
+  const reasons: string[] = [];
+  if (!ok) {
+    if (rc.duplicate) reasons.push('الإيصال ده اتستخدم قبل كده في الجمعية');
+    if (rc.dateOk === false) reasons.push('تاريخ الإيصال قديم — مش بتاع القسط ده');
+    if (rc.auto && !rc.auto.amount) reasons.push(`المبلغ المحوّل لازم يكون ${formatMoney(amount)} بالظبط`);
+    if (rc.auto && !rc.auto.account) reasons.push(`لازم يكون محوّل على ${target ?? receiverLabel}`);
+  }
+  return (
+    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShown(key)}>
+      <View style={styles.resultBackdrop}>
+        <View style={styles.resultCard}>
+          <Animated.View
+            style={[
+              styles.resultIcon,
+              { backgroundColor: ok ? colors.success : colors.danger, transform: [{ scale }] },
+            ]}
+          >
+            <Ionicons name={ok ? 'checkmark' : 'close'} size={64} color={colors.white} />
+          </Animated.View>
+          <Text weight="bold" center style={{ fontSize: 22, lineHeight: 34 }} color={ok ? colors.success : colors.danger}>
+            {ok ? 'الإيصال صحيح ✓' : 'الإيصال مش مطابق'}
+          </Text>
+          {ok ? (
+            <View style={{ gap: 4, alignSelf: 'stretch' }}>
+              <Text center>المبلغ {formatMoney(amount)}</Text>
+              <Text center>محوّل على {target ?? receiverLabel}</Text>
+              <Text variant="caption" center>
+                اتضاف للطلب — دوس "ابعت" علشان يوصل.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ gap: 6, alignSelf: 'stretch' }}>
+              {reasons.map((r) => (
+                <Row key={r} gap={space.xs}>
+                  <Ionicons name="close-circle" size={18} color={colors.danger} />
+                  <Text style={{ flex: 1 }}>{r}</Text>
+                </Row>
+              ))}
+              <Text variant="caption" center>
+                الإيصال مش هيتضاف. ارفع الإيصال الصح.
+              </Text>
+            </View>
+          )}
+          <Button
+            label="تمام"
+            icon={ok ? 'checkmark' : 'refresh'}
+            style={{ alignSelf: 'stretch', ...(ok ? {} : { backgroundColor: colors.danger, borderColor: colors.danger }) }}
+            onPress={() => setShown(key)}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 /** Shows whether the screenshot carries exactly the amount, to the right account. */
 export function ReceiptChecks({
@@ -335,6 +473,7 @@ export function ReceiptChecks({
   receiverLabel?: string;
 }) {
   const { checking, auto, typedAmount, setTypedAmount, typedAccount, setTypedAccount, manual } = rc;
+  const result = <ReceiptResult rc={rc} amount={amount} target={target} receiverLabel={receiverLabel} />;
   if (checking) {
     return (
       <View style={[styles.check, { backgroundColor: colors.primarySoft }]}>
@@ -351,8 +490,27 @@ export function ReceiptChecks({
       </Text>
     </Row>
   );
+  if (rc.duplicate || rc.dateOk === false) {
+    return (
+      <>
+        {result}
+        <View style={[styles.check, { backgroundColor: colors.dangerSoft, flexDirection: 'column', alignItems: 'stretch' }]}>
+          <Row gap={space.xs}>
+            <Ionicons name="close-circle" size={20} color={colors.danger} />
+            <Text weight="bold" color={colors.danger} style={{ flex: 1 }}>
+              الإيصال مش هيتضاف
+            </Text>
+          </Row>
+          {rc.duplicate ? <Line ok={false} text="الإيصال ده اتستخدم قبل كده في الجمعية" /> : null}
+          {rc.dateOk === false ? <Line ok={false} text="تاريخ الإيصال قديم — مش بتاع القسط ده" /> : null}
+        </View>
+      </>
+    );
+  }
   if (auto && auto.amount && auto.account) {
     return (
+      <>
+      {result}
       <View style={[styles.check, { backgroundColor: colors.successSoft }]}>
         <View style={{ flex: 1, gap: 4 }}>
           <Text weight="bold" color={colors.success}>
@@ -362,10 +520,13 @@ export function ReceiptChecks({
           <Line ok text={`محوّل على ${target ?? ''}`} />
         </View>
       </View>
+      </>
     );
   }
   if (auto) {
     return (
+      <>
+      {result}
       <View style={[styles.check, { backgroundColor: colors.dangerSoft, flexDirection: 'column', alignItems: 'stretch' }]}>
         <Row gap={space.xs}>
           <Ionicons name="close-circle" size={20} color={colors.danger} />
@@ -379,6 +540,7 @@ export function ReceiptChecks({
           لازم إيصال فيه {formatMoney(amount)} بالظبط على {target ?? receiverLabel}. لو حوّلت مبلغ أقل كمّل الباقي، ولو الصورة مش واضحة صوّرها تاني.
         </Text>
       </View>
+      </>
     );
   }
   return (
@@ -412,6 +574,9 @@ export function ReceiptChecks({
 }
 
 const styles = StyleSheet.create({
+  resultBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', padding: space.xl },
+  resultCard: { width: '100%', maxWidth: 380, backgroundColor: colors.card, borderRadius: radius.lg, padding: space.xl, gap: space.md, alignItems: 'center' },
+  resultIcon: { width: 112, height: 112, borderRadius: 56, alignItems: 'center', justifyContent: 'center' },
   method: {
     flex: 1,
     alignItems: 'center',

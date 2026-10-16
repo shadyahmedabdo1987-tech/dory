@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -25,7 +25,8 @@ import {
   type Payment,
   type TimelineEntry,
 } from '@/core';
-import { confirmPayoutReceived, disputePayout, loadPayoutReceipt, loadReceipt, removePayment, usePayouts } from '@/data';
+import { confirmPayoutReceived, disputePayout, hasMyPassword, loadPayoutReceipt, loadReceipt, removePayment, setMyPassword, usePayouts } from '@/data';
+import { readPrefsSync, writePrefs } from '@/ui/prefs';
 import { Badge, Button, Card, Field, ProgressBar, Row, Text, tap } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
@@ -145,6 +146,8 @@ export function MemberView({
         </Row>
       </Pressable>
       <TurnsSheet visible={showTurns} onClose={() => setShowTurns(false)} circle={circle} payments={payments} memberId={memberId} />
+
+      <PasswordCard cid={circle.id} memberId={memberId} />
 
       <AnnouncementsCard circle={circle} memberId={memberId} />
 
@@ -388,6 +391,63 @@ export function MemberView({
       />
     </ScrollView>
     </KeyboardScreen>
+  );
+}
+
+/**
+ * Members who joined before passwords existed choose one once; from then on
+ * signing back in needs the code + their number + this password.
+ */
+function PasswordCard({ cid, memberId }: { cid: string; memberId: string }) {
+  const [needed, setNeeded] = useState(false);
+  const [phone, setPhone] = useState(() => readPrefsSync().myPhone ?? '');
+  const [password, setPassword] = useState('');
+  const [password2, setPassword2] = useState('');
+  const { busy, run } = useAction();
+
+  useEffect(() => {
+    let alive = true;
+    hasMyPassword(cid, memberId).then((has) => alive && setNeeded(!has));
+    return () => {
+      alive = false;
+    };
+  }, [cid, memberId]);
+
+  if (!needed) return null;
+  const ok = !!phone.trim() && password.length >= 6 && password === password2;
+  const save = () =>
+    run(
+      async () => {
+        await setMyPassword(cid, memberId, phone, password);
+        writePrefs({ myPhone: phone.trim() });
+        setNeeded(false);
+      },
+      { success: 'الباسورد اتحفظ ✓ — بعد كده تدخل بالكود ورقمك والباسورد.' },
+    );
+
+  return (
+    <Card style={{ borderWidth: 1.5, borderColor: colors.gold }}>
+      <Row gap={space.sm}>
+        <Ionicons name="lock-closed" size={20} color={colors.gold} />
+        <Text variant="heading" style={{ flex: 1 }}>
+          اختار باسورد لحسابك
+        </Text>
+      </Row>
+      <Text variant="caption">
+        علشان محدش يقدر يدخل مكانك. لما تعمل خروج وترجع، هتدخل بكود الجمعية ورقم موبايلك والباسورد ده.
+      </Text>
+      <Field
+        label="رقم موبايلك"
+        value={phone}
+        onChangeText={setPhone}
+        keyboardType="phone-pad"
+        placeholder="01xxxxxxxxx"
+        style={{ textAlign: 'left', writingDirection: 'ltr' }}
+      />
+      <Field label="الباسورد" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" error={password && password.length < 6 ? '٦ حروف أو أكتر' : undefined} />
+      <Field label="اكتب الباسورد تاني" value={password2} onChangeText={setPassword2} secureTextEntry autoCapitalize="none" error={password2 && password2 !== password ? 'الباسورد مش زي اللي فوق' : undefined} />
+      <Button label="احفظ الباسورد" icon="lock-closed-outline" loading={busy} disabled={!ok} onPress={save} />
+    </Card>
   );
 }
 
