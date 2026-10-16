@@ -386,9 +386,13 @@ export interface CircleDraft {
   members: Member[];
   /** The organizer is members[0] and always takes the first turn. */
   ownerFirst?: boolean;
+  /** Target number of members (including the organizer); others join from the app. */
+  slots?: number;
 }
 
-export type DraftError = 'name' | 'installment' | 'startDate' | 'members' | 'memberName' | 'duplicatePhone';
+export type DraftError = 'name' | 'installment' | 'startDate' | 'members' | 'memberName' | 'duplicatePhone' | 'slots';
+
+export const MAX_SLOTS = 120;
 
 export function validateDraft(draft: CircleDraft, normalize: (p: string) => string | null): DraftError[] {
   const errors: DraftError[] = [];
@@ -399,7 +403,13 @@ export function validateDraft(draft: CircleDraft, normalize: (p: string) => stri
   } catch {
     errors.push('startDate');
   }
-  if (draft.members.length < 2) errors.push('members');
+  if (draft.members.length < 1) errors.push('members');
+  if (
+    draft.slots !== undefined &&
+    (!Number.isInteger(draft.slots) || draft.slots < 2 || draft.slots > MAX_SLOTS || draft.slots < draft.members.length)
+  ) {
+    errors.push('slots');
+  }
   if (draft.members.some((m) => !m.name.trim())) errors.push('memberName');
   const phones = draft.members.map((m) => (m.phone ? normalize(m.phone) : null)).filter(Boolean);
   if (new Set(phones).size !== phones.length) errors.push('duplicatePhone');
@@ -458,4 +468,9 @@ export function drawablePayouts(circle: Pick<Circle, 'periods' | 'ownerMemberId'
 export function ownerFirstOrder(circle: Pick<Circle, 'periods' | 'ownerMemberId'>, drawn: string[]): string[] {
   const { fixed } = drawablePayouts(circle);
   return [...fixed.map((p) => p.recipientId ?? ''), ...drawn];
+}
+
+/** A circle is open to join requests until it reaches its target size. */
+export function isCircleOpen(circle: Pick<Circle, 'slots' | 'members'>): boolean {
+  return !circle.slots || circle.members.length < circle.slots;
 }

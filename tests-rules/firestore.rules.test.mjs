@@ -178,25 +178,60 @@ describe('member payout accounts', () => {
   });
 });
 
-describe('join requests (approved in the app)', () => {
+describe('directory', () => {
+  const listing = (overrides = {}) => ({
+    name: 'جمعية الشغل',
+    adminName: 'شادي',
+    installment: 1000,
+    frequency: 'monthly',
+    startDate: '2026-11-01',
+    memberCount: 2,
+    slots: 10,
+    open: true,
+    updatedAt: serverTimestamp(),
+    ...overrides,
+  });
+
+  it('lets only the circle admin publish its listing, and anyone signed in read it', async () => {
+    await assertSucceeds(setDoc(doc(admin(), 'directory', CID), listing()));
+    await assertFails(setDoc(doc(anon('u1'), 'directory', CID), listing()));
+    await assertFails(setDoc(doc(admin(), 'directory', CID), listing({ phone: '201011111111' })));
+    await assertSucceeds(getDocs(query(collection(anon('u1'), 'directory'), where('open', '==', true))));
+  });
+});
+
+describe('join requests (picked from the directory, approved in the app)', () => {
+  const openListing = async (open = true) =>
+    env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), 'directory', CID), { name: 'جمعية الشغل', open, memberCount: 2 }),
+    );
   const request = (db, uid, overrides = {}) =>
     setDoc(doc(db, 'circles', CID, 'joinRequests', uid), {
       uid,
-      name: 'منى',
-      inviteCode: CODE,
+      name: 'سارة',
+      payAccount: 'sara@instapay',
       createdAt: serverTimestamp(),
       ...overrides,
     });
 
-  it('lets anyone with the code ask to join, and only for themselves', async () => {
+  it('lets anyone ask to join an open circle, only for themselves', async () => {
+    await openListing();
     await assertSucceeds(request(anon('u1'), 'u1'));
+    await assertSucceeds(request(anon('u5'), 'u5', { payAccount: '201055555555' }));
     await assertFails(request(anon('u1'), 'u2'));
-    await assertFails(request(anon('u3'), 'u3', { inviteCode: 'ZZZ999' }));
     await assertFails(request(anon('u3'), 'u3', { name: '' }));
+    await assertFails(request(anon('u3'), 'u3', { payAccount: 'not valid' }));
     await assertFails(request(anon('u3'), 'u3', { phone: '201011111111' }));
   });
 
+  it('refuses requests for closed or unlisted circles', async () => {
+    await assertFails(request(anon('u1'), 'u1'));
+    await openListing(false);
+    await assertFails(request(anon('u1'), 'u1'));
+  });
+
   it('shows requests to the admin and to the requester only', async () => {
+    await openListing();
     await request(anon('u1'), 'u1');
     await assertSucceeds(getDocs(collection(admin(), 'circles', CID, 'joinRequests')));
     await assertSucceeds(getDoc(doc(anon('u1'), 'circles', CID, 'joinRequests', 'u1')));
@@ -204,32 +239,44 @@ describe('join requests (approved in the app)', () => {
     await assertFails(getDocs(collection(anon('u2'), 'circles', CID, 'joinRequests')));
   });
 
-  it('lets the admin approve: link the row + device and remove the request in one batch', async () => {
+  it('lets the admin approve as a new member with their details, atomically', async () => {
+    await openListing();
     await request(anon('u1'), 'u1');
     const db = admin();
     const batch = writeBatch(db);
-    batch.update(doc(db, 'circles', CID, 'members', 'm2'), { uid: 'u1' });
+    batch.set(doc(db, 'circles', CID, 'members', 'm3'), { name: 'سارة', uid: 'u1', order: 2, createdAt: serverTimestamp() });
+    batch.set(doc(db, 'circles', CID, 'contacts', 'm3'), { phone: 'sara@instapay' });
     batch.set(doc(db, 'circles', CID, 'memberships', 'u1'), {
       uid: 'u1',
       circleId: CID,
-      memberId: 'm2',
+      memberId: 'm3',
       inviteCode: CODE,
       joinedAt: serverTimestamp(),
     });
     batch.delete(doc(db, 'circles', CID, 'joinRequests', 'u1'));
+    batch.update(doc(db, 'circles', CID), {
+      periods: [
+        { id: 'p0', kind: 'payout', recipientId: 'm1' },
+        { id: 'p1', kind: 'payout', recipientId: 'm2' },
+        { id: 'p2', kind: 'payout', recipientId: 'm3' },
+      ],
+      memberCount: 3,
+      updatedAt: serverTimestamp(),
+    });
     await assertSucceeds(batch.commit());
-    // The new member now sees the circle.
     await assertSucceeds(getDoc(doc(anon('u1'), 'circles', CID)));
   });
 
   it('blocks a requester from approving themselves', async () => {
+    await openListing();
     await request(anon('u1'), 'u1');
     const db = anon('u1');
     const batch = writeBatch(db);
+    batch.set(doc(db, 'circles', CID, 'members', 'm3'), { name: 'سارة', uid: 'u1', order: 2 });
     batch.set(doc(db, 'circles', CID, 'memberships', 'u1'), {
       uid: 'u1',
       circleId: CID,
-      memberId: 'm2',
+      memberId: 'm3',
       inviteCode: CODE,
       joinedAt: serverTimestamp(),
     });
@@ -237,12 +284,18 @@ describe('join requests (approved in the app)', () => {
   });
 
   it('lets the admin reject and the requester cancel', async () => {
+    await openListing();
     await request(anon('u1'), 'u1');
     await assertSucceeds(deleteDoc(doc(admin(), 'circles', CID, 'joinRequests', 'u1')));
     await request(anon('u2'), 'u2');
     await assertSucceeds(deleteDoc(doc(anon('u2'), 'circles', CID, 'joinRequests', 'u2')));
     await request(anon('u3'), 'u3');
     await assertFails(deleteDoc(doc(anon('u4'), 'circles', CID, 'joinRequests', 'u3')));
+  });
+
+  it('accepts a target size on the circle', async () => {
+    await assertSucceeds(updateDoc(doc(admin(), 'circles', CID), { slots: 12, updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(admin(), 'circles', CID), { slots: 1, updatedAt: serverTimestamp() }));
   });
 });
 

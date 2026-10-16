@@ -23,6 +23,8 @@ import {
 } from 'firebase/firestore';
 
 import {
+  newId,
+  isCircleOpen,
   generateInviteCode,
   initialPeriods,
   normalizePayAccount,
@@ -101,6 +103,7 @@ function circleFromDoc(id: string, data: DocumentData, members: Member[]): Circl
     payInfo: d.payInfo ?? undefined,
     whatsappGroup: d.whatsappGroup ?? undefined,
     ownerMemberId: d.ownerMemberId ?? undefined,
+    slots: typeof d.slots === 'number' ? d.slots : undefined,
     periods: Array.isArray(d.periods) ? d.periods : [],
     members,
     createdAt: d.createdAt?.toDate?.().toISOString() ?? new Date().toISOString(),
@@ -306,6 +309,7 @@ export async function createCircle(draft: CircleDraft, adminUid: string): Promis
     updatedAt: serverTimestamp(),
     schemaVersion: SCHEMA_VERSION,
     ...(draft.ownerFirst && members[0] ? { ownerMemberId: members[0].id } : {}),
+    ...(draft.slots ? { slots: draft.slots } : {}),
   });
   members.forEach((m, i) => {
     const phone = phoneOf(m);
@@ -357,7 +361,7 @@ export async function mutatePeriods(cid: string, change: (periods: Period[]) => 
 export async function saveCircle(
   circle: Circle,
   next: Member[],
-  settings?: { name: string; installment: number; frequency: Frequency; startDate: string },
+  settings?: { name: string; installment: number; frequency: Frequency; startDate: string; slots?: number },
 ): Promise<void> {
   const db = firestore();
   const cid = circle.id;
@@ -403,6 +407,7 @@ export async function saveCircle(
       installment: settings.installment,
       frequency: settings.frequency,
       startDate: settings.startDate,
+      ...(settings.slots ? { slots: settings.slots } : {}),
     }),
     periods: cleanPeriods(syncPeriodsWithMembers(circle.periods, withIds)),
     memberCount: withIds.length,
@@ -443,6 +448,8 @@ async function deleteInChunks(db: Firestore, refs: DocumentReference[]) {
 
 /** Deletes children first and the circle last, so a failure can simply be retried. */
 export async function deleteCircle(circle: Circle): Promise<void> {
+  // Unlist it first so nobody asks to join a circle that's going away.
+  await withTimeout(deleteDoc(directoryRef(firestore(), circle.id))).catch(() => {});
   const db = firestore();
   const cid = circle.id;
   const [joinRequests, announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members] = await Promise.all(
@@ -626,36 +633,110 @@ export async function joinCircle(rawCode: string, rawPhone: string, uid: string)
 }
 
 // ---------------------------------------------------------------------------
-// Joining with code + name: the member asks, the admin approves in the app
+// Public directory of open circles + join requests the admin approves in the app
 // ---------------------------------------------------------------------------
+
+export interface DirectoryEntry {
+  id: string;
+  name: string;
+  adminName: string;
+  installment: number;
+  frequency: Frequency;
+  startDate: string;
+  memberCount: number;
+  slots?: number;
+  open: boolean;
+}
+
+const directoryRef = (db: Firestore, cid: string) => doc(db, 'directory', cid);
+
+function directoryDoc(circle: Circle, adminName: string) {
+  return {
+    name: circle.name.slice(0, 60),
+    adminName: adminName.trim().slice(0, 60),
+    installment: circle.installment,
+    frequency: circle.frequency,
+    startDate: circle.startDate,
+    memberCount: circle.members.length,
+    slots: circle.slots ?? null,
+    open: isCircleOpen(circle),
+    updatedAt: serverTimestamp(),
+  };
+}
+
+/** Admin: publish/refresh the circle's public listing (what people see before joining). */
+export async function syncDirectory(circle: Circle, adminName: string) {
+  await withTimeout(setDoc(directoryRef(firestore(), circle.id), directoryDoc(circle, adminName)), 15_000);
+}
+
+/** Anyone: live list of circles open for joining, newest first. */
+export function watchDirectory(onData: (items: DirectoryEntry[]) => void, onError: (message: string) => void): Unsubscribe {
+  return onSnapshot(
+    query(collection(firestore(), 'directory'), where('open', '==', true)),
+    (s) =>
+      onData(
+        s.docs
+          .map((d) => {
+            const x = d.data();
+            const ts = x.updatedAt as { toMillis?: () => number } | undefined;
+            return {
+              entry: {
+                id: d.id,
+                name: String(x.name ?? ''),
+                adminName: String(x.adminName ?? ''),
+                installment: Number(x.installment ?? 0),
+                frequency: x.frequency as Frequency,
+                startDate: String(x.startDate ?? ''),
+                memberCount: Number(x.memberCount ?? 0),
+                slots: typeof x.slots === 'number' ? x.slots : undefined,
+                open: x.open === true,
+              },
+              t: ts?.toMillis?.() ?? 0,
+            };
+          })
+          .sort((a, b) => b.t - a.t)
+          .map((x) => x.entry),
+      ),
+    (e) => onError(arabicError(e)),
+  );
+}
 
 export interface JoinRequest {
   uid: string;
   name: string;
+  /** InstaPay mobile number or address the member entered (optional). */
+  payAccount?: string;
   createdAt?: string;
 }
 
 const joinRequestsCol = (db: Firestore, cid: string) => collection(db, 'circles', cid, 'joinRequests');
 
-/** Member: ask to join. Returns the circle id and whether this device is already a member. */
-export async function requestJoin(rawCode: string, rawName: string, uid: string): Promise<{ cid: string; joined: boolean }> {
+/** Member: ask to join a circle from the directory with my own details. */
+export async function requestJoin(
+  cid: string,
+  input: { name: string; payAccount?: string },
+  uid: string,
+): Promise<{ joined: boolean }> {
   const db = firestore();
-  const code = rawCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const name = rawName.trim().replace(/\s+/g, ' ').slice(0, 60);
+  const name = input.name.trim().replace(/\s+/g, ' ').slice(0, 60);
   if (!name) throw new AppError('dory/name-missing', arabicError({ code: 'dory/name-missing' }));
-
-  const invite = await retry(() => getDoc(inviteRef(db, code)));
-  if (!invite.exists()) throw new AppError('dory/invite-not-found', arabicError({ code: 'dory/invite-not-found' }));
-  const cid = String(invite.data().circleId);
+  const raw = input.payAccount?.trim() ?? '';
+  const payAccount = raw ? normalizePayAccount(raw) : null;
+  if (raw && !payAccount) throw new AppError('dory/instapay-invalid', arabicError({ code: 'dory/instapay-invalid' }));
 
   const existing = await retry(() => getDoc(membershipRef(db, cid, uid)));
-  if (existing.exists()) return { cid, joined: true };
+  if (existing.exists()) return { joined: true };
 
   await withTimeout(
-    setDoc(doc(joinRequestsCol(db, cid), uid), { uid, name, inviteCode: code, createdAt: serverTimestamp() }),
+    setDoc(doc(joinRequestsCol(db, cid), uid), {
+      uid,
+      name,
+      ...(payAccount ? { payAccount } : {}),
+      createdAt: serverTimestamp(),
+    }),
     15_000,
   );
-  return { cid, joined: false };
+  return { joined: false };
 }
 
 /** Member: watch my own pending request ('pending' | 'approved' | 'gone'). */
@@ -713,7 +794,12 @@ export function watchJoinRequests(cid: string, onData: (items: JoinRequest[]) =>
           .map((d) => {
             const data = d.data();
             const ts = data.createdAt as { toDate?: () => Date } | undefined;
-            return { uid: d.id, name: String(data.name ?? ''), createdAt: ts?.toDate?.().toISOString() };
+            return {
+              uid: d.id,
+              name: String(data.name ?? ''),
+              payAccount: data.payAccount ? String(data.payAccount) : undefined,
+              createdAt: ts?.toDate?.().toISOString(),
+            };
           })
           .sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? '')),
       ),
@@ -721,20 +807,61 @@ export function watchJoinRequests(cid: string, onData: (items: JoinRequest[]) =>
   );
 }
 
-/** Admin: approve — link the requester to a member row (atomically removes the request). */
-export async function approveJoin(circle: Pick<Circle, 'id' | 'inviteCode'>, requesterUid: string, memberId: string) {
+/**
+ * Admin: accept a request. By default the requester becomes a NEW member with
+ * the details they entered and gets the next turn in the timeline; pass
+ * `existingMemberId` to link them to a row that's already in the table.
+ */
+export async function approveJoin(circle: Circle, request: JoinRequest, existingMemberId?: string) {
   const db = firestore();
-  const batch = writeBatch(db);
-  batch.update(doc(membersCol(db, circle.id), memberId), { uid: requesterUid });
-  batch.set(membershipRef(db, circle.id, requesterUid), {
-    uid: requesterUid,
-    circleId: circle.id,
-    memberId,
-    inviteCode: circle.inviteCode,
-    joinedAt: serverTimestamp(),
-  });
-  batch.delete(doc(joinRequestsCol(db, circle.id), requesterUid));
-  await withTimeout(batch.commit(), 15_000);
+  const cid = circle.id;
+
+  if (existingMemberId) {
+    const batch = writeBatch(db);
+    batch.update(doc(membersCol(db, cid), existingMemberId), { uid: request.uid });
+    if (request.payAccount) batch.set(doc(contactsCol(db, cid), existingMemberId), { phone: request.payAccount });
+    batch.set(membershipRef(db, cid, request.uid), {
+      uid: request.uid,
+      circleId: cid,
+      memberId: existingMemberId,
+      inviteCode: circle.inviteCode,
+      joinedAt: serverTimestamp(),
+    });
+    batch.delete(doc(joinRequestsCol(db, cid), request.uid));
+    await withTimeout(batch.commit(), 15_000);
+    return;
+  }
+
+  const memberId = doc(membersCol(db, cid)).id;
+  await withTimeout(
+    runTransaction(db, async (tx) => {
+      const snap = await tx.get(circleRef(db, cid));
+      if (!snap.exists()) throw new AppError('not-found', arabicError({ code: 'not-found' }));
+      const data = snap.data();
+      const count = Number(data.memberCount ?? circle.members.length);
+      const slots = typeof data.slots === 'number' ? data.slots : undefined;
+      if (slots && count >= slots) throw new AppError('dory/circle-full', arabicError({ code: 'dory/circle-full' }));
+      const periods = [...((data.periods ?? []) as Period[]), { id: newId('p'), kind: 'payout' as const, recipientId: memberId }];
+
+      tx.set(doc(membersCol(db, cid), memberId), {
+        name: request.name,
+        uid: request.uid,
+        order: circle.members.length,
+        createdAt: serverTimestamp(),
+      });
+      tx.set(doc(contactsCol(db, cid), memberId), { phone: request.payAccount ?? null });
+      tx.set(membershipRef(db, cid, request.uid), {
+        uid: request.uid,
+        circleId: cid,
+        memberId,
+        inviteCode: circle.inviteCode,
+        joinedAt: serverTimestamp(),
+      });
+      tx.delete(doc(joinRequestsCol(db, cid), request.uid));
+      tx.update(circleRef(db, cid), { periods: cleanPeriods(periods), memberCount: count + 1, updatedAt: serverTimestamp() });
+    }),
+    20_000,
+  );
 }
 
 /** Admin: reject a request. */

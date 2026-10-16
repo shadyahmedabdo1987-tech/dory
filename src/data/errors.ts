@@ -12,6 +12,8 @@ export class AppError extends Error {
 
 const MESSAGES: Record<string, string> = {
   // App-level
+  'dory/circle-full': 'الجمعية كملت عدد أعضائها. زوّد العدد من الإعدادات الأول.',
+  'dory/instapay-invalid': 'رقم أو إيميل إنستاباي مش صحيح. مثال: 01012345678 أو name@instapay',
   'dory/name-missing': 'اكتب اسمك زي ما صاحب الجمعية عارفك.',
   'dory/invite-not-found': 'كود الجمعية مش صحيح. اتأكد منه مع صاحب الجمعية.',
   'dory/phone-not-found': 'الرقم ده مش مسجل في الجمعية. اتأكد إنه نفس الرقم اللي صاحب الجمعية كتبه.',

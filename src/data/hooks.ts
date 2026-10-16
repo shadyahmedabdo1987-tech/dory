@@ -6,7 +6,9 @@ import type { Announcement, PayoutRequest } from '@/core';
 import {
   watchAnnouncements,
   watchCircle,
+  watchDirectory,
   watchJoinRequests,
+  type DirectoryEntry,
   type JoinRequest,
   watchMembership,
   watchMyCircles,
@@ -258,4 +260,17 @@ export function useJoinRequests(cid: string | undefined, enabled = true) {
     return watchJoinRequests(cid, setItems);
   }, [cid, enabled, epoch]);
   return items;
+}
+
+/** Anyone: live list of circles open for joining. */
+export function useDirectory(enabled = true) {
+  const [items, setItems] = useState<DirectoryEntry[] | undefined>();
+  const [error, setError] = useState<string>();
+  const epoch = useFirestoreEpoch();
+  useEffect(() => {
+    if (!enabled) return;
+    setError(undefined);
+    return watchDirectory(setItems, setError);
+  }, [enabled, epoch]);
+  return { items, error, loading: items === undefined && !error };
 }

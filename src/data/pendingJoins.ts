@@ -10,7 +10,7 @@ import { useFirestoreEpoch } from './hooks';
  */
 export interface PendingJoin {
   cid: string;
-  code: string;
+  circleName: string;
   name: string;
 }
 

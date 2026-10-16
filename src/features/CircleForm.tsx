@@ -35,7 +35,8 @@ const ERRORS: Record<DraftError, string> = {
   name: 'اكتب اسم للجمعية',
   installment: 'اكتب قيمة القسط',
   startDate: 'التاريخ مش صحيح',
-  members: 'محتاج عضوين على الأقل',
+  members: 'محتاج عضو واحد على الأقل',
+  slots: 'عدد الأعضاء لازم يكون من ٢ لـ ١٢٠، ومش أقل من الأعضاء الموجودين',
   memberName: 'في عضو من غير اسم',
   duplicatePhone: 'في رقم أو إيميل إنستاباي متكرر لعضوين',
 };
@@ -72,8 +73,10 @@ export function CircleForm({
   const [monthKey, setMonthKey] = useState(`${start.y}-${start.m}`);
   const [day, setDay] = useState(String(start.d));
   const [members, setMembers] = useState<Member[]>(
-    initial?.members ?? [{ ...blankMember(), name: ownerName?.trim() || '' }, blankMember(), blankMember()],
+    // Create: only the organizer — everyone else asks to join from the app.
+    initial?.members ?? [{ ...blankMember(), name: ownerName?.trim() || '' }],
   );
+  const [slotsText, setSlotsText] = useState(initial?.slots ? String(initial.slots) : mode === 'create' ? '10' : '');
   // The organizer is the first row and keeps the first turn; the draw covers everyone else.
   const [ownerFirst, setOwnerFirst] = useState(mode === 'create');
   const locked = (i: number) => mode === 'create' && ownerFirst && i === 0;
@@ -96,7 +99,16 @@ export function CircleForm({
   const dayNum = Math.max(1, Math.min(parseAmount(day) || 1, daysInMonth(selected.y, selected.m)));
   const startDate = toISODate({ y: selected.y, m: selected.m, d: dayNum });
   const installment = parseAmount(amount);
-  const draft: CircleDraft = { name, installment, frequency, startDate, members, ownerFirst: mode === 'create' && ownerFirst };
+  const slots = slotsText.trim() ? Math.round(parseAmount(slotsText)) : undefined;
+  const draft: CircleDraft = {
+    name,
+    installment,
+    frequency,
+    startDate,
+    members,
+    ownerFirst: mode === 'create' && ownerFirst,
+    ...(slots !== undefined ? { slots } : {}),
+  };
   const errors = validateDraft(draft, normalizePayAccount);
   const has = (e: DraftError) => showErrors && errors.includes(e);
 
@@ -122,7 +134,8 @@ export function CircleForm({
     onSubmit({ ...draft, members: members.map((m) => ({ ...m, name: m.name.trim() })) });
   };
 
-  const pot = Number.isFinite(installment) ? installment * members.length : 0;
+  const size = mode === 'create' ? (slots ?? members.length) : Math.max(members.length, slots ?? 0);
+  const pot = Number.isFinite(installment) ? installment * size : 0;
   const thisYear = Number(today.slice(0, 4));
 
   return (
@@ -199,13 +212,62 @@ export function CircleForm({
         </Card>
 
         <Card>
+          <Text variant="heading">عدد الأعضاء</Text>
+          <Field
+            label="عدد الأعضاء المطلوب (معاك إنت)"
+            value={slotsText}
+            onChangeText={setSlotsText}
+            keyboardType="number-pad"
+            maxLength={3}
+            error={has('slots') ? ERRORS.slots : undefined}
+            hint={
+              mode === 'create'
+                ? 'الجمعية هتظهر للناس في "انضم لجمعية" لحد ما العدد يكمل. كل واحد بيبعت طلب ببياناته، وإنت بتوافق أو ترفض.'
+                : `دلوقتي فيها ${formatNumber(members.length)} عضو.`
+            }
+          />
+        </Card>
+
+        {mode === 'create' && (
+          <Card>
+            <Text variant="heading">بياناتك كصاحب الجمعية</Text>
+            <View style={[styles.ownerToggle, { backgroundColor: colors.goldSoft }]}>
+              <Text>👑</Text>
+              <View style={{ flex: 1 }}>
+                <Text weight="semibold">{members[0]?.name || 'إنت'} — الدور الأول</Text>
+                <Text variant="caption">إنت بتقبض الأول، والقرعة بتكون على باقي الأعضاء بعد ما يدخلوا.</Text>
+              </View>
+            </View>
+            <TextInput
+              placeholder="اسمك"
+              placeholderTextColor={colors.muted}
+              value={members[0]?.name ?? ''}
+              maxLength={60}
+              onChangeText={(t) => members[0] && update(members[0].id, { name: t })}
+              style={[styles.input, has('memberName') && { borderColor: colors.danger }]}
+            />
+            <TextInput
+              placeholder="إنستاباي: رقم الموبايل أو الإيميل (اختياري)"
+              placeholderTextColor={colors.muted}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={members[0]?.phone ?? ''}
+              onChangeText={(t) => members[0] && update(members[0].id, { phone: t })}
+              style={[styles.input, !!members[0]?.phone && !normalizePayAccount(members[0].phone) && { borderColor: colors.danger }]}
+            />
+          </Card>
+        )}
+
+        {mode === 'edit' && (
+        <Card>
           <Row style={{ justifyContent: 'space-between' }}>
             <Text variant="heading">{mode === 'create' ? 'الأعضاء وترتيب القبض' : 'الأعضاء'}</Text>
             <Text variant="caption">{formatNumber(members.length)} عضو</Text>
           </Row>
           <Text variant="caption">
             {mode === 'create'
-              ? 'الترتيب هنا هو ترتيب القبض. الأعضاء بيدخلوا بكود الجمعية وإنت بتوافق عليهم من التطبيق. خانة إنستاباي اختيارية للقبض بس: اكتب رقم الموبايل المتوصل بإنستاباي أو إيميل إنستاباي (زي name@instapay).'
+              ? 'الترتيب هنا هو ترتيب القبض. الأعضاء بيبعتوا طلبات انضمام وإنت بتوافق عليهم من التطبيق. خانة إنستاباي اختيارية للقبض بس: اكتب رقم الموبايل المتوصل بإنستاباي أو إيميل إنستاباي (زي name@instapay).'
               : 'الأعضاء الجداد بيتضاف دورهم في آخر الجدول. ترتيب الأدوار من تبويب "الجدول".'}
           </Text>
           {mode === 'create' && (
@@ -313,6 +375,7 @@ export function CircleForm({
             )}
           </Row>
         </Card>
+        )}
 
         <View style={styles.summary}>
           <Text color={colors.white} center>
@@ -322,7 +385,7 @@ export function CircleForm({
             {formatMoney(pot)}
           </Text>
           <Text variant="caption" color="rgba(255,255,255,0.75)">
-            على {formatNumber(members.length)} {FREQUENCY_LABEL[frequency].units}
+            على {formatNumber(size)} {FREQUENCY_LABEL[frequency].units}
           </Text>
         </View>
 

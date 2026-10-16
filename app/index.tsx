@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import type { ComponentProps, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,42 +43,25 @@ function Welcome() {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.welcome, { paddingTop: insets.top + space.xxl, paddingBottom: insets.bottom + space.xl }]}>
-      <View style={{ alignItems: 'center', gap: space.sm }}>
+      {/* Logo, name and tagline centred in the free space. */}
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md }}>
         <Image source={require('../assets/splash-icon.png')} style={styles.logoBig} accessibilityLabel="دوري" />
-        <Text variant="title" color={colors.white} style={{ fontSize: 40, lineHeight: 60 }}>
+        <Text variant="title" color={colors.white} style={{ fontSize: 56, lineHeight: 84 }}>
           دوري
         </Text>
-        <Text color="rgba(255,255,255,0.85)" center>
+        <Text color="rgba(255,255,255,0.9)" center style={{ fontSize: 20, lineHeight: 32 }}>
           جمعيتك في جيبك.. ودورك مضمون
         </Text>
       </View>
 
-      <View style={{ gap: space.md, alignSelf: 'stretch' }}>
-        <Feature icon="calendar-outline" text="جدول أدوار شهري أو كل ٣ شهور، مع تأجيل وأقساط إضافية" />
-        <Feature icon="shield-checkmark-outline" text="كل عضو يشوف دوره وحسابه، وصاحب الجمعية يأكد الدفع" />
-        <Feature icon="notifications-outline" text="تذكير بالأقساط وإعلانات جوه التطبيق" />
-      </View>
-
       <View style={{ gap: space.sm, alignSelf: 'stretch' }}>
         <Button label="أنا صاحب جمعية" icon="person-circle-outline" variant="secondary" onPress={() => router.push('/auth')} />
-        <Button label="عندي كود دعوة" icon="key-outline" onPress={() => router.push('/join')} style={styles.goldButton} />
+        <Button label="انضم لجمعية" icon="people-outline" onPress={() => router.push('/join')} style={styles.goldButton} />
       </View>
     </View>
   );
 }
 
-function Feature({ icon, text }: { icon: ComponentProps<typeof Ionicons>['name']; text: string }) {
-  return (
-    <Row gap={space.md}>
-      <View style={styles.featureIcon}>
-        <Ionicons name={icon} size={20} color={colors.gold} />
-      </View>
-      <Text color={colors.white} style={{ flex: 1 }}>
-        {text}
-      </Text>
-    </Row>
-  );
-}
 
 // ---------------------------------------------------------------------------
 
@@ -93,7 +76,7 @@ function Home({ uid }: { uid: string }) {
       'تسجيل الخروج',
       isAccount
         ? `مسجّل بـ ${user?.email ?? ''}. تقدر ترجع تدخل بنفس الإيميل في أي وقت.`
-        : 'إنت داخل كعضو من غير حساب. لو خرجت هتحتاج كود الجمعية وموافقة صاحب الجمعية تاني.',
+        : 'إنت داخل كعضو من غير حساب. لو خرجت هتحتاج تبعت طلب انضمام وصاحب الجمعية يوافق تاني.',
       'خروج',
       true,
     );
@@ -155,8 +138,8 @@ function Home({ uid }: { uid: string }) {
               title="لسه مفيش جمعيات"
               body={
                 isAccount
-                  ? 'اعمل أول جمعية: حدد القسط وميعاد الدفع، ضيف الأعضاء، وابعتلهم كود الجمعية.'
-                  : 'ادخل بكود الدعوة اللي وصلك من صاحب الجمعية.'
+                  ? 'اعمل أول جمعية: حدد القسط وميعاد الدفع، وحدد عدد الأعضاء، والناس هتبعتلك طلبات انضمام توافق عليها.'
+                  : 'دوس "انضم لجمعية" واختار الجمعية اللي عايزها.'
               }
             />
           }
@@ -177,7 +160,7 @@ function Home({ uid }: { uid: string }) {
       )}
 
       <View style={[styles.actions, { paddingBottom: insets.bottom + space.lg }]}>
-        <Button label="انضم بكود" icon="key-outline" variant="secondary" style={{ flex: 1 }} onPress={() => router.push('/join')} />
+        <Button label="انضم لجمعية" icon="people-outline" variant="secondary" style={{ flex: 1 }} onPress={() => router.push('/join')} />
         <Button
           label="جمعية جديدة"
           icon="add-circle"
@@ -291,9 +274,9 @@ function PendingJoinCard({ item, uid }: { item: PendingJoin; uid: string }) {
       <Row gap={space.sm}>
         <Ionicons name={rejected ? 'close-circle' : 'hourglass-outline'} size={24} color={rejected ? colors.danger : colors.gold} />
         <View style={{ flex: 1 }}>
-          <Text weight="semibold">{rejected ? 'صاحب الجمعية ما وافقش على طلبك' : `طلب انضمام باسم "${item.name}"`}</Text>
+          <Text weight="semibold">{rejected ? `صاحب "${item.circleName}" ما وافقش على طلبك` : `طلب انضمام لـ "${item.circleName}"`}</Text>
           <Text variant="caption">
-            {rejected ? 'اتأكد من الكود واسمك وابعت طلب جديد.' : `كود ${item.code} • مستني موافقة صاحب الجمعية`}
+            {rejected ? 'تقدر تختار جمعية تانية من "انضم لجمعية".' : `باسم ${item.name} • مستني موافقة صاحب الجمعية`}
           </Text>
         </View>
       </Row>
@@ -333,7 +316,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  logoBig: { width: 150, height: 150 },
+  logoBig: { width: 210, height: 210 },
   featureIcon: {
     width: 40,
     height: 40,

@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -15,7 +14,7 @@ import {
   formatDate,
   formatMoney,
   formatNumber,
-  shareInviteMessage,
+  isCircleOpen,
   movePeriod,
   overview,
   parseAmount,
@@ -40,6 +39,7 @@ import {
   PAYOUT_STATUS_LABEL,
 } from '@/core';
 import {
+  syncDirectory,
   approveJoin,
   rejectJoin,
   useJoinRequests,
@@ -52,7 +52,6 @@ import {
   usePayouts,
   mutatePeriods,
   removePayment,
-  rotateInviteCode,
   unlinkMember,
   updatePayInfo,
 } from '@/data';
@@ -65,6 +64,7 @@ import { MessagesTab } from './Messaging';
 import { AdminPayoutSheet, describePayout, PAYOUT_TONE } from './PayoutSheets';
 import { METHOD_COLOR, METHOD_ICON } from './PaySheet';
 import { ReceiptViewer } from './ReceiptViewer';
+import { useAppSession } from '@/data/session';
 import { alert, type DialogButton } from '@/ui/dialog';
 
 export type AdminTab = 'collect' | 'schedule' | 'members' | 'messages';
@@ -83,6 +83,22 @@ export function AdminView({
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<AdminTab>(initialTab);
   const joinRequests = useJoinRequests(circle.id);
+  const { user } = useAppSession();
+
+  // Keep the public "join a circle" listing in step with the circle (also lists older circles).
+  const listingKey = JSON.stringify([
+    circle.name,
+    circle.installment,
+    circle.frequency,
+    circle.startDate,
+    circle.members.length,
+    circle.slots ?? null,
+    user?.displayName ?? '',
+  ]);
+  useEffect(() => {
+    syncDirectory(circle, user?.displayName ?? '').catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listingKey]);
   const payouts = usePayouts(circle.id, 'admin', undefined);
   const o = overview(circle, payments);
   const openPayoutRequests = payouts.filter((r) => r.status === 'requested' || r.status === 'disputed').length;
@@ -678,63 +694,32 @@ function MembersTab({ circle, requests }: { circle: Circle; requests: JoinReques
 
 
   const unlink = async (m: Member) => {
-    if (await confirm('فك ربط الموبايل؟', `${m.name} هيخرج من التطبيق، ويقدر يدخل تاني بالكود ورقمه (مثلًا لو غيّر موبايله).`, 'فك الربط', true)) {
+    if (await confirm('فك ربط الموبايل؟', `${m.name} هيخرج من التطبيق، ويقدر يبعت طلب انضمام تاني وتربطه بنفس اسمه (مثلًا لو غيّر موبايله).`, 'فك الربط', true)) {
       run(() => unlinkMember(circle, m));
     }
   };
-
-  const [copied, setCopied] = useState(false);
 
   return (
     <View style={{ gap: space.md }}>
       {requests.length > 0 && <JoinRequestsCard circle={circle} requests={requests} />}
       <PayInfoCard circle={circle} />
-      <Card style={{ alignItems: 'center' }}>
-        <Text variant="caption">كود الجمعية</Text>
-        <View style={styles.codeBox}>
-          <Text variant="number" selectable style={{ letterSpacing: 6, flex: 1, textAlign: 'center' }}>
-            {circle.inviteCode}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="انسخ الكود"
-            onPress={() => {
-              tap();
-              Clipboard.setStringAsync(circle.inviteCode).catch(() => {});
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }}
-            style={({ pressed }) => [styles.copyBtn, copied && styles.copyBtnDone, pressed && { transform: [{ scale: 0.96 }] }]}
-          >
-            <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color={colors.white} />
-            <Text weight="bold" color={colors.white}>
-              {copied ? 'اتنسخ' : 'نسخ'}
+      <Card>
+        <Row gap={space.sm}>
+          <Ionicons name={isCircleOpen(circle) ? 'globe-outline' : 'lock-closed-outline'} size={22} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text weight="semibold">
+              {isCircleOpen(circle) ? 'الجمعية ظاهرة في "انضم لجمعية"' : 'الجمعية كملت ومش ظاهرة للانضمام'}
             </Text>
-          </Pressable>
-        </View>
-        <Text variant="caption" center>
-          كل عضو يدخل بالكود ده واسمه، وإنت بتوافق عليه من هنا. دخل لحد دلوقتي {formatNumber(joined)} من {formatNumber(others.length)}.
-        </Text>
-        <Row gap={space.sm} style={{ alignSelf: 'stretch' }}>
-          <Button
-            label="غيّر الكود"
-            icon="refresh"
-            variant="ghost"
-            style={{ flex: 1 }}
-            onPress={async () => {
-              if (await confirm('كود جديد؟', 'الكود القديم هيبطل يشتغل للي لسه ما دخلوش.', 'غيّر')) run(() => rotateInviteCode(circle));
-            }}
-          />
-          <Button
-            label="شارك"
-            icon="share-outline"
-            variant="secondary"
-            style={{ flex: 1 }}
-            onPress={() =>
-              Share.share({ message: shareInviteMessage(circle) }).catch(() => {})
-            }
-          />
+            <Text variant="caption">
+              {circle.slots
+                ? `فيها ${formatNumber(circle.members.length)} من ${formatNumber(circle.slots)} عضو`
+                : `فيها ${formatNumber(circle.members.length)} عضو`}
+              {' • '}دخل من موبايلاتهم {formatNumber(joined)} من {formatNumber(others.length)}
+            </Text>
+          </View>
         </Row>
+        <ProgressBar value={circle.slots ? Math.min(1, circle.members.length / circle.slots) : 1} />
+        <Text variant="caption">الناس بتختار الجمعية من البرنامج وتبعت طلب باسمها وإنستاباي بتاعها، وإنت بتقبل أو ترفض من هنا.</Text>
       </Card>
 
       <Card style={{ gap: 0, paddingVertical: space.sm }}>
@@ -783,21 +768,29 @@ function JoinRequestsCard({ circle, requests }: { circle: Circle; requests: Join
   const open = circle.members.filter((m) => !m.uid && m.id !== circle.ownerMemberId);
   const norm = (t: string) => t.trim().replace(/\s+/g, ' ').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
 
-  const approve = (r: JoinRequest) => {
-    if (open.length === 0) {
-      return alert('مفيش مكان فاضي', 'كل الأعضاء متربطين بموبايلات. ضيف العضو ده من الإعدادات الأول، أو فك ربط عضو.');
+  const full = !!circle.slots && circle.members.length >= circle.slots;
+
+  const approve = async (r: JoinRequest) => {
+    if (full) {
+      return alert('الجمعية كملت', `فيها ${formatNumber(circle.members.length)} من ${formatNumber(circle.slots!)} عضو. زوّد العدد من الإعدادات لو عايز تقبل أعضاء أكتر.`);
     }
-    // Same name first.
+    const addNew = () => run(() => approveJoin(circle, r), { success: `${r.name} دخل الجمعية ✓ ودوره اتضاف في الجدول.` });
+    // Older circles may still have rows typed in by hand — offer to link to one of them.
+    if (open.length === 0) {
+      if (await confirm('قبول العضو؟', `"${r.name}" هيدخل الجمعية ودوره هيتضاف في آخر الجدول.${r.payAccount ? `\nإنستاباي: ${r.payAccount}` : ''}`, 'قبول')) addNew();
+      return;
+    }
     const sorted = [...open].sort((a, b) => Number(norm(b.name) === norm(r.name)) - Number(norm(a.name) === norm(r.name)));
     alert(
-      `"${r.name}" هيدخل باسم مين؟`,
-      'اختار العضو اللي في الجدول علشان يشوف دوره وأقساطه.',
+      `قبول "${r.name}"`,
+      'تضيفه عضو جديد، ولا هو واحد من الأسماء اللي في الجدول؟',
       [
+        { text: 'عضو جديد', icon: 'person-add' as const, hint: 'دوره يتضاف في آخر الجدول', onPress: addNew },
         ...sorted.map((m) => ({
           text: m.name,
           icon: 'person' as const,
-          hint: norm(m.name) === norm(r.name) ? 'نفس الاسم ✓' : undefined,
-          onPress: () => run(() => approveJoin(circle, r.uid, m.id), { success: `${m.name} دخل الجمعية ✓` }),
+          hint: norm(m.name) === norm(r.name) ? 'نفس الاسم ✓' : 'عضو موجود في الجدول',
+          onPress: () => run(() => approveJoin(circle, r, m.id), { success: `${m.name} دخل الجمعية ✓` }),
         })),
         { text: 'إلغاء', style: 'cancel' as const },
       ],
@@ -824,7 +817,7 @@ function JoinRequestsCard({ circle, requests }: { circle: Circle; requests: Join
             <Text weight="semibold" numberOfLines={1}>
               {r.name}
             </Text>
-            <Text variant="caption">دخل بكود الجمعية ومستني موافقتك</Text>
+            <Text variant="caption">{r.payAccount ? `إنستاباي: ${r.payAccount}` : 'من غير إنستاباي'}</Text>
           </View>
           <Button label="رفض" variant="danger" onPress={() => reject(r)} />
           <Button label="موافقة" icon="checkmark" onPress={() => approve(r)} />

@@ -7,7 +7,8 @@ rules_version = '2';
 //   contacts/{mid}                   members' wallet number / InstaPay address — admin only, never visible to other members
 //   phones/{normalizedPhone}         phone -> memberId lookup used when joining
 //   memberships/{uid}                links a signed-in device to a member row
-//   joinRequests/{uid}               "let me in" (code + name); the admin approves it in the app
+//   joinRequests/{uid}               "let me in" with my name + InstaPay; the admin approves it in the app
+// directory/{cid}                    public listing of circles open for joining
 //   payments/{periodId_memberId}     member may *claim* their own payment; only admin confirms
 //   receipts/{periodId_memberId}     transfer screenshot for a claim (member owner + admin only)
 // invites/{code}                     invite code -> circle id
@@ -48,14 +49,21 @@ service cloud.firestore {
       return !(key in d) || d[key] == null || (d[key] is string && d[key].size() <= max);
     }
 
+    // InstaPay mobile number (digits) or InstaPay address (name@instapay).
+    function validPayAccount(v) {
+      return v is string
+        && (v.matches('^[0-9]{8,15}$') || v.matches('^[a-z0-9._-]{2,40}@[a-z0-9.-]{2,30}$'));
+    }
+
     // ---------- validation ----------
     function validCircle(d) {
       return d.keys().hasAll(['name', 'installment', 'currency', 'frequency', 'startDate', 'adminUid',
                               'inviteCode', 'periods', 'memberCount', 'createdAt', 'updatedAt', 'schemaVersion'])
         && d.keys().hasOnly(['name', 'installment', 'currency', 'frequency', 'startDate', 'adminUid',
                              'inviteCode', 'periods', 'memberCount', 'createdAt', 'updatedAt', 'schemaVersion',
-                             'payInfo', 'whatsappGroup', 'ownerMemberId'])
+                             'payInfo', 'whatsappGroup', 'ownerMemberId', 'slots'])
         && (!('ownerMemberId' in d) || d.ownerMemberId is string)
+        && (!('slots' in d) || (d.slots is int && d.slots >= 2 && d.slots <= 120))
         && (!('payInfo' in d) || validPayInfo(d.payInfo))
         && (!('whatsappGroup' in d) || d.whatsappGroup == null
             || (d.whatsappGroup is string
@@ -147,10 +155,7 @@ service cloud.firestore {
         allow create, update: if isAdminAfter(cid)
           && request.resource.data.keys().hasOnly(['phone'])
           // Wallet/InstaPay number, or an InstaPay address (name@instapay).
-          && (request.resource.data.phone == null
-              || (request.resource.data.phone is string
-                  && (request.resource.data.phone.matches('^[0-9]{8,15}$')
-                      || request.resource.data.phone.matches('^[a-z0-9._-]{2,40}@[a-z0-9.-]{2,30}$'))));
+          && (request.resource.data.phone == null || validPayAccount(request.resource.data.phone));
         allow delete: if isAdmin(cid);
       }
 
@@ -193,17 +198,18 @@ service cloud.firestore {
         allow delete: if signedIn() && (request.auth.uid == uid || isAdmin(cid));
       }
 
-      // ---------- join requests (code + name; the admin approves in the app) ----------
+      // ---------- join requests (picked from the directory; the admin approves in the app) ----------
       match /joinRequests/{rid} {
         allow get: if signedIn() && (request.auth.uid == rid || isAdmin(cid));
         allow list: if isAdmin(cid);
         allow create, update: if signedIn()
           && request.auth.uid == rid
-          && request.resource.data.keys().hasOnly(['uid', 'name', 'inviteCode', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'payAccount', 'createdAt'])
           && request.resource.data.uid == rid
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
-          && request.resource.data.inviteCode == get(circlePath(cid)).data.inviteCode
+          && (!('payAccount' in request.resource.data) || validPayAccount(request.resource.data.payAccount))
+          && get(/databases/$(database)/documents/directory/$(cid)).data.open == true
           && request.resource.data.createdAt == request.time;
         allow delete: if signedIn() && (request.auth.uid == rid || isAdmin(cid));
       }
@@ -356,6 +362,27 @@ service cloud.firestore {
         && request.resource.data.token is string && request.resource.data.token.size() < 256
         && request.resource.data.platform in ['ios', 'android']
         && request.resource.data.updatedAt == request.time;
+    }
+
+    // ---------- public directory of circles open for joining ----------
+    match /directory/{cid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && getAfter(circlePath(cid)).data.adminUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['name', 'adminName', 'installment', 'frequency', 'startDate',
+                                                 'memberCount', 'slots', 'open', 'updatedAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
+        && request.resource.data.adminName is string && request.resource.data.adminName.size() <= 60
+        && request.resource.data.installment is number
+        && request.resource.data.frequency is string
+        && request.resource.data.startDate is string
+        && request.resource.data.memberCount is int
+        && (request.resource.data.slots == null || request.resource.data.slots is int)
+        && request.resource.data.open is bool
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if signedIn()
+        && (!exists(circlePath(cid)) || get(circlePath(cid)).data.adminUid == request.auth.uid);
     }
 
     // ---------- invites ----------

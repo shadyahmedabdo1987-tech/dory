@@ -28,6 +28,7 @@ export default function CircleSettingsScreen() {
         frequency: circle.frequency,
         startDate: circle.startDate,
         members: circle.members,
+        slots: circle.slots,
       }}
       submitLabel="حفظ التعديلات"
       busy={busy}

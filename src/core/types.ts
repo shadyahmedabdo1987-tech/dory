@@ -74,6 +74,8 @@ export interface Circle {
   whatsappGroup?: string;
   /** The organizer's own member row; their turn is fixed first and skipped by the draw. */
   ownerMemberId?: string;
+  /** How many members the organizer wants (members join until it's full). */
+  slots?: number;
   members: Member[];
   periods: Period[];
   createdAt: string;
