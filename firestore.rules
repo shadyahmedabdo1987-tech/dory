@@ -4,7 +4,7 @@ rules_version = '2';
 // ---------------------------------------------------------------------------
 // circles/{cid}                      settings + timeline; written only by the admin
 //   members/{mid}                    roster (names only); admin writes, a member may claim/release their own row
-//   contacts/{mid}                   members' phone numbers — admin only, never visible to other members
+//   contacts/{mid}                   members' wallet number / InstaPay address — admin only, never visible to other members
 //   phones/{normalizedPhone}         phone -> memberId lookup used when joining
 //   memberships/{uid}                links a signed-in device to a member row
 //   joinRequests/{uid}               "let me in" (code + name); the admin approves it in the app
@@ -146,8 +146,11 @@ service cloud.firestore {
         allow read: if isAdmin(cid);
         allow create, update: if isAdminAfter(cid)
           && request.resource.data.keys().hasOnly(['phone'])
+          // Wallet/InstaPay number, or an InstaPay address (name@instapay).
           && (request.resource.data.phone == null
-              || (request.resource.data.phone is string && request.resource.data.phone.matches('^[0-9]{8,15}$')));
+              || (request.resource.data.phone is string
+                  && (request.resource.data.phone.matches('^[0-9]{8,15}$')
+                      || request.resource.data.phone.matches('^[a-z0-9._-]{2,40}@[a-z0-9.-]{2,30}$'))));
         allow delete: if isAdmin(cid);
       }
 

@@ -13,7 +13,7 @@ import {
   monthName,
   moveItem,
   newId,
-  normalizePhone,
+  normalizePayAccount,
   ordinal,
   parseAmount,
   parseISODate,
@@ -37,7 +37,7 @@ const ERRORS: Record<DraftError, string> = {
   startDate: 'التاريخ مش صحيح',
   members: 'محتاج عضوين على الأقل',
   memberName: 'في عضو من غير اسم',
-  duplicatePhone: 'في رقم محفظة متكرر لعضوين',
+  duplicatePhone: 'في رقم محفظة أو إيميل إنستاباي متكرر لعضوين',
 };
 
 const blankMember = (): Member => ({ id: newId('new_'), name: '', phone: '' });
@@ -97,7 +97,7 @@ export function CircleForm({
   const startDate = toISODate({ y: selected.y, m: selected.m, d: dayNum });
   const installment = parseAmount(amount);
   const draft: CircleDraft = { name, installment, frequency, startDate, members, ownerFirst: mode === 'create' && ownerFirst };
-  const errors = validateDraft(draft, normalizePhone);
+  const errors = validateDraft(draft, normalizePayAccount);
   const has = (e: DraftError) => showErrors && errors.includes(e);
 
   const update = (id: string, patch: Partial<Member>) =>
@@ -205,7 +205,7 @@ export function CircleForm({
           </Row>
           <Text variant="caption">
             {mode === 'create'
-              ? 'الترتيب هنا هو ترتيب القبض. الأعضاء بيدخلوا بكود الجمعية وإنت بتوافق عليهم من التطبيق. رقم المحفظة أو إنستاباي اختياري، للقبض بس.'
+              ? 'الترتيب هنا هو ترتيب القبض. الأعضاء بيدخلوا بكود الجمعية وإنت بتوافق عليهم من التطبيق. رقم المحفظة أو إيميل إنستاباي (زي name@instapay) اختياري، للقبض بس.'
               : 'الأعضاء الجداد بيتضاف دورهم في آخر الجدول. ترتيب الأدوار من تبويب "الجدول".'}
           </Text>
           {mode === 'create' && (
@@ -275,12 +275,14 @@ export function CircleForm({
                 style={[styles.input, showErrors && !m.name.trim() && { borderColor: colors.danger }]}
               />
               <TextInput
-                placeholder="رقم المحفظة / إنستاباي (اختياري)"
+                placeholder="رقم المحفظة أو إيميل إنستاباي (اختياري)"
                 placeholderTextColor={colors.muted}
-                keyboardType="phone-pad"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
                 value={m.phone ?? ''}
                 onChangeText={(t) => update(m.id, { phone: t })}
-                style={[styles.input, !!m.phone && !normalizePhone(m.phone) && { borderColor: colors.danger }]}
+                style={[styles.input, !!m.phone && !normalizePayAccount(m.phone) && { borderColor: colors.danger }]}
               />
             </View>
           ))}

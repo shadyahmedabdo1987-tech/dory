@@ -98,6 +98,20 @@ export function normalizePhone(raw: string, defaultCountryCode = '20'): string |
   return digits.length >= 8 && digits.length <= 15 ? digits : null;
 }
 
+/** InstaPay address like name@instapay (letters, digits, . _ -). */
+export const INSTAPAY_ADDRESS = /^[A-Za-z0-9._-]{2,40}@[A-Za-z0-9.-]{2,30}$/;
+
+/**
+ * A member's payout account: a wallet/InstaPay mobile number (normalized to
+ * digits) or an InstaPay address (lower-cased). Null if it's neither.
+ */
+export function normalizePayAccount(raw: string): string | null {
+  const value = toAsciiDigits(raw).trim().replace(/\s+/g, '');
+  if (!value) return null;
+  if (value.includes('@')) return INSTAPAY_ADDRESS.test(value) ? value.toLowerCase() : null;
+  return normalizePhone(value);
+}
+
 export function whatsappUrl(phone: string | undefined, text: string): string {
   const normalized = phone ? normalizePhone(phone) : null;
   const encoded = encodeURIComponent(text);

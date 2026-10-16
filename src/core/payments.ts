@@ -1,4 +1,4 @@
-import { normalizePhone } from './format.ts';
+import { INSTAPAY_ADDRESS, normalizePhone } from './format.ts';
 import type { PayInfo, PaymentMethod, PayoutRequest, PayoutStatus } from './types';
 
 export const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'instapay', 'vodafone_cash'];
@@ -81,7 +81,7 @@ export function validatePayoutRequest(method: PaymentMethod, account: string | u
     return phone && /^201[0125]\d{8}$/.test(phone) ? null : 'account-invalid';
   }
   // InstaPay: name@instapay style address, or a mobile number.
-  if (/^[A-Za-z0-9._-]{3,}@[A-Za-z0-9.-]+$/.test(value)) return null;
+  if (INSTAPAY_ADDRESS.test(value)) return null;
   return normalizePhone(value) ? null : 'account-invalid';
 }
 

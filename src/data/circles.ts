@@ -25,6 +25,7 @@ import {
 import {
   generateInviteCode,
   initialPeriods,
+  normalizePayAccount,
   normalizePhone,
   paymentId,
   syncPeriodsWithMembers,
@@ -128,7 +129,9 @@ function memberDoc(m: Member, order: number) {
   return { name: m.name.trim().slice(0, 60), uid: m.uid ?? null, order };
 }
 
-const phoneOf = (m: Member | undefined) => (m?.phone ? normalizePhone(m.phone) : null);
+const phoneOf = (m: Member | undefined) => (m?.phone ? normalizePayAccount(m.phone) : null);
+/** Legacy phone → member lookups only exist for numbers, not InstaPay addresses. */
+const isNumber = (v: string | null): v is string => !!v && /^\d+$/.test(v);
 
 // ---------------------------------------------------------------------------
 // Live subscriptions
@@ -308,7 +311,7 @@ export async function createCircle(draft: CircleDraft, adminUid: string): Promis
     const phone = phoneOf(m);
     batch.set(doc(membersCol(db, ref.id), m.id), { ...memberDoc(m, i), createdAt: serverTimestamp() });
     batch.set(doc(contactsCol(db, ref.id), m.id), { phone });
-    if (phone) batch.set(phoneRef(db, ref.id, phone), { memberId: m.id });
+    if (isNumber(phone)) batch.set(phoneRef(db, ref.id, phone), { memberId: m.id });
   });
   batch.set(inviteRef(db, code), { circleId: ref.id, createdAt: serverTimestamp() });
 
@@ -370,11 +373,11 @@ export async function saveCircle(
   for (const old of circle.members) {
     const oldPhone = phoneOf(old);
     const now = withIds.find((m) => m.id === old.id);
-    if (oldPhone && (!now || phoneOf(now) !== oldPhone)) removedPhones.add(oldPhone);
+    if (isNumber(oldPhone) && (!now || phoneOf(now) !== oldPhone)) removedPhones.add(oldPhone);
   }
   for (const m of withIds) {
     const phone = phoneOf(m);
-    if (phone && phone !== phoneOf(before.get(m.id))) addedPhones.set(phone, m.id);
+    if (isNumber(phone) && phone !== phoneOf(before.get(m.id))) addedPhones.set(phone, m.id);
   }
   removedPhones.forEach((p) => !addedPhones.has(p) && batch.delete(phoneRef(db, cid, p)));
   addedPhones.forEach((memberId, p) => batch.set(phoneRef(db, cid, p), { memberId }));

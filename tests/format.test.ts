@@ -6,6 +6,7 @@ import {
   groupSummaryMessage,
   inviteMessage,
   extractInviteCode,
+  normalizePayAccount,
   normalizePhone,
   parseAmount,
   relativeDays,
@@ -77,6 +78,13 @@ describe('messages', () => {
     const text = inviteMessage({ ...circle, inviteCode: 'K7QX2M' }, circle.members[0]);
     assert.ok(text.split('\n').includes('```K7QX2M```'));
     assert.doesNotMatch(text, /dory:\/\//);
+  });
+
+  it('accepts a wallet number or an InstaPay address as a payout account', () => {
+    assert.equal(normalizePayAccount('010 1234 5678'), '201012345678');
+    assert.equal(normalizePayAccount('Mona.Ali@InstaPay'), 'mona.ali@instapay');
+    assert.equal(normalizePayAccount('mona@'), null);
+    assert.equal(normalizePayAccount('abc'), null);
   });
 
   it('extracts the invite code from whatever was pasted', () => {

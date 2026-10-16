@@ -168,6 +168,16 @@ describe('joining', () => {
   });
 });
 
+describe('member payout accounts', () => {
+  it('accepts a wallet number or an InstaPay address, nothing else', async () => {
+    const ref = (db) => doc(db, 'circles', CID, 'contacts', 'm2');
+    await assertSucceeds(setDoc(ref(admin()), { phone: '201022222222' }));
+    await assertSucceeds(setDoc(ref(admin()), { phone: 'mona.ali@instapay' }));
+    await assertFails(setDoc(ref(admin()), { phone: 'not an account' }));
+    await assertFails(setDoc(ref(anon('u1')), { phone: 'mona@instapay' }));
+  });
+});
+
 describe('join requests (approved in the app)', () => {
   const request = (db, uid, overrides = {}) =>
     setDoc(doc(db, 'circles', CID, 'joinRequests', uid), {
