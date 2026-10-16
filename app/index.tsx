@@ -46,7 +46,7 @@ function Welcome() {
       <View style={{ gap: space.md, alignSelf: 'stretch' }}>
         <Feature icon="calendar-outline" text="جدول أدوار شهري أو كل ٣ شهور، مع تأجيل وأقساط إضافية" />
         <Feature icon="shield-checkmark-outline" text="كل عضو يشوف دوره وحسابه، وصاحب الجمعية يأكد الدفع" />
-        <Feature icon="logo-whatsapp" text="دعوات وتذكير بالأقساط على واتساب" />
+        <Feature icon="notifications-outline" text="تذكير بالأقساط وإعلانات جوه التطبيق" />
       </View>
 
       <View style={{ gap: space.sm, alignSelf: 'stretch' }}>
@@ -139,7 +139,7 @@ function Home({ uid }: { uid: string }) {
               title="لسه مفيش جمعيات"
               body={
                 isAccount
-                  ? 'اعمل أول جمعية: حدد القسط وميعاد الدفع، ضيف الأعضاء، وابعتلهم الدعوة على واتساب.'
+                  ? 'اعمل أول جمعية: حدد القسط وميعاد الدفع، ضيف الأعضاء، وابعتلهم كود الجمعية.'
                   : 'ادخل بكود الدعوة اللي وصلك من صاحب الجمعية.'
               }
             />

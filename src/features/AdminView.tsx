@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useMemo, useState } from 'react';
-import { Linking as RNLinking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -15,7 +15,6 @@ import {
   formatDate,
   formatMoney,
   formatNumber,
-  inviteMessage,
   shareInviteMessage,
   movePeriod,
   overview,
@@ -27,10 +26,8 @@ import {
   periodTitle,
   postpone,
   removePeriod,
-  reminderMessage,
   timeline,
   todayISO,
-  whatsappUrl,
   findPayment,
   METHOD_LABEL,
   methodOf,
@@ -43,6 +40,7 @@ import {
   PAYOUT_STATUS_LABEL,
 } from '@/core';
 import {
+  postAnnouncement,
   confirmMany,
   confirmPayment,
   loadPayoutReceipt,
@@ -160,10 +158,21 @@ function CollectTab({
   const s = periodSummary(circle, payments, i);
   const entry = s.entry;
 
-  const remind = (m: Member) =>
-    RNLinking.openURL(whatsappUrl(m.phone, reminderMessage(circle, m, entry))).catch(() =>
-      alert('واتساب مش متاح', 'اتأكد إن واتساب متسطّب على الموبايل.'),
+  /** In-app reminder to everyone who hasn't paid this period (shows in their announcements + push). */
+  const remindUnpaid = async () => {
+    const names = s.unpaid.map((m) => m.name).join('، ');
+    if (!(await confirm('تذكير جوه التطبيق', `هيوصل تذكير بالقسط للي لسه ما دفعوش: ${names}`, 'ابعت التذكير'))) return;
+    run(
+      () =>
+        postAnnouncement(
+          circle.id,
+          uid,
+          `تذكير: قسط ${periodTitle(entry)}`,
+          `ميعاد القسط ${formatDate(entry.date)} — ${formatMoney(entry.due)}.\nلو لسه ما دفعتش، ادفع ودوس "دفعت" في التطبيق. ولو دفعت خلاص، تجاهل الرسالة دي.`,
+        ),
+      { success: 'التذكير اتبعت جوه التطبيق.' },
     );
+  };
 
   const [review, setReview] = useState<{ payment: Payment; member: Member; entry: TimelineEntry } | null>(null);
   const [payoutFor, setPayoutFor] = useState<TimelineEntry | null>(null);
@@ -403,14 +412,14 @@ function CollectTab({
                           : 'لسه'}
                     </Text>
                   </View>
-                  {!state && m.id !== circle.ownerMemberId && (
-                    <IconButton icon="logo-whatsapp" label={`ذكّر ${m.name}`} color={colors.white} bg={colors.whatsapp} onPress={() => remind(m)} />
-                  )}
                 </View>
               );
             })}
           </Card>
 
+          {s.unpaid.length > 0 && i <= current ? (
+            <Button label={`ذكّر اللي ما دفعوش (${formatNumber(s.unpaid.length)})`} icon="notifications-outline" onPress={remindUnpaid} />
+          ) : null}
           <Button
             label="الكل دفع"
             icon="checkmark-done"
@@ -662,10 +671,6 @@ function MembersTab({ circle }: { circle: Circle }) {
   const others = circle.members.filter((m) => m.id !== circle.ownerMemberId);
   const joined = others.filter((m) => m.uid).length;
 
-  const invite = (m: Member) =>
-    RNLinking.openURL(whatsappUrl(m.phone, inviteMessage(circle, m))).catch(() =>
-      alert('واتساب مش متاح', 'اتأكد إن واتساب متسطّب على الموبايل.'),
-    );
 
   const unlink = async (m: Member) => {
     if (await confirm('فك ربط الموبايل؟', `${m.name} هيخرج من التطبيق، ويقدر يدخل تاني بالكود ورقمه (مثلًا لو غيّر موبايله).`, 'فك الربط', true)) {
@@ -754,8 +759,6 @@ function MembersTab({ circle }: { circle: Circle }) {
             </View>
             {m.uid ? (
               <IconButton icon="unlink-outline" label="فك الربط" color={colors.danger} bg={colors.dangerSoft} onPress={() => unlink(m)} />
-            ) : m.phone ? (
-              <IconButton icon="logo-whatsapp" label={`ابعت دعوة لـ ${m.name}`} color={colors.white} bg={colors.whatsapp} onPress={() => invite(m)} />
             ) : null}
           </View>
           ),

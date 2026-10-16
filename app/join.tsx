@@ -23,7 +23,7 @@ export default function JoinScreen() {
     const text = await Clipboard.getStringAsync().catch(() => '');
     const found = extractInviteCode(text ?? '');
     if (found) setCode(found);
-    else alert('مفيش كود في اللي نسخته', 'انسخ رسالة الدعوة أو الكود من الواتساب، وبعدين دوس "الصق الكود".');
+    else alert('مفيش كود في اللي نسخته', 'انسخ رسالة الدعوة أو كود الجمعية، وبعدين دوس "الصق الكود".');
   };
   const [phone, setPhone] = useState('');
   const { busy, run } = useAction();
