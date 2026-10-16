@@ -125,7 +125,9 @@ export function ensurePushToken(): Promise<string | null> {
 export function useCirclePush(cid: string | undefined, uid: string | undefined) {
   useEffect(() => {
     if (!cid || !uid) return;
-    ensurePushToken().then((t) => t && saveCirclePushToken(cid, uid));
+    ensurePushToken().then((t) => {
+      if (t) void saveCirclePushToken(cid, uid);
+    });
   }, [cid, uid]);
 }
 
