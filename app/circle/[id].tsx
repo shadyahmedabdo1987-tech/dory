@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { Pressable } from 'react-native';
 
 import { deleteCircle, leaveCircle, reloadCircle, useCircleData } from '@/data';
 import { useAppSession } from '@/data/session';
 import { AdminView, type AdminTab } from '@/features/AdminView';
 import { MemberView } from '@/features/MemberView';
+import { ReportSheet } from '@/features/ReportSheet';
 import { clearReminders } from '@/notifications';
 import { EmptyState, Row } from '@/ui/components';
 import { confirm, ErrorScreen, LoadingScreen, useAction } from '@/ui/feedback';
@@ -16,6 +18,7 @@ export default function CircleScreen() {
   const { user } = useAppSession();
   const state = useCircleData(id, user?.uid);
   const { run } = useAction();
+  const [report, setReport] = useState(false);
 
   if (!user) return <EmptyState icon="log-in-outline" title="سجّل دخول الأول" body="" />;
   if (state.loading) return <LoadingScreen />;
@@ -59,6 +62,11 @@ export default function CircleScreen() {
           title: circle.name,
           headerRight: () => (
             <Row gap={space.lg}>
+              {isAdmin || myMember ? (
+                <Pressable accessibilityLabel="التقرير" hitSlop={10} onPress={() => setReport(true)}>
+                  <Ionicons name="stats-chart-outline" size={22} color={colors.white} />
+                </Pressable>
+              ) : null}
               {isAdmin ? (
                 <>
                   <Pressable
@@ -88,6 +96,14 @@ export default function CircleScreen() {
       ) : (
         <EmptyState icon="person-remove-outline" title="مش مربوط بعضو" body="اطلب من صاحب الجمعية يبعتلك دعوة جديدة." />
       )}
+      <ReportSheet
+        visible={report}
+        onClose={() => setReport(false)}
+        circle={circle}
+        payments={payments}
+        role={isAdmin ? 'admin' : 'member'}
+        memberId={myMember?.id}
+      />
     </>
   );
 }

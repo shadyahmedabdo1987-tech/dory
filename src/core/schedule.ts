@@ -388,6 +388,8 @@ export interface CircleDraft {
   ownerFirst?: boolean;
   /** Target number of members (including the organizer); others join from the app. */
   slots?: number;
+  /** The organizer's InstaPay (number or address): saved as the circle's transfer details. */
+  payInstapay?: string;
 }
 
 export type DraftError = 'name' | 'installment' | 'startDate' | 'members' | 'memberName' | 'duplicatePhone' | 'slots';
@@ -473,4 +475,95 @@ export function ownerFirstOrder(circle: Pick<Circle, 'periods' | 'ownerMemberId'
 /** A circle is open to join requests until it reaches its target size. */
 export function isCircleOpen(circle: Pick<Circle, 'slots' | 'members'>): boolean {
   return !circle.slots || circle.members.length < circle.slots;
+}
+
+// ---------------------------------------------------------------------------
+// Reports (member statement + whole-circle summary for the admin)
+// ---------------------------------------------------------------------------
+
+export interface MemberReport {
+  member: Member;
+  /** Payout turns of this member (usually one): turn number, date, amount, received? */
+  turns: { number: number; date: string; amount: number; received: boolean }[];
+  /** Installments with something to pay (the member's own turn counts as paid). */
+  installmentsTotal: number;
+  installmentsPaid: number;
+  installmentsPending: number;
+  installmentsLeft: number;
+  installmentsOverdue: number;
+  amountTotal: number;
+  amountPaid: number;
+  amountLeft: number;
+  amountOverdue: number;
+  /** Paid lines, oldest first, with how they were settled. */
+  paid: { date: string; amount: number; how: 'confirmed' | 'covered'; method?: Payment['method'] }[];
+}
+
+export function memberReport(
+  circle: Circle,
+  payments: Payment[],
+  memberId: string,
+  today: string = todayISO(),
+): MemberReport {
+  const acc = memberAccount(circle, payments, memberId, today);
+  const owed = acc.lines.filter((l) => l.entry.due > 0);
+  const isPaid = (l: AccountLine) => l.state === 'confirmed' || l.state === 'covered';
+  const paid = owed.filter(isPaid);
+  const left = owed.filter((l) => !isPaid(l));
+  const sum = (ls: AccountLine[]) => ls.reduce((s, l) => s + l.entry.due, 0);
+  const payoutNumbers = new Map(
+    timeline(circle)
+      .filter((e) => e.period.kind === 'payout')
+      .map((e, i) => [e.period.id, i + 1]),
+  );
+  return {
+    member: acc.member,
+    turns: acc.myPayouts.map((p) => ({
+      number: payoutNumbers.get(p.entry.period.id) ?? p.entry.index + 1,
+      date: p.entry.date,
+      amount: p.amount,
+      received: p.received,
+    })),
+    installmentsTotal: owed.length,
+    installmentsPaid: paid.length,
+    installmentsPending: left.filter((l) => l.state === 'claimed').length,
+    installmentsLeft: left.length,
+    installmentsOverdue: acc.overdue.length,
+    amountTotal: sum(owed),
+    amountPaid: sum(paid),
+    amountLeft: sum(left),
+    amountOverdue: acc.overdueAmount,
+    paid: paid.map((l) => ({
+      date: l.entry.date,
+      amount: l.entry.due,
+      how: l.state === 'covered' ? 'covered' : 'confirmed',
+      method: l.payment?.method,
+    })),
+  };
+}
+
+export interface CircleReport {
+  rows: MemberReport[];
+  collected: number;
+  outstanding: number;
+  overdue: number;
+  payoutsDone: number;
+  payoutsTotal: number;
+}
+
+/** Admin: one report row per member, in turn order, plus totals. */
+export function circleReport(circle: Circle, payments: Payment[], today: string = todayISO()): CircleReport {
+  const rows = circle.members
+    .map((m) => memberReport(circle, payments, m.id, today))
+    .sort((a, b) => (a.turns[0]?.number ?? 999) - (b.turns[0]?.number ?? 999));
+  const o = overview(circle, payments, today);
+  return {
+    rows,
+    // Money actually paid in (own-turn installments are netted out, not collected).
+    collected: rows.reduce((s, r) => s + r.paid.filter((p) => p.how === 'confirmed').reduce((a, p) => a + p.amount, 0), 0),
+    outstanding: rows.reduce((s, r) => s + r.amountLeft, 0),
+    overdue: rows.reduce((s, r) => s + r.amountOverdue, 0),
+    payoutsDone: o.payoutsDone,
+    payoutsTotal: o.payoutsTotal,
+  };
 }

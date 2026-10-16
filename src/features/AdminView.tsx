@@ -964,7 +964,9 @@ function JoinRequestsCard({ circle, requests }: { circle: Circle; requests: Join
 /** Where members send InstaPay / Vodafone Cash transfers — shown in their pay sheet. */
 function PayInfoCard({ circle }: { circle: Circle }) {
   const [open, setOpen] = useState(false);
-  const [instapay, setInstapay] = useState(circle.payInfo?.instapay ?? '');
+  // Older circles: fall back to the organizer's own InstaPay so it's never typed twice.
+  const ownerInstapay = circle.members.find((m) => m.id === circle.ownerMemberId)?.phone ?? '';
+  const [instapay, setInstapay] = useState(circle.payInfo?.instapay ?? ownerInstapay);
   const [vodafone, setVodafone] = useState(circle.payInfo?.vodafoneCash ?? '');
   const { busy, run } = useAction();
   const info = circle.payInfo;
@@ -979,7 +981,7 @@ function PayInfoCard({ circle }: { circle: Circle }) {
           icon="create-outline"
           variant="ghost"
           onPress={() => {
-            setInstapay(info?.instapay ?? '');
+            setInstapay(info?.instapay ?? ownerInstapay);
             setVodafone(info?.vodafoneCash ?? '');
             setOpen(true);
           }}

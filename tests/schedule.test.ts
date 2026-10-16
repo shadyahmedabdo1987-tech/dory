@@ -15,6 +15,8 @@ import {
   paymentId,
   pendingApprovals,
   periodSummary,
+  memberReport,
+  circleReport,
   postpone,
   removePeriod,
   setPaidOut,
@@ -217,6 +219,30 @@ describe('member account (bank view)', () => {
     const acc = memberAccount(circle, [], 'a', '2026-02-01');
     assert.equal(acc.myPayouts[0].received, true);
     assert.equal(acc.nextPayout, undefined);
+  });
+});
+
+describe('reports', () => {
+  it("summarizes a member's turn, paid and remaining installments", () => {
+    const payments = [pay('p0', 'c'), pay('p1', 'c', 'claimed')];
+    const r = memberReport(makeCircle(), payments, 'c', '2026-03-31');
+    assert.equal(r.turns.length, 1);
+    assert.equal(r.turns[0].number, 3);
+    assert.equal(r.turns[0].amount, 2000);
+    assert.equal(r.installmentsTotal, 3);
+    assert.equal(r.installmentsPaid, 2); // p0 paid + p2 is c's own turn
+    assert.equal(r.installmentsPending, 1);
+    assert.equal(r.installmentsLeft, 1);
+    assert.equal(r.amountPaid, 2000);
+    assert.equal(r.amountLeft, 1000);
+    assert.deepEqual(r.paid.map((p) => p.how), ['confirmed', 'covered']);
+  });
+
+  it('builds the admin report in turn order with totals', () => {
+    const rep = circleReport(makeCircle(), [pay('p0', 'b'), pay('p0', 'c')], '2026-02-10');
+    assert.deepEqual(rep.rows.map((r) => r.member.id), ['a', 'b', 'c']);
+    assert.equal(rep.collected, 2000); // b and c paid p0 (own turns are netted out, not collected)
+    assert.equal(rep.rows[0].installmentsPaid, 1);
   });
 });
 

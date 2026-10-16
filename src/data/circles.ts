@@ -310,6 +310,9 @@ export async function createCircle(draft: CircleDraft, adminUid: string): Promis
     schemaVersion: SCHEMA_VERSION,
     ...(draft.ownerFirst && members[0] ? { ownerMemberId: members[0].id } : {}),
     ...(draft.slots ? { slots: draft.slots } : {}),
+    ...(draft.payInstapay && normalizePayAccount(draft.payInstapay)
+      ? { payInfo: { instapay: normalizePayAccount(draft.payInstapay) } }
+      : {}),
   });
   members.forEach((m, i) => {
     const phone = phoneOf(m);

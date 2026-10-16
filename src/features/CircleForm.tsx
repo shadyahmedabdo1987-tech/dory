@@ -110,6 +110,9 @@ export function CircleForm({
     members,
     ownerFirst: mode === 'create' && ownerFirst,
     ...(slots !== undefined ? { slots } : {}),
+    // The organizer's InstaPay is where members transfer — it becomes the circle's
+    // transfer details, entered once.
+    ...(mode === 'create' && members[0]?.phone ? { payInstapay: members[0].phone } : {}),
   };
   const errors = validateDraft(draft, normalizePayAccount);
   const has = (e: DraftError) => showErrors && errors.includes(e);
@@ -248,8 +251,11 @@ export function CircleForm({
               onChangeText={(t) => members[0] && update(members[0].id, { name: t })}
               style={[styles.input, has('memberName') && { borderColor: colors.danger }]}
             />
+            <Text variant="caption" weight="bold">
+              حساب إنستاباي اللي الأعضاء هيحوّلوا عليه
+            </Text>
             <TextInput
-              placeholder="إنستاباي: رقم الموبايل أو الإيميل (اختياري)"
+              placeholder="رقم الموبايل أو name@instapay (اختياري)"
               placeholderTextColor={colors.muted}
               keyboardType="email-address"
               autoCapitalize="none"
