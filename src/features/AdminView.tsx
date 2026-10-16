@@ -668,21 +668,34 @@ function MembersTab({ circle }: { circle: Circle }) {
     }
   };
 
+  const [copied, setCopied] = useState(false);
+
   return (
     <View style={{ gap: space.md }}>
       <PayInfoCard circle={circle} />
       <Card style={{ alignItems: 'center' }}>
         <Text variant="caption">كود الجمعية</Text>
-        <Pressable
-          onPress={() => {
-            Clipboard.setStringAsync(circle.inviteCode).catch(() => {});
-            alert('اتنسخ ✓', 'الكود اتنسخ.');
-          }}
-        >
-          <Text variant="number" style={{ letterSpacing: 6 }}>
+        <View style={styles.codeBox}>
+          <Text variant="number" selectable style={{ letterSpacing: 6, flex: 1, textAlign: 'center' }}>
             {circle.inviteCode}
           </Text>
-        </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="انسخ الكود"
+            onPress={() => {
+              tap();
+              Clipboard.setStringAsync(circle.inviteCode).catch(() => {});
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            style={({ pressed }) => [styles.copyBtn, copied && styles.copyBtnDone, pressed && { transform: [{ scale: 0.96 }] }]}
+          >
+            <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color={colors.white} />
+            <Text weight="bold" color={colors.white}>
+              {copied ? 'اتنسخ' : 'نسخ'}
+            </Text>
+          </Pressable>
+        </View>
         <Text variant="caption" center>
           كل عضو يدخل بالكود ده + رقم موبايله المسجل. دخل لحد دلوقتي {formatNumber(joined)} من {formatNumber(circle.members.length)}.
         </Text>
@@ -808,6 +821,29 @@ const styles = StyleSheet.create({
   },
   checkOn: { backgroundColor: colors.success, borderColor: colors.success },
   checkClaimed: { backgroundColor: colors.goldSoft, borderColor: colors.gold },
+  codeBox: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    paddingVertical: space.sm,
+    paddingHorizontal: space.md,
+  },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.lg,
+  },
+  copyBtnDone: { backgroundColor: colors.success },
   checkCovered: { backgroundColor: colors.gold, borderColor: colors.gold },
   num: {
     width: 36,
