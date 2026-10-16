@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -30,6 +30,7 @@ import { colors, fonts, radius, space } from '@/ui/theme';
 
 import { DrawWheel } from './DrawWheel';
 import { alert } from '@/ui/dialog';
+import { KeyboardScreen } from '@/ui/KeyboardScreen';
 
 const ERRORS: Record<DraftError, string> = {
   name: 'اكتب اسم للجمعية',
@@ -144,7 +145,7 @@ export function CircleForm({
   const thisYear = Number(today.slice(0, 4));
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardScreen>
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}
@@ -411,7 +412,7 @@ export function CircleForm({
           setWheelOpen(false);
         }}
       />
-    </KeyboardAvoidingView>
+    </KeyboardScreen>
   );
 }
 

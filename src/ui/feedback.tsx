@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { arabicError, errorCode } from '@/data/errors';
@@ -64,8 +64,9 @@ export function Sheet({
 }) {
   const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+      {/* Full-window modal, so no header offset: the sheet rides up with the keyboard. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="إغلاق" />
         <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
           <View style={styles.handle} />

@@ -64,6 +64,7 @@ import {
 } from '@/data';
 import { Badge, Button, Card, Field, IconButton, ProgressBar, Row, Segmented, Text, tap } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
+import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { colors, radius, space } from '@/ui/theme';
 
 import { DrawWheel } from './DrawWheel';
@@ -111,7 +112,8 @@ export function AdminView({
   const openPayoutRequests = payouts.filter((r) => r.status === 'requested' || r.status === 'disputed').length;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}>
+    <KeyboardScreen>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}>
       <View style={styles.hero}>
         <Text variant="caption" color="rgba(255,255,255,0.75)">
           القبض في كل دور
@@ -157,6 +159,7 @@ export function AdminView({
       {tab === 'members' && <MembersTab circle={circle} requests={joinRequests} />}
       {tab === 'messages' && <MessagesTab circle={circle} payments={payments} uid={uid} />}
     </ScrollView>
+    </KeyboardScreen>
   );
 }
 

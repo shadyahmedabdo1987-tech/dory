@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { extractInviteCode, FREQUENCY_LABEL, formatDate, formatMoney, formatNumber, normalizePayAccount } from '@/core';
 import {
@@ -23,6 +23,7 @@ import { alert } from '@/ui/dialog';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { SpinningLogo } from '@/ui/SpinningLogo';
 import { colors, radius, space } from '@/ui/theme';
+import { KeyboardScreen } from '@/ui/KeyboardScreen';
 
 /** The spinner shows at least this long so the screen doesn't flash. */
 const MIN_LOADING_MS = 1500;
@@ -101,7 +102,7 @@ function EnterCode({
     else alert('مفيش كود في اللي نسخته', 'انسخ رسالة الدعوة أو كود الجمعية، وبعدين دوس "الصق الكود".');
   };
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardScreen>
       <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
           <Ionicons name="key" size={44} color={colors.gold} />
@@ -127,7 +128,7 @@ function EnterCode({
           <Button label="افتح الجمعية" icon="arrow-back" disabled={code.length < 6} onPress={onSubmit} />
         </Card>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardScreen>
   );
 }
 
@@ -276,7 +277,7 @@ function JoinSheet({
 
   return (
     <Sheet visible={!!circle} title={circle ? `انضمام لـ "${circle.name}"` : ''} onClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View>
         <ScrollView contentContainerStyle={{ gap: space.md }} keyboardShouldPersistTaps="handled">
           <Field
             label="اسمك"
@@ -305,7 +306,7 @@ function JoinSheet({
             onPress={submit}
           />
         </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
     </Sheet>
   );
 }

@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { ScrollView } from 'react-native';
 
 import { resetPassword, signInAdmin, signUpAdmin } from '@/data';
 import { Button, Card, Field, Segmented, Text } from '@/ui/components';
 import { useAction } from '@/ui/feedback';
 import { space } from '@/ui/theme';
 import { alert } from '@/ui/dialog';
+import { KeyboardScreen } from '@/ui/KeyboardScreen';
 
 type Mode = 'signin' | 'signup';
 
@@ -30,7 +31,7 @@ export default function AuthScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardScreen>
       <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">
         <Text color="#6B7570">
           حساب صاحب الجمعية بيحفظ كل جمعياتك على السيرفر. لو غيّرت موبايلك، سجّل دخول بنفس الإيميل وهتلاقي كل حاجة زي ما هي.
@@ -72,6 +73,6 @@ export default function AuthScreen() {
           {mode === 'signin' && <Button label="نسيت كلمة السر" variant="ghost" onPress={forgot} />}
         </Card>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardScreen>
   );
 }

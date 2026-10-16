@@ -28,6 +28,7 @@ import {
 import { confirmPayoutReceived, disputePayout, loadPayoutReceipt, loadReceipt, removePayment, usePayouts } from '@/data';
 import { Badge, Button, Card, Field, ProgressBar, Row, Text } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
+import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { colors, radius, space } from '@/ui/theme';
 
 import { AnnouncementsCard } from './Messaging';
@@ -89,7 +90,8 @@ export function MemberView({
   const paidRatio = acc.totalCommitment ? acc.totalPaid / acc.totalCommitment : 0;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}>
+    <KeyboardScreen>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}>
       {/* Balance card */}
       <View style={styles.balance}>
         <Row style={{ justifyContent: 'space-between' }}>
@@ -350,6 +352,7 @@ export function MemberView({
         onClose={() => setViewing(null)}
       />
     </ScrollView>
+    </KeyboardScreen>
   );
 }
 
