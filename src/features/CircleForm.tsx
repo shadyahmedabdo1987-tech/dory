@@ -79,7 +79,9 @@ export function CircleForm({
   const [slotsText, setSlotsText] = useState(initial?.slots ? String(initial.slots) : mode === 'create' ? '10' : '');
   // The organizer is the first row and keeps the first turn; the draw covers everyone else.
   const [ownerFirst, setOwnerFirst] = useState(mode === 'create');
-  const locked = (i: number) => mode === 'create' && ownerFirst && i === 0;
+  // A plain boolean (not a narrowed literal) so it can be read inside edit-only blocks.
+  const creating: boolean = mode === 'create';
+  const locked = (i: number) => creating && ownerFirst && i === 0;
   const [showErrors, setShowErrors] = useState(false);
   const [wheelOpen, setWheelOpen] = useState(false);
 
@@ -262,15 +264,15 @@ export function CircleForm({
         {mode === 'edit' && (
         <Card>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Text variant="heading">{mode === 'create' ? 'الأعضاء وترتيب القبض' : 'الأعضاء'}</Text>
+            <Text variant="heading">{creating ? 'الأعضاء وترتيب القبض' : 'الأعضاء'}</Text>
             <Text variant="caption">{formatNumber(members.length)} عضو</Text>
           </Row>
           <Text variant="caption">
-            {mode === 'create'
+            {creating
               ? 'الترتيب هنا هو ترتيب القبض. الأعضاء بيبعتوا طلبات انضمام وإنت بتوافق عليهم من التطبيق. خانة إنستاباي اختيارية للقبض بس: اكتب رقم الموبايل المتوصل بإنستاباي أو إيميل إنستاباي (زي name@instapay).'
               : 'الأعضاء الجداد بيتضاف دورهم في آخر الجدول. ترتيب الأدوار من تبويب "الجدول".'}
           </Text>
-          {mode === 'create' && (
+          {creating && (
             <Pressable
               accessibilityRole="switch"
               accessibilityState={{ checked: ownerFirst }}
@@ -291,7 +293,7 @@ export function CircleForm({
             <View key={m.id} style={styles.member}>
               <Row style={{ justifyContent: 'space-between' }}>
                 <Row gap={space.xs} style={{ flexShrink: 1 }}>
-                  {mode === 'create' ? (
+                  {creating ? (
                     <View style={[styles.pill, locked(i) && { backgroundColor: colors.goldSoft }]}>
                       <Text variant="caption" weight="bold" color={locked(i) ? '#8A6A1C' : colors.primary}>
                         {locked(i) ? '👑 صاحب الجمعية • الدور الأول' : `الدور ${ordinal(i)}`}
@@ -307,7 +309,7 @@ export function CircleForm({
                   ) : null}
                 </Row>
                 <Row gap={space.xs}>
-                  {mode === 'create' && !locked(i) && (
+                  {creating && !locked(i) && (
                     <>
                       <IconButton
                         icon="arrow-up"
@@ -357,7 +359,7 @@ export function CircleForm({
               style={{ flex: 1 }}
               onPress={() => setMembers((l) => [...l, blankMember()])}
             />
-            {mode === 'create' && (
+            {creating && (
               <Button
                 label="عجلة القرعة"
                 icon="sync-circle-outline"
