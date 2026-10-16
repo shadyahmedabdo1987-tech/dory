@@ -4,8 +4,11 @@ import { useEffect, useState, type ComponentProps } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
+  checkReceiptText,
   formatDate,
   formatMoney,
+  parseAmount,
+  type ReceiptCheck,
   METHOD_LABEL,
   PAYMENT_METHODS,
   payTarget,
@@ -20,6 +23,7 @@ import { Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 
 import { pickReceipt, type PickedReceipt } from './receiptImage';
+import { readReceiptText } from './receiptOcr';
 import { alert } from '@/ui/dialog';
 
 /** Brand-ish accent per payment method (cash green, InstaPay purple, Vodafone red). */
@@ -125,6 +129,11 @@ export function PaySheet({
   const [receipt, setReceipt] = useState<PickedReceipt | null>(null);
   const [note, setNote] = useState('');
   const { busy, run } = useAction();
+  // Receipt check: automatic from the image, or typed by the member if it can't be read.
+  const [checking, setChecking] = useState(false);
+  const [auto, setAuto] = useState<ReceiptCheck | null>(null);
+  const [typedAmount, setTypedAmount] = useState('');
+  const [typedAccount, setTypedAccount] = useState('');
 
   // Fresh state every time the sheet opens for a period.
   useEffect(() => {
@@ -133,9 +142,40 @@ export function PaySheet({
     setNote('');
   }, [entry?.period.id]);
 
+  useEffect(() => {
+    setAuto(null);
+    setTypedAmount('');
+    setTypedAccount('');
+    if (!receipt || !entry) return;
+    let cancelled = false;
+    setChecking(true);
+    readReceiptText(receipt.sourceUri ?? receipt.uri)
+      .then((text) => {
+        if (cancelled) return;
+        if (!text) return setAuto(null);
+        const to = payTarget(method, circle.payInfo);
+        const c = checkReceiptText(text, { amount: entry.due, accounts: [to] });
+        // If the admin hasn't saved an account for this method, only the amount can be checked.
+        setAuto({ amount: c.amount, account: c.account || !to });
+      })
+      .finally(() => !cancelled && setChecking(false));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [receipt?.uri, method]);
+
   if (!entry) return null;
   const needsReceipt = requiresReceipt(method);
   const target = payTarget(method, circle.payInfo);
+
+  // Typed fallback must match too: one installment, to the admin's account.
+  const manual: ReceiptCheck = {
+    amount: Math.abs(parseAmount(typedAmount) - entry.due) < 0.01,
+    account: !target || checkReceiptText(typedAccount, { amount: 0, accounts: [target] }).account,
+  };
+  const autoOk = !!auto && auto.amount && auto.account;
+  const verified = !needsReceipt || (!!receipt && !checking && (autoOk || (manual.amount && manual.account)));
 
   const submit = () =>
     run(
@@ -182,6 +222,19 @@ export function PaySheet({
           <View style={{ gap: space.sm }}>
             <Text weight="semibold">صورة التحويل (مطلوبة)</Text>
             <ReceiptPicker value={receipt} onChange={setReceipt} />
+            {receipt ? (
+              <ReceiptChecks
+                checking={checking}
+                auto={auto}
+                amount={entry.due}
+                target={target}
+                typedAmount={typedAmount}
+                setTypedAmount={setTypedAmount}
+                typedAccount={typedAccount}
+                setTypedAccount={setTypedAccount}
+                manual={manual}
+              />
+            ) : null}
           </View>
         )}
 
@@ -191,11 +244,98 @@ export function PaySheet({
           label="ابعت لصاحب الجمعية"
           icon="send"
           loading={busy}
-          disabled={needsReceipt && !receipt}
+          disabled={!verified}
           onPress={submit}
         />
       </ScrollView>
     </Sheet>
+  );
+}
+
+/** Shows whether the screenshot goes to the admin's account with exactly one installment. */
+function ReceiptChecks({
+  checking,
+  auto,
+  amount,
+  target,
+  typedAmount,
+  setTypedAmount,
+  typedAccount,
+  setTypedAccount,
+  manual,
+}: {
+  checking: boolean;
+  auto: ReceiptCheck | null;
+  amount: number;
+  target?: string;
+  typedAmount: string;
+  setTypedAmount: (v: string) => void;
+  typedAccount: string;
+  setTypedAccount: (v: string) => void;
+  manual: ReceiptCheck;
+}) {
+  if (checking) {
+    return (
+      <View style={[styles.check, { backgroundColor: colors.primarySoft }]}>
+        <Ionicons name="scan-outline" size={20} color={colors.primary} />
+        <Text style={{ flex: 1 }}>بنراجع الإيصال…</Text>
+      </View>
+    );
+  }
+  const Line = ({ ok, text }: { ok: boolean; text: string }) => (
+    <Row gap={space.xs}>
+      <Ionicons name={ok ? 'checkmark-circle' : 'close-circle'} size={18} color={ok ? colors.success : colors.danger} />
+      <Text style={{ flex: 1 }} color={ok ? colors.success : colors.danger}>
+        {text}
+      </Text>
+    </Row>
+  );
+  if (auto && auto.amount && auto.account) {
+    return (
+      <View style={[styles.check, { backgroundColor: colors.successSoft }]}>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text weight="bold" color={colors.success}>
+            الإيصال مطابق ✓
+          </Text>
+          <Line ok text={`المبلغ ${formatMoney(amount)}`} />
+          <Line ok text={`محوّل على ${target ?? ''}`} />
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.check, { backgroundColor: colors.goldSoft, flexDirection: 'column', alignItems: 'stretch' }]}>
+      <Text weight="bold" color="#8A6A1C">
+        {auto ? 'الإيصال مش مطابق' : 'مقدرناش نقرا الإيصال كويس'}
+      </Text>
+      {auto ? (
+        <>
+          <Line ok={auto.amount} text={auto.amount ? `المبلغ ${formatMoney(amount)}` : `المبلغ لازم يكون ${formatMoney(amount)}`} />
+          <Line ok={auto.account} text={auto.account ? `محوّل على ${target ?? ''}` : `لازم يكون محوّل على ${target ?? 'حساب صاحب الجمعية'}`} />
+        </>
+      ) : null}
+      <Text variant="caption">
+        لو الإيصال صح، اكتب المبلغ والرقم اللي حوّلت عليه زي ما هما في الإيصال، ولازم يطابقوا قسط الجمعية وحساب صاحبها.
+      </Text>
+      <Field
+        label="المبلغ اللي حوّلته"
+        value={typedAmount}
+        onChangeText={setTypedAmount}
+        keyboardType="numeric"
+        placeholder={String(amount)}
+        error={typedAmount && !manual.amount ? `لازم يكون ${formatMoney(amount)}` : undefined}
+      />
+      {target ? (
+      <Field
+        label="حوّلت على"
+        value={typedAccount}
+        onChangeText={setTypedAccount}
+        autoCapitalize="none"
+        placeholder={target ?? ''}
+        error={typedAccount && !manual.account ? 'ده مش حساب صاحب الجمعية' : undefined}
+      />
+      ) : null}
+    </View>
   );
 }
 
@@ -209,6 +349,13 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.card,
+  },
+  check: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    padding: space.md,
+    borderRadius: radius.md,
   },
   methodIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   methodCheck: {

@@ -8,6 +8,8 @@ import { alert } from '@/ui/dialog';
 export interface PickedReceipt {
   uri: string;
   base64: string;
+  /** The original full-quality image (sharper for reading the text on it). */
+  sourceUri?: string;
 }
 
 /** Progressive compression so screenshots fit comfortably in a Firestore document. */
@@ -51,5 +53,5 @@ export async function pickReceipt(source: 'library' | 'camera'): Promise<PickedR
   const asset = picked.assets[0];
   const result = await compress(asset.uri, asset.width ?? 2000);
   if (!result) alert('الصورة كبيرة جدًا', 'جرّب تقص الصورة على جزء التحويل بس.');
-  return result;
+  return result ? { ...result, sourceUri: asset.uri } : null;
 }

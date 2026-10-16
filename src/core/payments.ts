@@ -94,3 +94,59 @@ export function canEditPayoutRequest(request: Pick<PayoutRequest, 'status'> | un
 export function payoutNeedsReceipt(method: PaymentMethod): boolean {
   return requiresReceipt(method);
 }
+
+// ---------------------------------------------------------------------------
+// Receipt check: does the transfer screenshot go to the admin's account, for
+// exactly one installment? Works on the text read from the image (OCR) or on
+// what the member typed when the image can't be read.
+// ---------------------------------------------------------------------------
+
+export interface ReceiptCheck {
+  amount: boolean;
+  account: boolean;
+}
+
+const ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩';
+const PERSIAN_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
+function asciiDigits(s: string): string {
+  return s.replace(/[٠-٩۰-۹]/g, (d) => String(ARABIC_DIGITS.indexOf(d) >= 0 ? ARABIC_DIGITS.indexOf(d) : PERSIAN_DIGITS.indexOf(d)));
+}
+
+/** Every number written in the text (handles 1,000 / 1.000,00 / 1000.00 / Arabic digits). */
+export function numbersIn(text: string): number[] {
+  const out: number[] = [];
+  for (const m of asciiDigits(text).matchAll(/\d[\d,.\s٬٫]*\d|\d/g)) {
+    const raw = m[0].replace(/\s/g, '').replace(/٬/g, ',').replace(/٫/g, '.');
+    // Decimal part: a final separator followed by 1-2 digits.
+    const dec = raw.match(/^(.*?)[.,](\d{1,2})$/);
+    const intPart = (dec ? dec[1] : raw).replace(/[.,]/g, '');
+    const value = Number(dec ? `${intPart}.${dec[2]}` : intPart);
+    if (Number.isFinite(value)) out.push(value);
+  }
+  return out;
+}
+
+/** Digits-only forms of an Egyptian mobile number that may appear on a receipt. */
+function phoneForms(account: string): string[] {
+  const d = asciiDigits(account).replace(/\D/g, '');
+  if (d.length < 8) return [];
+  const local = d.startsWith('20') ? `0${d.slice(2)}` : d;
+  return [d, local, local.slice(1)];
+}
+
+/**
+ * Matches the receipt text against the expected installment and the admin's
+ * accounts (InstaPay number/address, Vodafone Cash number).
+ */
+export function checkReceiptText(text: string, expected: { amount: number; accounts: (string | undefined)[] }): ReceiptCheck {
+  const amount = numbersIn(text).some((n) => Math.abs(n - expected.amount) < 0.01);
+  const flatDigits = asciiDigits(text).replace(/\D/g, '');
+  const lower = text.toLowerCase().replace(/\s/g, '');
+  const account = expected.accounts.some((acc) => {
+    if (!acc) return false;
+    const a = acc.trim().toLowerCase();
+    if (a.includes('@')) return lower.includes(a.replace(/\s/g, '')) || lower.includes(a.split('@')[0]);
+    return phoneForms(a).some((f) => flatDigits.includes(f));
+  });
+  return { amount, account };
+}

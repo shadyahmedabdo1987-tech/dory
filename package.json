@@ -25,6 +25,7 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-firebase/app": "^23.4.0",
     "@react-native-firebase/app-check": "^23.4.0",
+    "@react-native-ml-kit/text-recognition": "^1.5.2",
     "expo": "~54.0.12",
     "expo-build-properties": "~1.0.9",
     "expo-clipboard": "~8.0.7",

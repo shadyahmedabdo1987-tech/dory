@@ -8,6 +8,8 @@ import {
   payTarget,
   requiresReceipt,
   validateClaim,
+  checkReceiptText,
+  numbersIn,
 } from '../src/core/payments.ts';
 
 describe('payment methods', () => {
@@ -92,3 +94,25 @@ describe('payout receipt confirmation', () => {
     assert.equal(payoutHandedOver(undefined), false);
   });
 });
+
+describe('receipt check', () => {
+  const expected = { amount: 1000, accounts: ['shady@instapay', '201012345678'] };
+
+  it('accepts a receipt to the admin with exactly one installment', () => {
+    assert.deepEqual(checkReceiptText('Transfer successful\nAmount 1,000.00 EGP\nTo shady@instapay', expected), { amount: true, account: true });
+    assert.deepEqual(checkReceiptText('تم تحويل ١٬٠٠٠ جنيه إلى 01012345678', expected), { amount: true, account: true });
+    assert.deepEqual(checkReceiptText('EGP 1000 sent to 010 1234 5678', expected), { amount: true, account: true });
+  });
+
+  it('flags a wrong amount or a different receiver', () => {
+    assert.deepEqual(checkReceiptText('Amount 500.00 EGP to shady@instapay', expected), { amount: false, account: true });
+    assert.deepEqual(checkReceiptText('Amount 1,000 EGP to mona@instapay 01198765432', expected), { amount: true, account: false });
+  });
+
+  it('reads numbers in different formats', () => {
+    assert.ok(numbersIn('1.000,00').includes(1000));
+    assert.ok(numbersIn('١٠٠٠').includes(1000));
+    assert.ok(numbersIn('EGP 2,500.50').includes(2500.5));
+  });
+});
+
