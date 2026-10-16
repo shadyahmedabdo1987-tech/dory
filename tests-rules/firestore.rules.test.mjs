@@ -661,6 +661,22 @@ describe('whatsapp group & announcements', () => {
   });
 });
 
+describe('private messages', () => {
+  it('lets the admin message one member, and only that member reads it', async () => {
+    const m1 = anon('u1');
+    await joinBatch(m1, 'u1');
+    const m2 = anon('u2');
+    await joinBatch(m2, 'u2', 'm2');
+    const msg = { title: 'تذكير', body: 'لسه ما دفعتش القسط', createdAt: serverTimestamp() };
+    const inbox = (db, mid) => collection(db, 'circles', CID, 'inbox', mid, 'items');
+    await assertSucceeds(setDoc(doc(inbox(admin(), 'm1')), { ...msg, createdBy: 'admin' }));
+    await assertFails(setDoc(doc(inbox(m2, 'm1')), { ...msg, createdBy: 'u2' }));
+    await assertSucceeds(getDocs(inbox(m1, 'm1')));
+    await assertFails(getDocs(inbox(m2, 'm1')));
+    await assertFails(getDocs(inbox(anon('stranger'), 'm1')));
+  });
+});
+
 function addDocTo(db, data) {
   return setDoc(doc(collection(db, 'circles', CID, 'announcements')), data);
 }

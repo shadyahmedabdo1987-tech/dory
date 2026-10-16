@@ -13,9 +13,11 @@ import {
   type Announcement,
   type Circle,
   type GroupTemplate,
+  type Member,
   type Payment,
+  type TemplateAudience,
 } from '@/core';
-import { deleteAnnouncement, postAnnouncement, useAnnouncements } from '@/data';
+import { deleteAnnouncement, deleteInboxMessage, postAnnouncement, useAnnouncements, useMemberMessages } from '@/data';
 import { Badge, Button, Card, Chip, Field, IconButton, Row, Text } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
@@ -48,14 +50,45 @@ export function useUnreadAnnouncements(cid: string, items: Announcement[]) {
   return { unread, seenAt, markSeen };
 }
 
+const hiddenKey = (cid: string) => `dory/announcements-hidden/${cid}`;
+
+/** Announcements a member removed from their own screen (they stay for everyone else). */
+function useHiddenAnnouncements(cid: string) {
+  const [hidden, setHidden] = useState<string[]>([]);
+  useEffect(() => {
+    AsyncStorage.getItem(hiddenKey(cid))
+      .then((v) => setHidden(v ? (JSON.parse(v) as string[]) : []))
+      .catch(() => setHidden([]));
+  }, [cid]);
+  const hide = useCallback(
+    (id: string) =>
+      setHidden((prev) => {
+        const next = [...prev.filter((x) => x !== id), id].slice(-200);
+        AsyncStorage.setItem(hiddenKey(cid), JSON.stringify(next)).catch(() => {});
+        return next;
+      }),
+    [cid],
+  );
+  return { hidden, hide };
+}
+
 // ---------------------------------------------------------------------------
 // Member: announcements + group button
 // ---------------------------------------------------------------------------
 
-export function AnnouncementsCard({ circle }: { circle: Circle }) {
-  const items = useAnnouncements(circle.id);
+export function AnnouncementsCard({ circle, memberId }: { circle: Circle; memberId: string }) {
+  const everything = useMemberMessages(circle.id, memberId);
+  const { hidden, hide } = useHiddenAnnouncements(circle.id);
+  const items = useMemo(() => everything.filter((a) => !hidden.includes(a.id)), [everything, hidden]);
   const { unread, seenAt, markSeen } = useUnreadAnnouncements(circle.id, items);
   const [all, setAll] = useState(false);
+  const { run } = useAction();
+
+  const remove = async (a: Announcement) => {
+    if (!(await confirm('مسح الرسالة؟', 'هتختفي من عندك إنت بس.', 'امسح', true))) return;
+    if (a.private) run(() => deleteInboxMessage(circle.id, memberId, a.id));
+    else hide(a.id);
+  };
 
   if (items.length === 0) return null;
 
@@ -63,7 +96,7 @@ export function AnnouncementsCard({ circle }: { circle: Circle }) {
     <Sheet visible={all} title="إعلانات الجمعية" onClose={() => setAll(false)}>
       <ScrollView contentContainerStyle={{ gap: space.sm }}>
         {items.map((a) => (
-          <AnnouncementRow key={a.id} item={a} isNew={false} />
+          <AnnouncementRow key={a.id} item={a} isNew={false} onDelete={() => remove(a)} />
         ))}
       </ScrollView>
     </Sheet>
@@ -97,7 +130,7 @@ export function AnnouncementsCard({ circle }: { circle: Circle }) {
       </Row>
 
       {latest.map((a) => (
-        <AnnouncementRow key={a.id} item={a} isNew={!seenAt || a.createdAt > seenAt} />
+        <AnnouncementRow key={a.id} item={a} isNew={!seenAt || a.createdAt > seenAt} onDelete={() => remove(a)} />
       ))}
 
       <Row gap={space.sm}>
@@ -128,7 +161,10 @@ function AnnouncementRow({ item, isNew, onDelete }: { item: Announcement; isNew:
         {onDelete ? <IconButton icon="trash-outline" label="مسح" color={colors.danger} bg="transparent" onPress={onDelete} /> : null}
       </Row>
       {item.body ? <Text>{item.body}</Text> : null}
-      <Text variant="caption">{formatDate(item.createdAt.slice(0, 10))}</Text>
+      <Text variant="caption">
+        {formatDate(item.createdAt.slice(0, 10))}
+        {item.private ? ' • ليك إنت بس' : ''}
+      </Text>
     </View>
   );
 }
@@ -142,54 +178,97 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
   const { busy, run } = useAction();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [audience, setAudience] = useState<TemplateAudience>('all');
 
-  const templates = useMemo(() => {
+  const { templates, unpaid, recipient } = useMemo(() => {
     const entries = timeline(circle);
     const i = Math.max(0, Math.min(currentIndex(circle) < 0 ? 0 : currentIndex(circle), entries.length - 1));
     const entry = entries[i];
-    const unpaid = entry ? [...periodSummary(circle, payments, i).unpaid, ...periodSummary(circle, payments, i).claimed] : [];
-    return groupTemplates(circle, entry, unpaid);
+    // Only members who really haven't paid (a claimed payment counts as paid until the admin rejects it).
+    const unpaid: Member[] = entry ? periodSummary(circle, payments, i).unpaid : [];
+    const recipient = entry?.period.kind === 'payout' ? entry.recipient : undefined;
+    return { templates: groupTemplates(circle, entry, unpaid), unpaid, recipient };
   }, [circle, payments]);
+
+  const targets: Member[] | null = audience === 'unpaid' ? unpaid : audience === 'recipient' ? (recipient ? [recipient] : []) : null;
 
   const applyTemplate = (t: GroupTemplate) => {
     const [first, ...rest] = t.text.split('\n');
     setTitle(first.replace(/^[^\p{L}\p{N}]+/u, '').slice(0, 80) || t.label);
     setBody(rest.join('\n').trim());
+    setAudience(t.audience);
   };
 
   const send = async () => {
-    if (!title.trim()) return alert('اكتب عنوان', 'الإعلان محتاج عنوان قصير.');
+    if (!title.trim()) return alert('اكتب عنوان', 'الرسالة محتاجة عنوان قصير.');
+    if (targets && targets.length === 0) {
+      return alert('مفيش حد يوصله', audience === 'unpaid' ? 'الكل دفع القسط ده ✓' : 'مفيش صاحب دور للفترة دي.');
+    }
     const sent = await run(async () => {
-      await postAnnouncement(circle.id, uid, title, body);
+      await postAnnouncement(
+        circle.id,
+        uid,
+        title,
+        body,
+        targets ? { memberIds: targets.map((m) => m.id), uids: targets.map((m) => m.uid) } : undefined,
+      );
       return true;
     });
     if (!sent) return;
     setTitle('');
     setBody('');
-    alert('اتبعت لكل الأعضاء ✓', 'الإعلان ظهر عند كل الأعضاء جوه التطبيق.');
+    setAudience('all');
+    alert(
+      'اتبعت ✓',
+      targets ? `وصلت لـ: ${targets.map((m) => m.name).join('، ')} بس.` : 'الرسالة ظهرت عند كل الأعضاء جوه التطبيق.',
+    );
   };
+
+  const audienceOptions: { value: TemplateAudience; label: string }[] = [
+    { value: 'all', label: 'كل الأعضاء' },
+    { value: 'unpaid', label: `اللي ما دفعوش (${formatNumber(unpaid.length)})` },
+    ...(recipient ? [{ value: 'recipient' as const, label: `صاحب الدور: ${recipient.name}` }] : []),
+  ];
 
   return (
     <View style={{ gap: space.md }}>
       <Card>
         <Row gap={space.sm}>
           <Ionicons name="notifications" size={20} color={colors.primary} />
-          <Text variant="heading">إشعار لكل الأعضاء</Text>
+          <Text variant="heading">ابعت رسالة</Text>
         </Row>
-        <Text variant="caption">بيظهر لكل عضو جوه التطبيق في "إعلانات الجمعية"، وبيوصل كإشعار على الموبايل.</Text>
+        <Text variant="caption">بتظهر جوه التطبيق وبتوصل كإشعار على الموبايل — للي تختارهم بس.</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
           {templates.map((t) => (
             <Chip key={t.key} label={t.label} active={false} onPress={() => applyTemplate(t)} />
           ))}
         </ScrollView>
+
+        <Text weight="semibold">هتوصل لمين؟</Text>
+        <View style={styles.audience}>
+          {audienceOptions.map((o) => (
+            <Chip key={o.value} label={o.label} active={audience === o.value} onPress={() => setAudience(o.value)} />
+          ))}
+        </View>
+        {targets ? (
+          <Text variant="caption" color={targets.length ? colors.primary : colors.danger}>
+            {targets.length ? `هتوصل لـ: ${targets.map((m) => m.name).join('، ')}` : audience === 'unpaid' ? 'الكل دفع ✓ — مفيش حد تفكّره.' : 'مفيش صاحب دور.'}
+          </Text>
+        ) : null}
+
         <Field label="العنوان" value={title} onChangeText={setTitle} maxLength={80} placeholder="مثلًا: تذكير بقسط الشهر" />
         <Field label="الرسالة" value={body} onChangeText={setBody} maxLength={1000} multiline style={{ minHeight: 110, textAlignVertical: 'top', paddingTop: space.sm }} />
-        <Button label="ابعت للأعضاء" icon="send" loading={busy} onPress={send} />
+        <Button
+          label={audience === 'all' ? 'ابعت لكل الأعضاء' : audience === 'unpaid' ? 'ابعت للي ما دفعوش' : 'ابعت لصاحب الدور'}
+          icon="send"
+          loading={busy}
+          onPress={send}
+        />
       </Card>
 
       {items.length > 0 && (
         <Card>
-          <Text variant="heading">اللي اتبعت قبل كده</Text>
+          <Text variant="heading">اللي اتبعت لكل الأعضاء</Text>
           {items.map((a) => (
             <AnnouncementRow
               key={a.id}
@@ -236,6 +315,7 @@ const styles = StyleSheet.create({
   },
   announcement: { backgroundColor: colors.bg, borderRadius: radius.md, padding: space.md, gap: 4 },
   announcementNew: { backgroundColor: colors.goldSoft, borderWidth: 1, borderColor: colors.gold },
+  audience: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   steps: { gap: space.sm, backgroundColor: colors.bg, borderRadius: radius.md, padding: space.md },
   stepNum: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   inviteRow: {

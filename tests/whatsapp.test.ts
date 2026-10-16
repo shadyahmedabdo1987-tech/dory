@@ -44,9 +44,11 @@ describe('whatsapp group', () => {
   it('builds group templates with transfer details and unpaid names', () => {
     const [entry] = timeline(circle);
     const t = groupTemplates(circle, entry, [circle.members[2]]);
-    assert.deepEqual(t.map((x) => x.key), ['reminder', 'collect', 'payout', 'custom']);
+    assert.deepEqual(t.map((x) => x.key), ['reminder', 'payout', 'custom']);
+    assert.deepEqual(t.map((x) => x.audience), ['unpaid', 'recipient', 'all']);
     assert.match(t[0].text, /shady@instapay/);
-    assert.match(t[1].text, /كريم/);
-    assert.match(t[2].text, /منى/);
+    assert.match(t[1].text, /منى/);
+    // Nobody left to remind → no reminder template.
+    assert.deepEqual(groupTemplates(circle, entry, []).map((x) => x.key), ['payout', 'custom']);
   });
 });

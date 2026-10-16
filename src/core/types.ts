@@ -138,4 +138,6 @@ export interface Announcement {
   body: string;
   /** ISO timestamp. */
   createdAt: string;
+  /** Sent only to this member (not the whole circle). */
+  private?: boolean;
 }

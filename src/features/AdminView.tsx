@@ -203,19 +203,20 @@ function CollectTab({
   const s = periodSummary(circle, payments, i);
   const entry = s.entry;
 
-  /** In-app reminder to everyone who hasn't paid this period (shows in their announcements + push). */
+  /** Reminder only to the members who haven't paid this period (their private messages + push). */
   const remindUnpaid = async () => {
     const names = s.unpaid.map((m) => m.name).join('، ');
-    if (!(await confirm('تذكير جوه التطبيق', `هيوصل تذكير بالقسط للي لسه ما دفعوش: ${names}`, 'ابعت التذكير'))) return;
+    if (!(await confirm('تذكير بالقسط', `التذكير هيوصل للي لسه ما دفعوش بس: ${names}`, 'ابعت التذكير'))) return;
     run(
       () =>
         postAnnouncement(
           circle.id,
           uid,
           `تذكير: قسط ${periodTitle(entry)}`,
-          `ميعاد القسط ${formatDate(entry.date)} — ${formatMoney(entry.due)}.\nلو لسه ما دفعتش، ادفع ودوس "دفعت" في التطبيق. ولو دفعت خلاص، تجاهل الرسالة دي.`,
+          `لسه قسطك ما وصلش: ${formatMoney(entry.due)} — ميعاده ${formatDate(entry.date)}.\nادفع ودوس "دفعت" في التطبيق.`,
+          { memberIds: s.unpaid.map((m) => m.id), uids: s.unpaid.map((m) => m.uid) },
         ),
-      { success: 'التذكير اتبعت جوه التطبيق.' },
+      { success: `التذكير وصل لـ ${names} بس.` },
     );
   };
 

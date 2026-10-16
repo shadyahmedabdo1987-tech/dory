@@ -462,6 +462,13 @@ export async function deleteCircle(circle: Circle): Promise<void> {
       retry(() => getDocs(collection(db, 'circles', cid, c))),
     ),
   );
+  const inboxes = await Promise.all(
+    circle.members.map((m) => retry(() => getDocs(inboxCol(db, cid, m.id))).catch(() => null)),
+  );
+  await deleteInChunks(
+    db,
+    inboxes.flatMap((snap) => (snap ? snap.docs.map((d) => d.ref) : [])),
+  );
   await deleteInChunks(
     db,
     [joinRequests, announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members].flatMap((s) => s.docs.map((d) => d.ref)),
@@ -1189,24 +1196,72 @@ export function watchAnnouncements(
   );
 }
 
-/** Admin: post an announcement to every member (in-app now; push via Cloud Functions). */
-export async function postAnnouncement(cid: string, uid: string, title: string, body: string) {
-  await withTimeout(
-    setDoc(doc(announcementsCol(firestore(), cid)), {
-      title: title.trim().slice(0, 80),
-      body: body.trim().slice(0, 1000),
-      createdBy: uid,
-      createdAt: serverTimestamp(),
-    }),
-  );
+/**
+ * Admin: post a message. With `to` (member ids) it goes only to those members
+ * (their private inbox + a push to their phones); otherwise to everyone.
+ */
+export async function postAnnouncement(
+  cid: string,
+  uid: string,
+  title: string,
+  body: string,
+  to?: { memberIds: string[]; uids: (string | null | undefined)[] },
+) {
+  const data = {
+    title: title.trim().slice(0, 80),
+    body: body.trim().slice(0, 1000),
+    createdBy: uid,
+    createdAt: serverTimestamp(),
+  };
+  const db = firestore();
+  if (to) {
+    if (to.memberIds.length === 0) return;
+    const batch = writeBatch(db);
+    for (const mid of to.memberIds) batch.set(doc(inboxCol(db, cid, mid)), data);
+    await withTimeout(batch.commit());
+  } else {
+    await withTimeout(setDoc(doc(announcementsCol(db, cid)), data));
+  }
   void (async () => {
     const circleName = await circleNameOf(cid);
-    await pushToMembers(cid, uid, {
-      title: `📢 ${circleName}: ${title.trim().slice(0, 80)}`,
-      body: body.trim().slice(0, 180) || 'إعلان جديد من صاحب الجمعية',
-      channelId: 'announcements',
-    });
+    const msg = {
+      title: `📢 ${circleName}: ${data.title}`,
+      body: data.body.slice(0, 180) || 'رسالة جديدة من صاحب الجمعية',
+      channelId: 'announcements' as const,
+    };
+    if (to) await pushToUids(cid, to.uids, msg);
+    else await pushToMembers(cid, uid, msg);
   })();
+}
+
+/** Member deletes one of their private messages (id as returned by watchInbox). */
+export async function deleteInboxMessage(cid: string, memberId: string, id: string) {
+  await withTimeout(deleteDoc(doc(inboxCol(firestore(), cid, memberId), id.replace(/^inbox-/, ''))));
+}
+
+const inboxCol = (db: Firestore, cid: string, memberId: string) => collection(db, 'circles', cid, 'inbox', memberId, 'items');
+
+/** A member's private messages from the admin. */
+export function watchInbox(
+  cid: string,
+  memberId: string,
+  onData: (items: Announcement[]) => void,
+  onError: (message: string) => void,
+): Unsubscribe {
+  return onSnapshot(
+    query(inboxCol(firestore(), cid, memberId), orderBy('createdAt', 'desc'), limit(30)),
+    (snap) =>
+      onData(
+        snap.docs.map((d) => ({
+          id: `inbox-${d.id}`,
+          title: String(d.data().title ?? ''),
+          body: String(d.data().body ?? ''),
+          createdAt: d.data({ serverTimestamps: 'estimate' }).createdAt?.toDate?.().toISOString() ?? new Date().toISOString(),
+          private: true,
+        })),
+      ),
+    (e) => onError(arabicError(e)),
+  );
 }
 
 export async function deleteAnnouncement(cid: string, id: string) {

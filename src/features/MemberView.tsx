@@ -140,7 +140,7 @@ export function MemberView({
       </Pressable>
       <TurnsSheet visible={showTurns} onClose={() => setShowTurns(false)} circle={circle} payments={payments} memberId={memberId} />
 
-      <AnnouncementsCard circle={circle} />
+      <AnnouncementsCard circle={circle} memberId={memberId} />
 
       {acc.overdueAmount > 0 && (
         <Row style={styles.alert}>

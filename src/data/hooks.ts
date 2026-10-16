@@ -1,10 +1,11 @@
 import { doc, getDoc } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { Announcement, PayoutRequest } from '@/core';
 
 import {
   watchAnnouncements,
+  watchInbox,
   watchCircle,
   watchJoinRequests,
   type JoinRequest,
@@ -247,6 +248,21 @@ export function useAnnouncements(cid: string | undefined, enabled = true) {
     return watchAnnouncements(cid, setItems, () => setItems([]));
   }, [cid, enabled, epoch]);
   return items;
+}
+
+/**
+ * What a member sees: the circle's announcements plus messages sent only to
+ * them, newest first.
+ */
+export function useMemberMessages(cid: string | undefined, memberId: string | undefined) {
+  const shared = useAnnouncements(cid);
+  const [mine, setMine] = useState<Announcement[]>([]);
+  const epoch = useFirestoreEpoch();
+  useEffect(() => {
+    if (!cid || !memberId) return;
+    return watchInbox(cid, memberId, setMine, () => setMine([]));
+  }, [cid, memberId, epoch]);
+  return useMemo(() => [...shared, ...mine].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)), [shared, mine]);
 }
 
 /** Admin: live join requests for a circle. */

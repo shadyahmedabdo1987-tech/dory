@@ -1,5 +1,6 @@
 import { formatDate, formatMoney, normalizePhone, periodTitle } from './format.ts';
 import { payTarget } from './payments.ts';
+import { payoutNet } from './schedule.ts';
 import type { Circle, Member, TimelineEntry } from './types';
 
 const GROUP_LINK = /^https:\/\/chat\.whatsapp\.com\/(invite\/)?[A-Za-z0-9]{10,40}$/;
@@ -32,43 +33,43 @@ export function groupInviteMessage(circle: Circle, member: Member, link: string)
   return [`أهلًا يا ${member.name} 👋`, `ده لينك جروب جمعية "${circle.name}" على واتساب:`, link].join('\n');
 }
 
+/** Who a template goes to: everyone, only members who haven't paid, or the turn's recipient. */
+export type TemplateAudience = 'all' | 'unpaid' | 'recipient';
+
 export interface GroupTemplate {
-  key: 'reminder' | 'collect' | 'payout' | 'custom';
+  key: 'reminder' | 'payout' | 'custom';
   label: string;
   text: string;
+  audience: TemplateAudience;
 }
 
 /** Ready-made messages for the circle's WhatsApp group. */
 export function groupTemplates(circle: Circle, entry: TimelineEntry | undefined, unpaid: Member[]): GroupTemplate[] {
   const out: GroupTemplate[] = [];
-  if (entry && entry.due > 0) {
+  if (entry && entry.due > 0 && unpaid.length > 0) {
     const lines = [
-      `⏰ تذكير — جمعية "${circle.name}"`,
-      `قسط ${periodTitle(entry)}: ${formatMoney(entry.due, circle.currency)}`,
+      `⏰ تذكير بقسط جمعية "${circle.name}"`,
+      `لسه قسطك ما وصلش: ${formatMoney(entry.due, circle.currency)} (${periodTitle(entry)})`,
       `الميعاد: ${formatDate(entry.date)}`,
     ];
     const insta = payTarget('instapay', circle.payInfo);
     const vf = payTarget('vodafone_cash', circle.payInfo);
     if (insta || vf) lines.push('', 'التحويل على:', ...(insta ? [`⚡ إنستاباي: ${insta}`] : []), ...(vf ? [`📱 فودافون كاش: ${vf}`] : []));
-    lines.push('', 'وبعد الدفع ادخلوا تطبيق دوري ودوسوا "دفعت" 🙏');
-    out.push({ key: 'reminder', label: 'تذكير بالقسط', text: lines.join('\n') });
-
-    out.push({
-      key: 'collect',
-      label: 'مين لسه ما دفعش',
-      text:
-        unpaid.length === 0
-          ? `✅ جمعية "${circle.name}" — الكل دفع قسط ${periodTitle(entry)}، شكرًا يا جماعة!`
-          : [`📌 جمعية "${circle.name}" — ${periodTitle(entry)}`, 'لسه ما دفعوش:', ...unpaid.map((m) => `• ${m.name}`)].join('\n'),
-    });
+    lines.push('', 'وبعد الدفع ادخل التطبيق ودوس "دفعت" 🙏');
+    out.push({ key: 'reminder', label: `تذكير اللي ما دفعوش (${unpaid.length})`, text: lines.join('\n'), audience: 'unpaid' });
   }
   if (entry?.period.kind === 'payout' && entry.recipient) {
     out.push({
       key: 'payout',
-      label: 'دور القبض',
-      text: `🎁 الدور ده على ${entry.recipient.name} — ${formatMoney(entry.due * circle.members.length, circle.currency)} يوم ${formatDate(entry.date)}. مبروك مقدمًا!`,
+      label: `دور القبض: ${entry.recipient.name}`,
+      text: [
+        `🎉 مبروك يا ${entry.recipient.name} — دورك تقبض`,
+        `هتقبض ${formatMoney(payoutNet(circle), circle.currency)} يوم ${formatDate(entry.date)}.`,
+        'ادخل التطبيق ودوس "حدد طريقة القبض" واختار هتستلم إزاي.',
+      ].join('\n'),
+      audience: 'recipient',
     });
   }
-  out.push({ key: 'custom', label: 'رسالة حرة', text: `📢 جمعية "${circle.name}"\n` });
+  out.push({ key: 'custom', label: 'رسالة لكل الأعضاء', text: `📢 جمعية "${circle.name}"\n`, audience: 'all' });
   return out;
 }

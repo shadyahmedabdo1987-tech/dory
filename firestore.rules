@@ -270,6 +270,20 @@ service cloud.firestore {
       allow delete: if isAdmin(cid);
     }
 
+    // ---------- private messages (admin -> specific members) ----------
+    // e.g. a reminder only to members who haven't paid, or "it's your turn" to the recipient.
+    match /circles/{cid}/inbox/{mid}/items/{nid} {
+      allow read: if isAdmin(cid) || (isMember(cid) && myMemberId(cid) == mid);
+      allow create: if isAdmin(cid)
+        && request.resource.data.keys().hasOnly(['title', 'body', 'createdAt', 'createdBy'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 80
+        && request.resource.data.body is string && request.resource.data.body.size() <= 1000
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow delete: if isAdmin(cid) || (isMember(cid) && myMemberId(cid) == mid);
+    }
+
     // ---------- transfer screenshots ----------
     // Stored as a compressed base64 JPEG (works on the free plan, no Cloud Storage).
     match /circles/{cid}/receipts/{pid} {
