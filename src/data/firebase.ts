@@ -11,6 +11,7 @@ import {
   connectFirestoreEmulator,
   getFirestore,
   initializeFirestore,
+  terminate,
   type Firestore,
 } from 'firebase/firestore';
 import { Platform } from 'react-native';
@@ -55,16 +56,8 @@ function init() {
       Platform.OS === 'web'
         ? getAuth(app)
         : initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
-    db = initializeFirestore(app, {
-      // Silently drop `undefined` fields instead of throwing.
-      ignoreUndefinedProperties: true,
-      // Works around proxies / carrier networks that break WebChannel streaming.
-      experimentalAutoDetectLongPolling: true,
-    });
-    if (emulatorHost) {
-      connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
-      connectFirestoreEmulator(db, emulatorHost, 8080);
-    }
+    db = createFirestore(app);
+    if (emulatorHost) connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
   } else {
     auth = getAuth(app);
     db = getFirestore(app);
@@ -79,4 +72,57 @@ export function firebaseAuth(): Auth {
 export function firestore(): Firestore {
   init();
   return db!;
+}
+
+function createFirestore(a: FirebaseApp): Firestore {
+  const instance = initializeFirestore(a, {
+    // Silently drop `undefined` fields instead of throwing.
+    ignoreUndefinedProperties: true,
+    // Works around proxies / carrier networks that break WebChannel streaming.
+    experimentalAutoDetectLongPolling: true,
+  });
+  if (emulatorHost) connectFirestoreEmulator(instance, emulatorHost, 8080);
+  return instance;
+}
+
+// ---------------------------------------------------------------------------
+// Self-healing: a stuck Firestore client is replaced with a fresh one — the
+// same thing an app restart does — and every live hook re-subscribes.
+// ---------------------------------------------------------------------------
+
+let epoch = 0;
+let resetting: Promise<void> | undefined;
+const epochListeners = new Set<(epoch: number) => void>();
+
+export function firestoreEpoch(): number {
+  return epoch;
+}
+
+export function onFirestoreReset(listener: (epoch: number) => void): () => void {
+  epochListeners.add(listener);
+  return () => epochListeners.delete(listener);
+}
+
+export function resetFirestore(): Promise<void> {
+  if (resetting) return resetting;
+  resetting = (async () => {
+    init();
+    const old = db!;
+    try {
+      await Promise.race([terminate(old), new Promise((r) => setTimeout(r, 4000))]);
+    } catch {
+      // A broken client may fail to shut down cleanly; replace it anyway.
+    }
+    try {
+      db = createFirestore(app!);
+    } catch {
+      // initializeFirestore refuses if the old one never finished terminating.
+      db = getFirestore(app!);
+    }
+    epoch++;
+    epochListeners.forEach((l) => l(epoch));
+  })().finally(() => {
+    resetting = undefined;
+  });
+  return resetting;
 }

@@ -15,7 +15,7 @@ import {
   payoutPot,
   relativeDays,
 } from '@/core';
-import { signOut, useCircleData, useMyCircles, type CircleRef } from '@/data';
+import { reloadCircle, signOut, useCircleData, useMyCircles, type CircleRef } from '@/data';
 import { useAppSession } from '@/data/session';
 import { clearReminders, registerForPush, unregisterPush, useCircleReminders } from '@/notifications';
 import { Badge, Button, Card, EmptyState, ProgressBar, Row, Text } from '@/ui/components';
@@ -184,9 +184,9 @@ function CardShell({ id, children }: { id: string; children: ReactNode }) {
 }
 
 function AdminCard({ id, uid }: { id: string; uid: string }) {
-  const { data } = useCircleData(id, uid);
+  const { data, error } = useCircleData(id, uid);
   useCircleReminders(data?.circle, data?.payments, 'admin', undefined);
-  if (!data) return <SkeletonCard />;
+  if (!data) return error ? <RetryCard message={error} onRetry={() => reloadCircle(id, uid)} /> : <SkeletonCard />;
   const { circle, payments } = data;
   const o = overview(circle, payments);
   return (
@@ -223,8 +223,9 @@ function AdminCard({ id, uid }: { id: string; uid: string }) {
 }
 
 function MemberCard({ id, uid }: { id: string; uid: string }) {
-  const { data, myMemberId } = useCircleData(id, uid);
+  const { data, myMemberId, error } = useCircleData(id, uid);
   useCircleReminders(data?.circle, data?.payments, 'member', myMemberId);
+  if (!data && error) return <RetryCard message={error} onRetry={() => reloadCircle(id, uid)} />;
   if (!data || !myMemberId || !data.circle.members.some((m) => m.id === myMemberId)) return <SkeletonCard />;
   const acc = memberAccount(data.circle, data.payments, myMemberId);
   const next = acc.nextDue;
@@ -256,6 +257,20 @@ function MemberCard({ id, uid }: { id: string; uid: string }) {
       </Row>
       <ProgressBar value={acc.totalCommitment ? acc.totalPaid / acc.totalCommitment : 0} color={colors.success} />
     </CardShell>
+  );
+}
+
+function RetryCard({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <Card>
+      <Row gap={space.sm}>
+        <Ionicons name="cloud-offline-outline" size={22} color={colors.muted} />
+        <Text variant="caption" style={{ flex: 1 }}>
+          {message}
+        </Text>
+      </Row>
+      <Button label="جرّب تاني" icon="refresh" variant="secondary" onPress={onRetry} />
+    </Card>
   );
 }
 

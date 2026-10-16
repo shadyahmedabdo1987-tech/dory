@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Pressable } from 'react-native';
 
-import { deleteCircle, leaveCircle, useCircleData } from '@/data';
+import { deleteCircle, leaveCircle, reloadCircle, useCircleData } from '@/data';
 import { useAppSession } from '@/data/session';
 import { AdminView, type AdminTab } from '@/features/AdminView';
 import { MemberView } from '@/features/MemberView';
@@ -22,7 +22,8 @@ export default function CircleScreen() {
   if (state.notFound) {
     return <EmptyState icon="alert-circle-outline" title="الجمعية مش متاحة" body="ممكن تكون اتمسحت، أو صاحب الجمعية فك ربط موبايلك." />;
   }
-  if (!state.data) return <ErrorScreen message={state.error ?? 'حصلت مشكلة'} />;
+  if (!state.data)
+    return <ErrorScreen message={state.error ?? 'حصلت مشكلة'} onRetry={user ? () => reloadCircle(id, user.uid) : undefined} />;
 
   const { circle, payments } = state.data;
   const isAdmin = state.role === 'admin';
