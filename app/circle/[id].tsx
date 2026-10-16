@@ -8,7 +8,7 @@ import { useAppSession } from '@/data/session';
 import { AdminView, type AdminTab } from '@/features/AdminView';
 import { MemberView } from '@/features/MemberView';
 import { ReportSheet } from '@/features/ReportSheet';
-import { clearReminders } from '@/notifications';
+import { clearReminders, useCirclePush } from '@/notifications';
 import { EmptyState, Row } from '@/ui/components';
 import { confirm, ErrorScreen, LoadingScreen, useAction } from '@/ui/feedback';
 import { colors, space } from '@/ui/theme';
@@ -19,6 +19,7 @@ export default function CircleScreen() {
   const state = useCircleData(id, user?.uid);
   const { run } = useAction();
   const [report, setReport] = useState(false);
+  useCirclePush(state.data ? id : undefined, user?.uid);
 
   if (!user) return <EmptyState icon="log-in-outline" title="سجّل دخول الأول" body="" />;
   if (state.loading) return <LoadingScreen />;

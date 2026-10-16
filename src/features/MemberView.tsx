@@ -238,13 +238,19 @@ export function MemberView({
                 </Row>
               ) : p.received && request?.hasReceipt ? (
                 <Button label="عرض إيصال تحويل القبض" icon="image-outline" variant="secondary" onPress={() => setPayoutReceipt(p.entry.period.id)} />
-              ) : editable ? (
+              ) : editable && p.entry.date <= today ? (
                 <Button
                   label={request ? 'تعديل طريقة القبض' : 'حدد طريقة القبض'}
                   icon="wallet-outline"
                   variant={request ? 'ghost' : 'primary'}
                   onPress={() => setRequesting(p.entry)}
                 />
+              ) : editable ? (
+                // The payout opens on its date; before that only the date shows.
+                <Row gap={space.xs}>
+                  <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
+                  <Text variant="caption">طلب القبض بيفتح يوم {formatDate(p.entry.date)}</Text>
+                </Row>
               ) : null}
             </View>
           );

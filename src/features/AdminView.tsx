@@ -73,6 +73,7 @@ import { AdminPayoutSheet, describePayout, PAYOUT_TONE } from './PayoutSheets';
 import { METHOD_COLOR, METHOD_ICON } from './PaySheet';
 import { ReceiptViewer } from './ReceiptViewer';
 import { useAppSession } from '@/data/session';
+import { ensurePushToken } from '@/notifications';
 import { alert, type DialogButton } from '@/ui/dialog';
 
 export type AdminTab = 'collect' | 'schedule' | 'members' | 'messages';
@@ -104,7 +105,11 @@ export function AdminView({
     user?.displayName ?? '',
   ]);
   useEffect(() => {
-    syncDirectory(circle, user?.displayName ?? '').catch(() => {});
+    // Wait for this phone's push token so join requests can notify the admin.
+    ensurePushToken()
+      .catch(() => null)
+      .then(() => syncDirectory(circle, user?.displayName ?? ''))
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listingKey]);
   const payouts = usePayouts(circle.id, 'admin', undefined);
@@ -374,6 +379,15 @@ function CollectTab({
                     لسه في أقساط ما اتأكدتش للفترة دي.
                   </Text>
                 ) : null}
+                {entry.index > current && !entry.period.paidOut ? (
+                  // The payout opens on its date; before that only the date shows.
+                  <Row gap={space.xs}>
+                    <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
+                    <Text variant="caption">
+                      قبض {entry.recipient?.name ?? ''} بيفتح يوم {formatDate(entry.date)}
+                    </Text>
+                  </Row>
+                ) : (
                 <Button
                   label={
                     entry.recipient && entry.recipient.id === circle.ownerMemberId
@@ -394,6 +408,7 @@ function CollectTab({
                   variant={entry.period.paidOut ? 'secondary' : 'primary'}
                   onPress={() => setPayoutFor(entry)}
                 />
+                )}
               </>
             )}
           </Card>
@@ -936,7 +951,7 @@ function JoinRequestsCard({ circle, requests }: { circle: Circle; requests: Join
   };
 
   const reject = async (r: JoinRequest) => {
-    if (await confirm('رفض الطلب؟', `"${r.name}" مش هيدخل الجمعية.`, 'رفض', true)) run(() => rejectJoin(circle.id, r.uid));
+    if (await confirm('رفض الطلب؟', `"${r.name}" مش هيدخل الجمعية.`, 'رفض', true)) run(() => rejectJoin(circle.id, r.uid, r.pushToken));
   };
 
   return (

@@ -27,7 +27,7 @@ import {
   type PendingJoin,
 } from '@/data';
 import { useAppSession } from '@/data/session';
-import { clearReminders, registerForPush, unregisterPush, useCircleReminders } from '@/notifications';
+import { clearReminders, registerForPush, unregisterPush, useCirclePush, useCircleReminders } from '@/notifications';
 import { Badge, Button, Card, EmptyState, ProgressBar, Row, Text } from '@/ui/components';
 import { confirm, ErrorScreen } from '@/ui/feedback';
 import { colors, radius, shadow, space } from '@/ui/theme';
@@ -187,6 +187,7 @@ function CardShell({ id, children }: { id: string; children: ReactNode }) {
 function AdminCard({ id, uid }: { id: string; uid: string }) {
   const { data, error } = useCircleData(id, uid);
   useCircleReminders(data?.circle, data?.payments, 'admin', undefined);
+  useCirclePush(data ? id : undefined, uid);
   if (!data) return error ? <RetryCard message={error} onRetry={() => reloadCircle(id, uid)} /> : <SkeletonCard />;
   const { circle, payments } = data;
   const o = overview(circle, payments);
@@ -226,6 +227,7 @@ function AdminCard({ id, uid }: { id: string; uid: string }) {
 function MemberCard({ id, uid }: { id: string; uid: string }) {
   const { data, myMemberId, error } = useCircleData(id, uid);
   useCircleReminders(data?.circle, data?.payments, 'member', myMemberId);
+  useCirclePush(data ? id : undefined, uid);
   if (!data && error) return <RetryCard message={error} onRetry={() => reloadCircle(id, uid)} />;
   if (!data || !myMemberId || !data.circle.members.some((m) => m.id === myMemberId)) return <SkeletonCard />;
   const acc = memberAccount(data.circle, data.payments, myMemberId);

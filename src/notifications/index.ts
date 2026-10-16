@@ -15,13 +15,15 @@ import {
   type Payment,
 } from '@/core';
 import { firestore } from '@/data/firebase';
+import { saveCirclePushToken, setMyPushToken } from '@/data/push';
 
 /**
  * Two kinds of notifications:
  *  1. Local reminders (installment tomorrow / today, payout day, collection day)
  *     scheduled on the device itself — free, work offline, no server needed.
- *  2. Push notifications from Cloud Functions when a member says "I paid",
- *     the admin confirms, or a payout is handed over (functions/src/index.ts).
+ *  2. Push notifications sent device-to-device through Expo's push service
+ *     (src/data/push.ts): announcements, "I paid", confirmations, join
+ *     requests, payouts — shown on the lock screen even with the app closed.
  */
 
 Notifications.setNotificationHandler({
@@ -51,6 +53,11 @@ async function ensureChannels() {
     importance: Notifications.AndroidImportance.HIGH,
     lightColor: '#C9A23F',
   });
+  await Notifications.setNotificationChannelAsync('announcements', {
+    name: 'إعلانات الجمعية',
+    importance: Notifications.AndroidImportance.HIGH,
+    lightColor: '#C9A23F',
+  });
   await Notifications.setNotificationChannelAsync('payments', {
     name: 'الدفع والتأكيد',
     importance: Notifications.AndroidImportance.HIGH,
@@ -76,10 +83,8 @@ export async function ensurePermission(): Promise<boolean> {
  */
 export async function registerForPush(uid: string): Promise<void> {
   try {
-    if (!(await ensurePermission()) || !Device.isDevice) return;
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-    if (!projectId) return;
-    const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
+    const token = await ensurePushToken();
+    if (!token) return;
     await setDoc(doc(firestore(), 'users', uid, 'devices', await deviceId()), {
       token,
       platform: Platform.OS,
@@ -88,6 +93,40 @@ export async function registerForPush(uid: string): Promise<void> {
   } catch (e) {
     console.warn('Push registration skipped', e);
   }
+}
+
+let tokenPromise: Promise<string | null> | undefined;
+
+/**
+ * This device's Expo push token (asks for permission once). Null where push
+ * isn't available (simulator, no EAS project id in the build).
+ */
+export function ensurePushToken(): Promise<string | null> {
+  if (!tokenPromise) {
+    tokenPromise = (async () => {
+      try {
+        if (!(await ensurePermission()) || !Device.isDevice) return null;
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+        if (!projectId) return null;
+        const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
+        setMyPushToken(data);
+        return data;
+      } catch (e) {
+        console.warn('Push token unavailable', e);
+        tokenPromise = undefined; // try again next time
+        return null;
+      }
+    })();
+  }
+  return tokenPromise;
+}
+
+/** Saves this device's token in a circle so its notifications reach the screen even when the app is closed. */
+export function useCirclePush(cid: string | undefined, uid: string | undefined) {
+  useEffect(() => {
+    if (!cid || !uid) return;
+    ensurePushToken().then((t) => t && saveCirclePushToken(cid, uid));
+  }, [cid, uid]);
 }
 
 /** Removes this device's token (call before signing out). */

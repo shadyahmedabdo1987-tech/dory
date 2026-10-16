@@ -21,6 +21,7 @@ import {
 import { Badge, Button, Card, Field, Row, Text } from '@/ui/components';
 import { alert } from '@/ui/dialog';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
+import { ensurePushToken } from '@/notifications';
 import { SpinningLogo } from '@/ui/SpinningLogo';
 import { colors, radius, space } from '@/ui/theme';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
@@ -265,6 +266,8 @@ function JoinSheet({
   const submit = () =>
     circle &&
     run(async () => {
+      // So the admin's approval reaches this phone as a notification.
+      await ensurePushToken().catch(() => null);
       const result = await requestJoin(circle.id, { name, payAccount: account }, uid);
       if (result.joined) {
         router.dismissAll();

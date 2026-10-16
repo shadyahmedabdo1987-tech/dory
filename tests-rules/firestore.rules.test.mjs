@@ -301,6 +301,36 @@ describe('join requests (picked from the directory, approved in the app)', () =>
   });
 });
 
+describe('push tokens per circle', () => {
+  const save = (db, uid) => setDoc(doc(db, 'circles', CID, 'pushTokens', uid), { token: 'ExponentPushToken[x]', updatedAt: serverTimestamp() });
+  const member = async (uid, memberId) => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'circles', CID, 'members', memberId), { name: 'م', uid, order: 0 });
+      await setDoc(doc(db, 'circles', CID, 'memberships', uid), { uid, circleId: CID, memberId, inviteCode: CODE });
+    });
+  };
+
+  it('lets the admin and members save only their own token', async () => {
+    await member('u1', 'm1');
+    await assertSucceeds(save(admin(), 'admin'));
+    await assertSucceeds(save(anon('u1'), 'u1'));
+    await assertFails(save(anon('u1'), 'u2'));
+    await assertFails(save(anon('stranger'), 'stranger'));
+  });
+
+  it("lets the admin read everyone's and members only the admin's", async () => {
+    await member('u1', 'm1');
+    await member('u2', 'm2');
+    await save(admin(), 'admin');
+    await save(anon('u2'), 'u2');
+    await assertSucceeds(getDocs(collection(admin(), 'circles', CID, 'pushTokens')));
+    await assertSucceeds(getDoc(doc(anon('u1'), 'circles', CID, 'pushTokens', 'admin')));
+    await assertFails(getDoc(doc(anon('u1'), 'circles', CID, 'pushTokens', 'u2')));
+    await assertFails(getDocs(collection(anon('u1'), 'circles', CID, 'pushTokens')));
+  });
+});
+
 describe('privacy', () => {
   it('hides circles from strangers', async () => {
     const db = anon('stranger');

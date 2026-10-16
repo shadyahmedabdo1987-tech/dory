@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   currentIndex,
@@ -58,6 +58,32 @@ export function AnnouncementsCard({ circle }: { circle: Circle }) {
   const [all, setAll] = useState(false);
 
   if (items.length === 0) return null;
+
+  const allSheet = (
+    <Sheet visible={all} title="إعلانات الجمعية" onClose={() => setAll(false)}>
+      <ScrollView contentContainerStyle={{ gap: space.sm }}>
+        {items.map((a) => (
+          <AnnouncementRow key={a.id} item={a} isNew={false} />
+        ))}
+      </ScrollView>
+    </Sheet>
+  );
+
+  // Everything read: just a slim row to reopen them.
+  if (seenAt !== undefined && unread === 0) {
+    return (
+      <>
+        <Pressable onPress={() => setAll(true)} style={({ pressed }) => [styles.compact, pressed && { opacity: 0.7 }]}>
+          <Ionicons name="megaphone-outline" size={18} color={colors.gold} />
+          <Text weight="semibold" style={{ flex: 1 }}>
+            الإعلانات ({formatNumber(items.length)})
+          </Text>
+          <Ionicons name="chevron-back" size={18} color={colors.muted} />
+        </Pressable>
+        {allSheet}
+      </>
+    );
+  }
   const latest = items.slice(0, 2);
 
   return (
@@ -75,27 +101,19 @@ export function AnnouncementsCard({ circle }: { circle: Circle }) {
       ))}
 
       <Row gap={space.sm}>
-        {items.length > 0 && (
+        {items.length > 2 ? (
           <Button
-            label={items.length > 2 ? `كل الإعلانات (${formatNumber(items.length)})` : 'تمام، قريتها'}
-            icon={items.length > 2 ? 'list-outline' : 'checkmark'}
+            label={`كل الإعلانات (${formatNumber(items.length)})`}
+            icon="list-outline"
             variant="ghost"
             style={{ flex: 1 }}
-            onPress={() => {
-              markSeen();
-              if (items.length > 2) setAll(true);
-            }}
+            onPress={() => setAll(true)}
           />
-        )}
+        ) : null}
+        <Button label="تمام، قريتها" icon="checkmark" variant="secondary" style={{ flex: 1 }} onPress={markSeen} />
       </Row>
 
-      <Sheet visible={all} title="إعلانات الجمعية" onClose={() => setAll(false)}>
-        <ScrollView contentContainerStyle={{ gap: space.sm }}>
-          {items.map((a) => (
-            <AnnouncementRow key={a.id} item={a} isNew={false} />
-          ))}
-        </ScrollView>
-      </Sheet>
+      {allSheet}
     </Card>
   );
 }
@@ -205,6 +223,17 @@ function Step({ n, text }: { n: number; text: string }) {
 }
 
 const styles = StyleSheet.create({
+  compact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.md,
+  },
   announcement: { backgroundColor: colors.bg, borderRadius: radius.md, padding: space.md, gap: 4 },
   announcementNew: { backgroundColor: colors.goldSoft, borderWidth: 1, borderColor: colors.gold },
   steps: { gap: space.sm, backgroundColor: colors.bg, borderRadius: radius.md, padding: space.md },

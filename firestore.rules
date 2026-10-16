@@ -204,7 +204,8 @@ service cloud.firestore {
         allow list: if isAdmin(cid);
         allow create, update: if signedIn()
           && request.auth.uid == rid
-          && request.resource.data.keys().hasOnly(['uid', 'name', 'payAccount', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'payAccount', 'pushToken', 'createdAt'])
+          && (!('pushToken' in request.resource.data) || (request.resource.data.pushToken is string && request.resource.data.pushToken.size() < 256))
           && request.resource.data.uid == rid
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
@@ -212,6 +213,20 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/directory/$(cid)).data.open == true
           && request.resource.data.createdAt == request.time;
         allow delete: if signedIn() && (request.auth.uid == rid || isAdmin(cid));
+      }
+
+      // ---------- push tokens per circle (server-less notifications) ----------
+      // Each device saves its own; the admin reaches everyone, members reach the admin.
+      match /pushTokens/{uid} {
+        allow get: if signedIn()
+          && (request.auth.uid == uid || isAdmin(cid) || (isMember(cid) && uid == get(circlePath(cid)).data.adminUid));
+        allow list: if isAdmin(cid);
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && (isAdmin(cid) || isMember(cid))
+          && request.resource.data.keys().hasOnly(['token', 'updatedAt'])
+          && request.resource.data.token is string && request.resource.data.token.size() < 256
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if signedIn() && (request.auth.uid == uid || isAdmin(cid));
       }
 
       // ---------- payments ----------
@@ -370,7 +385,9 @@ service cloud.firestore {
       allow create, update: if signedIn()
         && getAfter(circlePath(cid)).data.adminUid == request.auth.uid
         && request.resource.data.keys().hasOnly(['name', 'adminName', 'installment', 'frequency', 'startDate',
-                                                 'memberCount', 'slots', 'open', 'updatedAt'])
+                                                 'memberCount', 'slots', 'open', 'adminPush', 'updatedAt'])
+        && (!('adminPush' in request.resource.data) || request.resource.data.adminPush == null
+            || (request.resource.data.adminPush is string && request.resource.data.adminPush.size() < 256))
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
         && request.resource.data.adminName is string && request.resource.data.adminName.size() <= 60

@@ -23,6 +23,7 @@ import {
 } from 'firebase/firestore';
 
 import {
+  METHOD_LABEL,
   newId,
   isCircleOpen,
   generateInviteCode,
@@ -51,6 +52,7 @@ import {
 
 import { AppError, arabicError, retry, withTimeout } from './errors';
 import { firestore } from './firebase';
+import { circleNameOf, memberNameOf, myPushToken, pushToAdmin, pushToMembers, pushToUids, sendPush, uidOfMember } from './push';
 
 /**
  * Data access for circles. Every multi-document change is a single atomic
@@ -517,6 +519,13 @@ export async function claimPayment(
     ...(input.note?.trim() ? { note: input.note.trim().slice(0, 200) } : {}),
   });
   await withTimeout(batch.commit(), 30_000);
+  void (async () => {
+    const [circleName, who] = await Promise.all([circleNameOf(cid), memberNameOf(cid, memberId)]);
+    await pushToAdmin(cid, {
+      title: `💵 ${who} بيقول إنه دفع`,
+      body: `${circleName}: ${METHOD_LABEL[input.method]}${withReceipt ? ' ومرفق صورة التحويل' : ''}. ادخل أكّد الاستلام.`,
+    });
+  })();
 }
 
 /** Member withdraws a claim, or admin rejects one / removes a recorded payment (with its screenshot). */
@@ -560,6 +569,10 @@ export async function confirmPayment(
       { merge: true },
     ),
   );
+  void (async () => {
+    const [circleName, uid] = await Promise.all([circleNameOf(cid), uidOfMember(cid, memberId)]);
+    await pushToUids(cid, [uid], { title: '✅ اتأكد استلام قسطك', body: `صاحب جمعية "${circleName}" أكّد إنه استلم قسطك.` });
+  })();
 }
 
 export async function confirmMany(
@@ -582,6 +595,11 @@ export async function confirmMany(
     );
     await withTimeout(batch.commit());
   }
+  void (async () => {
+    const circleName = await circleNameOf(cid);
+    const uids = await Promise.all(memberIds.map((m) => uidOfMember(cid, m)));
+    await pushToUids(cid, uids, { title: '✅ اتأكد استلام قسطك', body: `صاحب جمعية "${circleName}" أكّد إنه استلم قسطك.` });
+  })();
 }
 
 /** Admin: where members should send InstaPay / Vodafone Cash transfers. */
@@ -663,6 +681,8 @@ function directoryDoc(circle: Circle, adminName: string) {
     memberCount: circle.members.length,
     slots: circle.slots ?? null,
     open: isCircleOpen(circle),
+    // So people asking to join can notify the admin.
+    adminPush: myPushToken() ?? null,
     updatedAt: serverTimestamp(),
   };
 }
@@ -704,6 +724,8 @@ export interface JoinRequest {
   name: string;
   /** InstaPay mobile number or address the member entered (optional). */
   payAccount?: string;
+  /** The requester's push token, so they hear about approval/rejection. */
+  pushToken?: string;
   createdAt?: string;
 }
 
@@ -730,10 +752,24 @@ export async function requestJoin(
       uid,
       name,
       ...(payAccount ? { payAccount } : {}),
+      ...(myPushToken() ? { pushToken: myPushToken() } : {}),
       createdAt: serverTimestamp(),
     }),
     15_000,
   );
+  void (async () => {
+    try {
+      const card = await getDoc(directoryRef(db, cid));
+      const adminPush = card.exists() ? (card.data().adminPush as string | undefined) : undefined;
+      await sendPush([adminPush], {
+        circleId: cid,
+        title: `🙋 طلب انضمام من ${name}`,
+        body: `عايز يدخل جمعية "${card.exists() ? String(card.data().name ?? '') : ''}". ادخل وافق أو ارفض.`,
+      });
+    } catch {
+      // best effort
+    }
+  })();
   return { joined: false };
 }
 
@@ -796,6 +832,7 @@ export function watchJoinRequests(cid: string, onData: (items: JoinRequest[]) =>
               uid: d.id,
               name: String(data.name ?? ''),
               payAccount: data.payAccount ? String(data.payAccount) : undefined,
+              pushToken: data.pushToken ? String(data.pushToken) : undefined,
               createdAt: ts?.toDate?.().toISOString(),
             };
           })
@@ -827,6 +864,7 @@ export async function approveJoin(circle: Circle, request: JoinRequest, existing
     });
     batch.delete(doc(joinRequestsCol(db, cid), request.uid));
     await withTimeout(batch.commit(), 15_000);
+    void sendPush([request.pushToken], { circleId: cid, title: '🎉 اتقبلت في الجمعية', body: `صاحب جمعية "${circle.name}" وافق على طلبك. افتح دوري وشوف دورك.` });
     return;
   }
 
@@ -860,11 +898,13 @@ export async function approveJoin(circle: Circle, request: JoinRequest, existing
     }),
     20_000,
   );
+  void sendPush([request.pushToken], { circleId: cid, title: '🎉 اتقبلت في الجمعية', body: `صاحب جمعية "${circle.name}" وافق على طلبك. افتح دوري وشوف دورك.` });
 }
 
 /** Admin: reject a request. */
-export async function rejectJoin(cid: string, requesterUid: string) {
+export async function rejectJoin(cid: string, requesterUid: string, pushToken?: string) {
   await withTimeout(deleteDoc(doc(joinRequestsCol(firestore(), cid), requesterUid)));
+  void sendPush([pushToken], { title: 'طلب الانضمام ما اتقبلش', body: 'صاحب الجمعية ما وافقش على طلبك. اتأكد معاه من الكود واسمك.' });
 }
 
 export async function leaveCircle(cid: string, memberId: string, uid: string): Promise<void> {
@@ -955,6 +995,10 @@ export async function requestPayout(
       { merge: true },
     ),
   );
+  void (async () => {
+    const [circleName, who] = await Promise.all([circleNameOf(cid), memberNameOf(cid, recipientId)]);
+    await pushToAdmin(cid, { title: `💼 ${who} طلب طريقة القبض`, body: `${circleName}: ادخل وافق أو عدّل.` });
+  })();
 }
 
 /** Admin: approve (optionally changing method/account) or reject a request. */
@@ -1045,6 +1089,15 @@ export async function markPayoutPaid(
     }),
     30_000,
   );
+  if (!input.self) {
+    void (async () => {
+      const [circleName, uid] = await Promise.all([circleNameOf(cid), uidOfMember(cid, recipientId)]);
+      await pushToUids(cid, [uid], {
+        title: '🎉 مبروك! قبضت جمعيتك',
+        body: `صاحب جمعية "${circleName}" سلّمك القبض. افتح دوري وأكّد الاستلام.`,
+      });
+    })();
+  }
 }
 
 /** Admin: undo a payout recorded by mistake. */
@@ -1146,6 +1199,14 @@ export async function postAnnouncement(cid: string, uid: string, title: string, 
       createdAt: serverTimestamp(),
     }),
   );
+  void (async () => {
+    const circleName = await circleNameOf(cid);
+    await pushToMembers(cid, uid, {
+      title: `📢 ${circleName}: ${title.trim().slice(0, 80)}`,
+      body: body.trim().slice(0, 180) || 'إعلان جديد من صاحب الجمعية',
+      channelId: 'announcements',
+    });
+  })();
 }
 
 export async function deleteAnnouncement(cid: string, id: string) {
