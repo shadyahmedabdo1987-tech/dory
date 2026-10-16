@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import * as Linking from 'expo-linking';
 import { useMemo, useState } from 'react';
 import { Linking as RNLinking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +16,7 @@ import {
   formatMoney,
   formatNumber,
   inviteMessage,
+  shareInviteMessage,
   movePeriod,
   overview,
   parseAmount,
@@ -654,13 +654,12 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
 
 function MembersTab({ circle }: { circle: Circle }) {
   const { run } = useAction();
-  const link = Linking.createURL('/join', { queryParams: { code: circle.inviteCode } });
   // The organizer manages from their own account, so they don't "join" as a member.
   const others = circle.members.filter((m) => m.id !== circle.ownerMemberId);
   const joined = others.filter((m) => m.uid).length;
 
   const invite = (m: Member) =>
-    RNLinking.openURL(whatsappUrl(m.phone, inviteMessage(circle, m, link))).catch(() =>
+    RNLinking.openURL(whatsappUrl(m.phone, inviteMessage(circle, m))).catch(() =>
       alert('واتساب مش متاح', 'اتأكد إن واتساب متسطّب على الموبايل.'),
     );
 
@@ -717,7 +716,7 @@ function MembersTab({ circle }: { circle: Circle }) {
             variant="secondary"
             style={{ flex: 1 }}
             onPress={() =>
-              Share.share({ message: `انضم لجمعية "${circle.name}" على تطبيق دوري.\nالكود: ${circle.inviteCode}\n${link}` }).catch(() => {})
+              Share.share({ message: shareInviteMessage(circle) }).catch(() => {})
             }
           />
         </Row>

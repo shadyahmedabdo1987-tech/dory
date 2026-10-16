@@ -114,15 +114,45 @@ export function reminderMessage(circle: Circle, member: Member, entry: TimelineE
   ].join('\n');
 }
 
-export function inviteMessage(circle: Circle, member: Member, link: string): string {
+export function inviteMessage(circle: Circle, member: Member): string {
   return [
     `أهلًا يا ${member.name} 👋`,
     `انضم لجمعية "${circle.name}" على تطبيق دوري، وتابع دورك وأقساطك زي تطبيق البنك.`,
     ``,
-    `كود الجمعية: ${circle.inviteCode}`,
+    `كود الجمعية 👇`,
+    // Monospace block: stands out in WhatsApp and is easy to select.
+    '```' + circle.inviteCode + '```',
+    ``,
     `ادخل برقم موبايلك المسجل عندي.`,
-    link,
+    `💡 تقدر تنسخ الرسالة كلها وتدوس "الصق الكود" في التطبيق.`,
   ].join('\n');
+}
+
+/** Short share text (any app) with the code on its own line. */
+export function shareInviteMessage(circle: Circle): string {
+  return [`انضم لجمعية "${circle.name}" على تطبيق دوري.`, `كود الجمعية 👇`, '```' + circle.inviteCode + '```'].join('\n');
+}
+
+const INVITE_CODE = '[A-HJ-NP-Z2-9]{6}';
+
+/**
+ * Finds an invite code in whatever the member pasted: the code alone, the
+ * whole WhatsApp invite, or a join link. Returns null if there's none.
+ */
+export function extractInviteCode(text: string): string | null {
+  const t = text.trim();
+  const patterns = [
+    new RegExp(`code=(${INVITE_CODE})(?![A-Z0-9])`, 'i'),
+    new RegExp('`+\\s*(' + INVITE_CODE + ')\\s*`+'),
+    new RegExp(`كود[^A-Za-z0-9]{0,30}(${INVITE_CODE})(?![A-Za-z0-9])`),
+    new RegExp(`(?:^|[^A-Za-z0-9])(${INVITE_CODE})(?![A-Za-z0-9])`),
+  ];
+  for (const re of patterns) {
+    const m = t.match(re);
+    if (m) return m[1].toUpperCase();
+  }
+  const bare = t.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return new RegExp(`^${INVITE_CODE}$`).test(bare) ? bare : null;
 }
 
 export function groupSummaryMessage(

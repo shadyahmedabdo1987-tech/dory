@@ -1,16 +1,30 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
+import { extractInviteCode } from '@/core';
 import { ensureSignedIn, joinCircle } from '@/data';
 import { Button, Card, Field, Text } from '@/ui/components';
+import { alert } from '@/ui/dialog';
 import { useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 
 export default function JoinScreen() {
   const params = useLocalSearchParams<{ code?: string }>();
-  const [code, setCode] = useState((params.code ?? '').toUpperCase());
+  const [code, setCode] = useState(extractInviteCode(params.code ?? '') ?? (params.code ?? '').toUpperCase());
+
+  // Typing keeps letters/digits only; pasting a whole invite message pulls the code out of it.
+  const onCodeChange = (t: string) =>
+    setCode(extractInviteCode(t) ?? t.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6));
+
+  const pasteCode = async () => {
+    const text = await Clipboard.getStringAsync().catch(() => '');
+    const found = extractInviteCode(text ?? '');
+    if (found) setCode(found);
+    else alert('مفيش كود في اللي نسخته', 'انسخ رسالة الدعوة أو الكود من الواتساب، وبعدين دوس "الصق الكود".');
+  };
   const [phone, setPhone] = useState('');
   const { busy, run } = useAction();
 
@@ -38,14 +52,14 @@ export default function JoinScreen() {
           <Field
             label="كود الجمعية"
             value={code}
-            onChangeText={(t) => setCode(t.toUpperCase())}
+            onChangeText={onCodeChange}
             autoCapitalize="characters"
             autoCorrect={false}
-            maxLength={8}
             placeholder="مثلًا: K7QX2M"
             hint="هتلاقيه في رسالة الدعوة من صاحب الجمعية"
             style={{ letterSpacing: 4, textAlign: 'center', fontSize: 20 }}
           />
+          <Button label="الصق الكود" icon="clipboard-outline" variant="secondary" onPress={pasteCode} />
           <Field
             label="رقم موبايلك"
             value={phone}

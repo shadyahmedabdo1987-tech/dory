@@ -5,6 +5,7 @@ import {
   formatDate,
   groupSummaryMessage,
   inviteMessage,
+  extractInviteCode,
   normalizePhone,
   parseAmount,
   relativeDays,
@@ -72,10 +73,21 @@ describe('messages', () => {
     assert.match(reminderMessage(circle, circle.members[1], extra), /قسط إضافي/);
   });
 
-  it('writes the invite with the code and link', () => {
-    const text = inviteMessage(circle, circle.members[0], 'dory://join?code=K7QX2M');
-    assert.match(text, /K7QX2M/);
-    assert.match(text, /dory:\/\/join/);
+  it('writes the invite with the code on its own monospace line', () => {
+    const text = inviteMessage({ ...circle, inviteCode: 'K7QX2M' }, circle.members[0]);
+    assert.ok(text.split('\n').includes('```K7QX2M```'));
+    assert.doesNotMatch(text, /dory:\/\//);
+  });
+
+  it('extracts the invite code from whatever was pasted', () => {
+    const invite = inviteMessage({ ...circle, inviteCode: 'NAFUAR' }, circle.members[0]);
+    assert.equal(extractInviteCode(invite), 'NAFUAR');
+    assert.equal(extractInviteCode('nafuar'), 'NAFUAR');
+    assert.equal(extractInviteCode(' NAF UAR '), 'NAFUAR');
+    assert.equal(extractInviteCode('كود الجمعية: K7QX2M\nادخل برقمك'), 'K7QX2M');
+    assert.equal(extractInviteCode('dory:///join?code=K7QX2M'), 'K7QX2M');
+    assert.equal(extractInviteCode('مرحبا'), null);
+    assert.equal(extractInviteCode('ABC'), null);
   });
 
   it('lists unpaid members in the group summary', () => {
