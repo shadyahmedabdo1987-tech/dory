@@ -75,7 +75,13 @@ export function MemberView({
   const [showTurns, setShowTurns] = useState(false);
 
   const confirmReceived = async (periodId: string, amount: number) => {
-    if (await confirm('تأكيد الاستلام', `هتأكد إنك استلمت ${formatMoney(amount)} كاملين.`, 'أيوه استلمت')) {
+    if (
+      await confirm(
+        'اتأكدت إن الفلوس وصلت؟',
+        `أكّد بس لو ${formatMoney(amount)} كاملين وصلوا حسابك أو إيدك فعلًا. بعد التأكيد القبض بيتقفل.`,
+        `أيوه، ${formatMoney(amount)} وصلوني`,
+      )
+    ) {
       run(() => confirmPayoutReceived(circle.id, periodId), { success: 'شكرًا! صاحب الجمعية هيوصله تأكيدك.' });
     }
   };
@@ -218,7 +224,9 @@ export function MemberView({
                   <Text variant="caption">
                     {request.status === 'disputed'
                       ? `قلت إنه ما وصلش${request.disputeNote ? `: "${request.disputeNote}"` : ''}. لو وصل، أكّد الاستلام.`
-                      : `صاحب الجمعية سجّل إنه سلّمك ${describePayout(request)}. أكّد إنك استلمت.`}
+                      : request.method === 'cash'
+                        ? `صاحب الجمعية سجّل إنه سلّمك ${formatMoney(p.amount)} كاش. عدّهم وأكّد إنك استلمت.`
+                        : `صاحب الجمعية سجّل إنه حوّلك ${formatMoney(p.amount)} — ${describePayout(request)}. افتح حسابك واتأكد إن المبلغ كامل وصل فعلًا. لو ما وصلش، ما تدوسش "استلمت" ودوس "ما وصلنيش".`}
                   </Text>
                   {request.hasReceipt && (
                     <Button label="عرض إيصال التحويل" icon="image-outline" variant="secondary" onPress={() => setPayoutReceipt(p.entry.period.id)} />

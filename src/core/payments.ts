@@ -138,6 +138,25 @@ function phoneForms(account: string): string[] {
  * Matches the receipt text against the expected installment and the admin's
  * accounts (InstaPay number/address, Vodafone Cash number).
  */
+/**
+ * A masked number on a receipt (e.g. "010*****678" or "01xxxxxx5678") matches
+ * the account when every visible digit lines up and at least 4 are visible.
+ */
+function maskedMatches(text: string, forms: string[]): boolean {
+  const tokens = asciiDigits(text).match(/[0-9][0-9*xX•·.\s-]{5,}[0-9]/g) ?? [];
+  for (const raw of tokens) {
+    const t = raw.replace(/[\s-]/g, '').replace(/[xX•·.]/g, '*');
+    if (!t.includes('*')) continue;
+    const visible = t.replace(/\*/g, '').length;
+    if (visible < 4) continue;
+    for (const f of forms) {
+      if (f.length !== t.length) continue;
+      if ([...t].every((c, i) => c === '*' || c === f[i])) return true;
+    }
+  }
+  return false;
+}
+
 export function checkReceiptText(text: string, expected: { amount: number; accounts: (string | undefined)[] }): ReceiptCheck {
   const amount = numbersIn(text).some((n) => Math.abs(n - expected.amount) < 0.01);
   const flatDigits = asciiDigits(text).replace(/\D/g, '');
@@ -145,8 +164,14 @@ export function checkReceiptText(text: string, expected: { amount: number; accou
   const account = expected.accounts.some((acc) => {
     if (!acc) return false;
     const a = acc.trim().toLowerCase();
-    if (a.includes('@')) return lower.includes(a.replace(/\s/g, '')) || lower.includes(a.split('@')[0]);
-    return phoneForms(a).some((f) => flatDigits.includes(f));
+    // InstaPay address (name@instapay / email): the whole address, or at least "name@".
+    if (a.includes('@')) {
+      const flat = a.replace(/\s/g, '');
+      return lower.includes(flat) || lower.includes(`${flat.split('@')[0]}@`);
+    }
+    // Mobile number linked to InstaPay / wallet: any common form, or masked.
+    const forms = phoneForms(a);
+    return forms.some((f) => flatDigits.includes(f)) || maskedMatches(text, forms);
   });
   return { amount, account };
 }

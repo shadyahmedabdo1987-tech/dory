@@ -129,11 +129,6 @@ export function PaySheet({
   const [receipt, setReceipt] = useState<PickedReceipt | null>(null);
   const [note, setNote] = useState('');
   const { busy, run } = useAction();
-  // Receipt check: automatic from the image, or typed by the member if it can't be read.
-  const [checking, setChecking] = useState(false);
-  const [auto, setAuto] = useState<ReceiptCheck | null>(null);
-  const [typedAmount, setTypedAmount] = useState('');
-  const [typedAccount, setTypedAccount] = useState('');
 
   // Fresh state every time the sheet opens for a period.
   useEffect(() => {
@@ -142,42 +137,14 @@ export function PaySheet({
     setNote('');
   }, [entry?.period.id]);
 
-  useEffect(() => {
-    setAuto(null);
-    setTypedAmount('');
-    setTypedAccount('');
-    if (!receipt || !entry) return;
-    let cancelled = false;
-    setChecking(true);
-    readReceiptText(receipt.sourceUri ?? receipt.uri)
-      .then((text) => {
-        if (cancelled) return;
-        if (!text) return setAuto(null);
-        const to = payTarget(method, circle.payInfo);
-        const c = checkReceiptText(text, { amount: entry.due, accounts: [to] });
-        // If the admin hasn't saved an account for this method, only the amount can be checked.
-        setAuto({ amount: c.amount, account: c.account || !to });
-      })
-      .finally(() => !cancelled && setChecking(false));
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [receipt?.uri, method]);
+  const target = payTarget(method, circle.payInfo);
+  // One installment, to the admin's InstaPay (number or address) / wallet.
+  const rc = useReceiptVerification(receipt, entry?.due ?? 0, [target]);
 
   if (!entry) return null;
   const needsReceipt = requiresReceipt(method);
-  const target = payTarget(method, circle.payInfo);
-
-  // Typed fallback must match too: one installment, to the admin's account.
-  const manual: ReceiptCheck = {
-    amount: Math.abs(parseAmount(typedAmount) - entry.due) < 0.01,
-    account: !target || checkReceiptText(typedAccount, { amount: 0, accounts: [target] }).account,
-  };
-  const autoOk = !!auto && auto.amount && auto.account;
-  // The app read the receipt and it doesn't match: no way around it — the right receipt (right amount, right account) is needed.
-  const blocked = !!auto && !autoOk;
-  const verified = !needsReceipt || (!!receipt && !checking && !blocked && (autoOk || (manual.amount && manual.account)));
+  const autoOk = rc.autoOk;
+  const verified = !needsReceipt || rc.verified;
 
   const submit = () =>
     run(
@@ -231,17 +198,7 @@ export function PaySheet({
             <Text weight="semibold">صورة التحويل (مطلوبة)</Text>
             <ReceiptPicker value={receipt} onChange={setReceipt} />
             {receipt ? (
-              <ReceiptChecks
-                checking={checking}
-                auto={auto}
-                amount={entry.due}
-                target={target}
-                typedAmount={typedAmount}
-                setTypedAmount={setTypedAmount}
-                typedAccount={typedAccount}
-                setTypedAccount={setTypedAccount}
-                manual={manual}
-              />
+              <ReceiptChecks rc={rc} amount={entry.due} target={target} />
             ) : null}
           </View>
         )}
@@ -260,28 +217,67 @@ export function PaySheet({
   );
 }
 
-/** Shows whether the screenshot goes to the admin's account with exactly one installment. */
-function ReceiptChecks({
-  checking,
-  auto,
+/**
+ * Checks a transfer screenshot: the app reads it and looks for exactly
+ * `amount` sent to one of `accounts` (mobile number — also masked — or InstaPay
+ * address). If it reads the receipt and it doesn't match, it's blocked; if it
+ * can't read it, the sender types both and they must match.
+ */
+export function useReceiptVerification(receipt: PickedReceipt | null, amount: number, accounts: (string | undefined)[]) {
+  const [checking, setChecking] = useState(false);
+  const [auto, setAuto] = useState<ReceiptCheck | null>(null);
+  const [typedAmount, setTypedAmount] = useState('');
+  const [typedAccount, setTypedAccount] = useState('');
+  const known = accounts.filter((a): a is string => !!a && !!a.trim());
+  const key = known.join('|');
+
+  useEffect(() => {
+    setAuto(null);
+    setTypedAmount('');
+    setTypedAccount('');
+    if (!receipt || !amount) return;
+    let cancelled = false;
+    setChecking(true);
+    readReceiptText(receipt.sourceUri ?? receipt.uri)
+      .then((text) => {
+        if (cancelled) return;
+        if (!text) return setAuto(null);
+        const c = checkReceiptText(text, { amount, accounts: known });
+        // No saved account to compare with: only the amount can be checked.
+        setAuto({ amount: c.amount, account: c.account || known.length === 0 });
+      })
+      .finally(() => !cancelled && setChecking(false));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [receipt?.uri, amount, key]);
+
+  const manual: ReceiptCheck = {
+    amount: Math.abs(parseAmount(typedAmount) - amount) < 0.01,
+    account: known.length === 0 || checkReceiptText(typedAccount, { amount: 0, accounts: known }).account,
+  };
+  const autoOk = !!auto && auto.amount && auto.account;
+  const blocked = !!auto && !autoOk;
+  const verified = !!receipt && !checking && !blocked && (autoOk || (manual.amount && manual.account));
+  return { checking, auto, autoOk, blocked, verified, manual, typedAmount, setTypedAmount, typedAccount, setTypedAccount };
+}
+
+export type ReceiptVerification = ReturnType<typeof useReceiptVerification>;
+
+/** Shows whether the screenshot carries exactly the amount, to the right account. */
+export function ReceiptChecks({
+  rc,
   amount,
   target,
-  typedAmount,
-  setTypedAmount,
-  typedAccount,
-  setTypedAccount,
-  manual,
+  receiverLabel = 'حساب صاحب الجمعية',
 }: {
-  checking: boolean;
-  auto: ReceiptCheck | null;
+  rc: ReceiptVerification;
   amount: number;
   target?: string;
-  typedAmount: string;
-  setTypedAmount: (v: string) => void;
-  typedAccount: string;
-  setTypedAccount: (v: string) => void;
-  manual: ReceiptCheck;
+  receiverLabel?: string;
 }) {
+  const { checking, auto, typedAmount, setTypedAmount, typedAccount, setTypedAccount, manual } = rc;
   if (checking) {
     return (
       <View style={[styles.check, { backgroundColor: colors.primarySoft }]}>
@@ -321,9 +317,9 @@ function ReceiptChecks({
           </Text>
         </Row>
         <Line ok={auto.amount} text={auto.amount ? `المبلغ ${formatMoney(amount)}` : `المبلغ المحوّل لازم يكون ${formatMoney(amount)} بالظبط`} />
-        <Line ok={auto.account} text={auto.account ? `محوّل على ${target ?? ''}` : `لازم يكون محوّل على ${target ?? 'حساب صاحب الجمعية'}`} />
+        <Line ok={auto.account} text={auto.account ? `محوّل على ${target ?? ''}` : `لازم يكون محوّل على ${target ?? receiverLabel}`} />
         <Text variant="caption" color={colors.text}>
-          لو حوّلت مبلغ أقل كمّل الباقي، وبعدين ارفع صورة إيصال فيها قيمة القسط كاملة على حساب صاحب الجمعية. ولو الصورة مش واضحة، صوّرها تاني.
+          لازم إيصال فيه {formatMoney(amount)} بالظبط على {target ?? receiverLabel}. لو حوّلت مبلغ أقل كمّل الباقي، ولو الصورة مش واضحة صوّرها تاني.
         </Text>
       </View>
     );
@@ -334,7 +330,7 @@ function ReceiptChecks({
         مقدرناش نقرا الإيصال كويس
       </Text>
       <Text variant="caption">
-        اكتب المبلغ والرقم اللي حوّلت عليه زي ما هما في الإيصال، ولازم يطابقوا قيمة القسط وحساب صاحب الجمعية. الدفع مش هيتحسب غير لما صاحب الجمعية يتأكد إن الفلوس وصلت حسابه.
+        اكتب المبلغ والرقم اللي حوّلت عليه زي ما هما في الإيصال، ولازم يطابقوا {formatMoney(amount)} و{target ?? receiverLabel}. والفلوس مش هتتحسب غير لما المستلم يتأكد إنها وصلت حسابه.
       </Text>
       <Field
         label="المبلغ اللي حوّلته"
@@ -351,7 +347,7 @@ function ReceiptChecks({
         onChangeText={setTypedAccount}
         autoCapitalize="none"
         placeholder={target ?? ''}
-        error={typedAccount && !manual.account ? 'ده مش حساب صاحب الجمعية' : undefined}
+        error={typedAccount && !manual.account ? `ده مش ${receiverLabel}` : undefined}
       />
       ) : null}
     </View>

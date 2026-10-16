@@ -109,6 +109,17 @@ describe('receipt check', () => {
     assert.deepEqual(checkReceiptText('Amount 1,000 EGP to mona@instapay 01198765432', expected), { amount: true, account: false });
   });
 
+  it('accepts a masked receiver number when the visible digits match', () => {
+    assert.equal(checkReceiptText('Amount 1,000 EGP to 010*****678', expected).account, true);
+    assert.equal(checkReceiptText('Amount 1,000 EGP to 0101xxxx678', expected).account, true);
+    assert.equal(checkReceiptText('Amount 1,000 EGP to 011*****678', expected).account, false);
+    assert.equal(checkReceiptText('Amount 1,000 EGP to 01*********', expected).account, false);
+  });
+
+  it("doesn't take a name alone as the InstaPay address", () => {
+    assert.equal(checkReceiptText('From Shady Ahmed — 1,000 EGP to mona@instapay', expected).account, false);
+  });
+
   it('reads numbers in different formats', () => {
     assert.ok(numbersIn('1.000,00').includes(1000));
     assert.ok(numbersIn('١٠٠٠').includes(1000));

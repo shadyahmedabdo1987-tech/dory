@@ -21,7 +21,7 @@ import { Badge, Button, Field, Row, Text } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 
-import { MethodPicker, ReceiptPicker } from './PaySheet';
+import { MethodPicker, ReceiptChecks, ReceiptPicker, useReceiptVerification } from './PaySheet';
 import type { PickedReceipt } from './receiptImage';
 import { alert } from '@/ui/dialog';
 
@@ -182,6 +182,9 @@ export function AdminPayoutSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry?.period.id, request?.status]);
 
+  // The admin's receipt must show exactly the payout, sent to the recipient's account.
+  const rc = useReceiptVerification(receipt, payoutNet(circle), [account]);
+
   if (!entry) return null;
   const recipient = entry.recipient;
   const pot = payoutNet(circle);
@@ -200,6 +203,7 @@ export function AdminPayoutSheet({
   const pay = async () => {
     if (method !== 'cash' && validatePayoutRequest(method, account)) return setShowError(true);
     if (needsReceipt && !receipt) return alert('صورة التحويل', 'ارفق صورة التحويل علشان توصل لصاحب الدور.');
+    if (needsReceipt && !rc.verified) return alert('الإيصال مش مطابق', `لازم الإيصال يكون فيه ${formatMoney(pot)} بالظبط على حساب ${recipient?.name ?? 'صاحب الدور'}.`);
     const ok = await confirm(
       'تأكيد تسليم القبض',
       `${formatMoney(pot)} لـ ${recipient?.name ?? ''} — ${method === 'cash' ? 'كاش' : `${METHOD_LABEL[method]} على ${account}`}`,
@@ -353,15 +357,20 @@ export function AdminPayoutSheet({
             <Text weight="semibold">حوّلت الفلوس؟</Text>
             {needsReceipt && (
               <>
-                <Text variant="caption">ارفق صورة التحويل، وهتوصل لصاحب الدور في حسابه.</Text>
+                <Text variant="caption">
+                  ارفق صورة التحويل. لازم يكون فيها {formatMoney(pot)} بالظبط على حساب {recipient?.name ?? 'صاحب الدور'}، وهو هيأكد إن الفلوس وصلته.
+                </Text>
                 <ReceiptPicker value={receipt} onChange={setReceipt} />
+                {receipt ? (
+                  <ReceiptChecks rc={rc} amount={pot} target={account || undefined} receiverLabel={`حساب ${recipient?.name ?? 'صاحب الدور'}`} />
+                ) : null}
               </>
             )}
             <Button
               label="سجّل إن القبض اتسلّم"
               icon="cash-outline"
               loading={busy}
-              disabled={needsReceipt && !receipt}
+              disabled={needsReceipt && (!receipt || !rc.verified)}
               onPress={pay}
             />
           </>
