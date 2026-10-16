@@ -749,7 +749,14 @@ export async function markPayoutPaid(
   periodId: string,
   recipientId: string,
   adminUid: string,
-  input: { method: PaymentMethod; account?: string; receiptBase64?: string; adminNote?: string },
+  input: {
+    method: PaymentMethod;
+    account?: string;
+    receiptBase64?: string;
+    adminNote?: string;
+    /** The organizer's own turn: the money is already with them, so it's received at once. */
+    self?: boolean;
+  },
 ) {
   if (input.method !== 'cash') checkAccount(input.method, input.account);
   const needsReceipt = payoutNeedsReceipt(input.method);
@@ -776,7 +783,7 @@ export async function markPayoutPaid(
         {
           periodId,
           recipientId,
-          status: 'paid',
+          status: input.self ? 'received' : 'paid',
           method: input.method,
           account: input.method === 'cash' || !input.account ? deleteField() : input.account.trim().slice(0, 60),
           adminNote: input.adminNote?.trim() ? input.adminNote.trim().slice(0, 200) : deleteField(),
@@ -784,7 +791,7 @@ export async function markPayoutPaid(
           decidedBy: adminUid,
           hasReceipt: needsReceipt,
           // A fresh transfer needs a fresh confirmation from the recipient.
-          receivedAt: deleteField(),
+          receivedAt: input.self ? new Date().toISOString() : deleteField(),
           disputeNote: deleteField(),
         },
         { merge: true },

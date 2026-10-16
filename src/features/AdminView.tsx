@@ -336,7 +336,11 @@ function CollectTab({
                 ) : null}
                 <Button
                   label={
-                    entry.period.paidOut
+                    entry.recipient && entry.recipient.id === circle.ownerMemberId
+                      ? entry.period.paidOut
+                        ? 'قبضت دورك ✓'
+                        : 'سجّل إنك قبضت دورك'
+                      : entry.period.paidOut
                       ? thisRequest?.status === 'received'
                         ? `${entry.recipient?.name ?? ''} قبض وأكّد الاستلام ✓`
                         : thisRequest?.status === 'disputed'

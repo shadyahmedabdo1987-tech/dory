@@ -229,6 +229,49 @@ export function AdminPayoutSheet({
     }
   };
 
+  // The organizer's own turn: members already transfer to them, nothing to hand over.
+  if (recipient && recipient.id === circle.ownerMemberId) {
+    const selfReceive = () =>
+      run(
+        async () => {
+          await markPayoutPaid(circle.id, entry.period.id, recipient.id, uid, { method: 'cash', self: true });
+          onClose();
+        },
+        { success: 'اتسجّل إنك قبضت دورك ✓' },
+      );
+    return (
+      <Sheet visible title="دورك تقبض 🎉" onClose={onClose}>
+        <View style={{ gap: space.md }}>
+          <Text variant="caption">
+            {formatMoney(pot, circle.currency)} • {formatDate(entry.date)}
+          </Text>
+          <View style={styles.paidCard}>
+            <Ionicons name="star" size={22} color={colors.gold} />
+            <View style={{ flex: 1 }}>
+              <Text weight="semibold">إنت صاحب الجمعية وصاحب الدور ده</Text>
+              <Text variant="caption">
+                الأعضاء بيحوّلوا الأقساط على بيانات التحويل بتاعتك، يعني الفلوس بتوصلك مباشرة — مش محتاج تحوّل لنفسك ولا ترفق إيصال.
+              </Text>
+            </View>
+          </View>
+          {paid ? (
+            <>
+              <View style={styles.paidCard}>
+                <Ionicons name="shield-checkmark" size={22} color={colors.success} />
+                <Text weight="semibold" style={{ flex: 1 }}>
+                  اتسجّل إنك قبضت دورك
+                </Text>
+              </View>
+              <Button label="إلغاء التسجيل" icon="arrow-undo-outline" variant="ghost" onPress={undo} />
+            </>
+          ) : (
+            <Button label="سجّل إني قبضت دوري" icon="checkmark-done" loading={busy} onPress={selfReceive} />
+          )}
+        </View>
+      </Sheet>
+    );
+  }
+
   return (
     <Sheet visible title={`قبض ${recipient?.name ?? ''}`} onClose={onClose}>
       <ScrollView contentContainerStyle={{ gap: space.md }} keyboardShouldPersistTaps="handled">
