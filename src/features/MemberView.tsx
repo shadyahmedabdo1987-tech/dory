@@ -176,7 +176,16 @@ export function MemberView({
             </View>
             {next.entry.period.kind === 'extra' && <Badge label="قسط إضافي" tone="gold" />}
           </Row>
-          <Button label="دفعت القسط ده" icon="checkmark-circle-outline" loading={busy} onPress={() => claim(next)} />
+          {next.entry.date > today ? (
+            <Row gap={space.xs}>
+              <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
+              <Text variant="caption" style={{ flex: 1 }}>
+                الدفع بيفتح يوم {formatDate(next.entry.date)}
+              </Text>
+            </Row>
+          ) : (
+            <Button label="دفعت القسط ده" icon="checkmark-circle-outline" loading={busy} onPress={() => claim(next)} />
+          )}
         </Card>
       )}
 
@@ -296,7 +305,8 @@ export function MemberView({
         </Text>
         {acc.lines.map((line) => {
           const badge = STATE_BADGE[line.state];
-          const canClaim = line.state === 'overdue' || line.state === 'due';
+          // Collection opens on the installment's date — nothing is paid ahead of it.
+          const canClaim = (line.state === 'overdue' || line.state === 'due') && line.entry.date <= today;
           return (
             <View key={line.entry.period.id} style={styles.line}>
               <View style={[styles.dot, line.isMyPayout && { backgroundColor: colors.gold }]}>

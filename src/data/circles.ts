@@ -399,7 +399,10 @@ export async function saveCircle(
   for (const [i, m] of withIds.entries()) {
     const old = before.get(m.id);
     const data = memberDoc({ ...m, uid: old?.uid ?? null }, i);
-    if (old) batch.update(doc(membersCol(db, cid), m.id), data);
+    // Keep the device link as it is on the server — the form may be older than
+    // a member who just signed in (overwriting it showed them as "not joined").
+    const { uid: _uid, ...edit } = data;
+    if (old) batch.update(doc(membersCol(db, cid), m.id), edit);
     else batch.set(doc(membersCol(db, cid), m.id), { ...data, createdAt: serverTimestamp() });
     batch.set(doc(contactsCol(db, cid), m.id), { phone: phoneOf(m) });
   }

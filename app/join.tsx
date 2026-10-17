@@ -321,7 +321,7 @@ function JoinSheet({
         // (e.g. the admin added them) — then they're linked and choose one now.
         await ensurePushToken().catch(() => null);
         try {
-          await joinCircle(code, phone, uid);
+          await joinCircle(code, phone, (await ensureSignedIn()).uid);
         } catch (e) {
           if (errorCode(e) !== 'dory/signin-failed') throw e;
           setPassword('');
@@ -340,7 +340,16 @@ function JoinSheet({
     circle &&
     run(async () => {
       await ensurePushToken().catch(() => null);
-      await joinCircle(code, phone, uid, password);
+      // Always the account signed in right now (it changes after signing out).
+      const me = (await ensureSignedIn()).uid;
+      try {
+        await joinCircle(code, phone, me, password);
+      } catch (e) {
+        if (errorCode(e) !== 'dory/signin-failed') throw e;
+        // A sign-out from another phone may still be landing — try once more.
+        await new Promise((r) => setTimeout(r, 1500));
+        await joinCircle(code, phone, me, password);
+      }
       // First sign-in for a member who never chose a password: this one becomes theirs.
       const memberId = await memberIdForPhone(circle.id, phone).catch(() => null);
       if (memberId && !(await hasMyPassword(circle.id, memberId))) {

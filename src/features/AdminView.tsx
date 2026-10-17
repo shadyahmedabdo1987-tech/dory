@@ -277,6 +277,13 @@ function CollectTab({
   const toggle = (m: Member) => {
     tap();
     const p = findPayment(payments, entry.period.id, m.id);
+    if (!p && entry.index > current) {
+      // No collection before the installment's date.
+      return alert('التحصيل لسه ما فتحش', `تحصيل ${periodTitle(entry)} بيفتح يوم ${formatDate(entry.date)}. لو عايز تبدأ بدري، غيّر تاريخ بداية الجمعية من الإعدادات.`, undefined, {
+        icon: 'lock-closed',
+        tone: 'info',
+      });
+    }
     if (!p) return record(m);
     if (p.status === 'claimed') {
       if (p.hasReceipt) return setReview({ payment: p, member: m, entry });
@@ -459,6 +466,14 @@ function CollectTab({
             )}
           </Card>
 
+          {entry.index > current && (
+            <Row gap={space.xs} style={{ paddingHorizontal: space.sm }}>
+              <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
+              <Text variant="caption" style={{ flex: 1 }}>
+                التحصيل بيفتح يوم {formatDate(entry.date)} — غيّر تاريخ البداية من الإعدادات لو عايز تبدأ بدري.
+              </Text>
+            </Row>
+          )}
           <Card style={{ gap: 0, paddingVertical: space.sm }}>
             {circle.members.map((m, k) => {
               if (s.covered.includes(m)) {

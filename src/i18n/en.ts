@@ -640,11 +640,15 @@ export const EXACT: Record<string, string> = {
  "رقم موبايل العضو (إنستاباي / فودافون كاش)": "Member's mobile (InstaPay / Vodafone Cash)",
  "تقدر تضيف عضو بنفسك باسمه ورقم موبايله، وابعتله كود الدعوة: يدخل بالكود ونفس الرقم ويختار باسورد. الأعضاء الجداد بيتضاف دورهم في آخر الجدول.": "You can add a member yourself with their name and mobile number, then send them the invite code: they enter the code and the same number and choose a password. New members are added at the end of the schedule.",
  "الرقم ده عليه باسورد": "This number already has a password",
- "اكتب الباسورد اللي اخترته قبل كده علشان تدخل.": "Enter the password you chose before to sign in."
+ "اكتب الباسورد اللي اخترته قبل كده علشان تدخل.": "Enter the password you chose before to sign in.",
+ "التحصيل لسه ما فتحش": "Collection isn't open yet"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
 export const PATTERNS: [string, string][] = [
+ ["الدفع بيفتح يوم {0}", "Payment opens on {0}"],
+ ["التحصيل بيفتح يوم {0} — غيّر تاريخ البداية من الإعدادات لو عايز تبدأ بدري.", "Collection opens on {0} — change the start date in settings to start earlier."],
+ ["تحصيل {0} بيفتح يوم {1}. لو عايز تبدأ بدري، غيّر تاريخ بداية الجمعية من الإعدادات.", "Collection for {0} opens on {1}. To start earlier, change the circle's start date in settings."],
  [
   "{0} هيخرج من التطبيق والباسورد بتاعه هيتمسح. يدخل تاني بكود الجمعية ورقمه ويختار باسورد جديد — بنفس اسمه ودوره (لو نسي الباسورد أو غيّر موبايله).",
   "{0} will be signed out and their password cleared. They sign back in with the circle code and their number and choose a new password — same name and turn."
