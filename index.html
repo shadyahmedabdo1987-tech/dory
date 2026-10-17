@@ -430,7 +430,9 @@ body.rec #ui{display:none}
   let idx = -1, t0 = 0, paused = false, pausedAt = 0, timers = [];
   const bar = document.querySelector('#prog i');
 
-  const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+  // Recording: a virtual clock drives everything frame by frame.
+  let vNow = 0, sceneT0 = 0, vq = [];
+  const later = (fn, ms) => rec ? vq.push({ at: sceneT0 + ms, fn }) : timers.push(setTimeout(fn, ms));
   function type(el, text, start, speed) {
     [...text].forEach((ch, i) => later(() => { el.textContent = text.slice(0, i + 1); }, start + i * speed));
   }
@@ -474,6 +476,7 @@ body.rec #ui{display:none}
       setTimeout(() => prev.classList.remove('leave'), 460);
     }
     idx = i;
+    vq = []; sceneT0 = vNow;
     const s = scenes[i];
     s.classList.remove('on'); void s.offsetWidth; s.classList.add('on');
     const h = s.dataset.on; if (h) hooks[h]();
@@ -513,6 +516,21 @@ body.rec #ui{display:none}
   addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } });
 
   const go = () => { startAt(0); requestAnimationFrame(tick); };
+  const seen = new WeakMap();
+  window.__total = total;
+  window.__renderAt = (T) => {
+    vNow = T;
+    let acc = 0, i = 0;
+    while (i < scenes.length - 1 && acc + durs[i] <= T) acc += durs[i++];
+    if (i !== idx) { vNow = acc; show(i); vNow = T; }
+    const due = vq.filter((x) => x.at <= T); vq = vq.filter((x) => x.at > T);
+    due.forEach((x) => x.fn());
+    document.getAnimations().forEach((an) => {
+      if (!seen.has(an)) seen.set(an, an.animationName === 'leave' || /scene/.test(an.effect?.target?.className || '') ? acc : (an.effect?.target?.closest?.('.scene') ? acc : T));
+      an.pause();
+      an.currentTime = Math.max(0, T - seen.get(an));
+    });
+  };
   if (rec) { window.__start = go; window.__seek = startAt; }
   else (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(go);
 })();
