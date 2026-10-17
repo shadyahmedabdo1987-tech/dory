@@ -338,8 +338,8 @@ function JoinSheet({
 
   return (
     <Sheet visible={!!circle} title={circle ? `انضمام لـ "${circle.name}"` : ''} onClose={onClose}>
-      <View>
-        <ScrollView contentContainerStyle={{ gap: space.md }} keyboardShouldPersistTaps="handled">
+      <View style={{ flexShrink: 1 }}>
+        <ScrollView contentContainerStyle={{ gap: space.md, paddingBottom: space.lg }} keyboardShouldPersistTaps="handled">
           <Field
             label="رقم موبايلك"
             value={phone}

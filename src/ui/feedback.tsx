@@ -76,7 +76,8 @@ export function Sheet({
               <Ionicons name="close" size={24} color={colors.muted} />
             </Pressable>
           </View>
-          {children}
+          {/* Shrinks to fit so long content scrolls instead of running off the bottom. */}
+          <View style={styles.body}>{children}</View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -110,8 +111,10 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.lg + 4,
     padding: space.lg,
     gap: space.md,
-    maxHeight: '85%',
+    maxHeight: '90%',
+    flexShrink: 1,
   },
+  body: { flexShrink: 1, minHeight: 0 },
   handle: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: colors.border },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md, padding: space.xl, backgroundColor: colors.bg },
