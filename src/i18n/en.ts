@@ -644,7 +644,8 @@ export const EXACT: Record<string, string> = {
  "التحصيل لسه ما فتحش": "Collection isn't open yet",
  "مينفعش يتمسح": "Can't be removed",
  "امسح العضو": "Remove member",
- "اسحب العضو لليمين أو دوس عليه دوسة طويلة علشان تمسحه أو تفك ربطه.": "Swipe a member right or long-press to remove or unlink them."
+ "اسحب العضو لليمين أو دوس عليه دوسة طويلة علشان تمسحه أو تفك ربطه.": "Swipe a member right or long-press to remove or unlink them.",
+ "جمعيتك في جيبك… بأمان": "Your savings circle in your pocket… safely"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */

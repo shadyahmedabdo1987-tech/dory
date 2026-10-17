@@ -2,7 +2,7 @@ import { Cairo_400Regular, Cairo_600SemiBold, Cairo_700Bold, useFonts } from '@e
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { I18nManager, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -12,6 +12,7 @@ import { useNotificationRouting } from '@/notifications';
 import { BusyHost } from '@/ui/busy';
 import { DialogHost } from '@/ui/dialog';
 import { ErrorScreen } from '@/ui/feedback';
+import { IntroSplash } from '@/ui/IntroSplash';
 import { colors, fonts } from '@/ui/theme';
 import { isEn, tr } from '@/i18n';
 
@@ -29,12 +30,28 @@ export default function RootLayout() {
   useNotificationRouting();
   const ready = fontsLoaded && !session.loading;
 
+  const [intro, setIntro] = useState(true);
+  const endIntro = useCallback(() => setIntro(false), []);
+  // The animated intro takes over from the native splash the moment it's on screen.
+  const hideNative = useCallback(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
   useEffect(() => {
-    if (ready) SplashScreen.hideAsync().catch(() => {});
-  }, [ready]);
+    if (ready && !intro) SplashScreen.hideAsync().catch(() => {});
+  }, [ready, intro]);
 
-  if (!ready) return null;
+  const introLayer = intro ? <IntroSplash ready={ready} onShown={hideNative} onDone={endIntro} /> : null;
 
+  // The intro stays mounted in the same place throughout, so its animation never restarts.
+  return (
+    <>
+      {ready ? <App session={session} /> : null}
+      {introLayer}
+    </>
+  );
+}
+
+function App({ session }: { session: ReturnType<typeof useSession> }) {
   if (!isFirebaseConfigured) {
     return <ErrorScreen message="التطبيق مش متوصل بالسيرفر. لو إنت المطوّر: انسخ ‎.env.example‎ لـ ‎.env‎ وحط مفاتيح Firebase." />;
   }
