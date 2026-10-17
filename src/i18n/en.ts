@@ -629,7 +629,9 @@ export const EXACT: Record<string, string> = {
  "الباسورد غلط. لو نسيته، اطلب من صاحب الجمعية يفك الربط وبعدها تختار باسورد جديد.": "Wrong password. If you forgot it, ask the organizer to unlink you, then choose a new one.",
  "رقم موبايلك (المتسجّل على إنستاباي أو فودافون كاش)": "Your mobile number (registered on InstaPay or Vodafone Cash)",
  "رقم الموبايل (إنستاباي / فودافون كاش)": "Mobile (InstaPay / Vodafone Cash)",
- "ده الاسم والرقم اللي اتسجّلت بيهم. الرقم ده هو اللي بتقبض عليه بإنستاباي أو فودافون كاش.": "This is the name and number you registered with. You get paid on this number via InstaPay or Vodafone Cash."
+ "ده الاسم والرقم اللي اتسجّلت بيهم. الرقم ده هو اللي بتقبض عليه بإنستاباي أو فودافون كاش.": "This is the name and number you registered with. You get paid on this number via InstaPay or Vodafone Cash.",
+ "الأعضاء بيدخلوا بنفسهم بكود الدعوة ورقمهم. هنا تقدر تعدّل اسم عضو أو تشيله. ترتيب الأدوار من تبويب \"الجدول\".": "Members join themselves with the invite code and their number. Here you can rename or remove a member. Reorder turns from the \"Schedule\" tab.",
+ "الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك وهتدخل على طول. لو دي أول مرة تدخل برقمك، اختار باسورد دلوقتي وهيتحفظ.": "This number is registered in the circle. Enter your password to sign in. If it's your first time with this number, choose a password now and it will be saved."
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */

@@ -927,6 +927,14 @@ async function assertNotMyOwnCircle(cid: string, uid: string) {
   }
 }
 
+/** The member row a registered number belongs to. */
+export async function memberIdForPhone(cid: string, rawPhone: string): Promise<string | null> {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) return null;
+  const snap = await retry(() => getDoc(phoneRef(firestore(), cid, phone)));
+  return snap.exists() ? String(snap.data().memberId) : null;
+}
+
 /** Is this mobile number already a member of the circle? (Then it signs in instead of asking again.) */
 export async function isPhoneRegistered(cid: string, rawPhone: string): Promise<boolean> {
   const phone = normalizePhone(rawPhone);

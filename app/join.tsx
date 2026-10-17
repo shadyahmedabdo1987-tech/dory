@@ -9,6 +9,9 @@ import {
   addPendingJoin,
   AppError,
   isPhoneRegistered,
+  memberIdForPhone,
+  hasMyPassword,
+  setMyPassword,
   joinCircle,
   cancelJoinRequest,
   ensureSignedIn,
@@ -323,7 +326,12 @@ function JoinSheet({
     run(async () => {
       await ensurePushToken().catch(() => null);
       await joinCircle(code, phone, uid, password);
-      writePrefs({ myPhone: phone.trim() });
+      // First sign-in for a member who never chose a password: this one becomes theirs.
+      const memberId = await memberIdForPhone(circle.id, phone).catch(() => null);
+      if (memberId && !(await hasMyPassword(circle.id, memberId))) {
+        await setMyPassword(circle.id, memberId, phone, password).catch(() => {});
+      }
+      writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
       alert('أهلًا بيك تاني ✓', 'دخلت باسمك ودورك المسجّلين في الجمعية.');
       open(circle.id);
     });
@@ -369,7 +377,7 @@ function JoinSheet({
               <View style={styles.firstTime}>
                 <Ionicons name="lock-closed-outline" size={18} color={colors.primary} />
                 <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
-                  الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك وهتدخل على طول.
+                  الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك وهتدخل على طول. لو دي أول مرة تدخل برقمك، اختار باسورد دلوقتي وهيتحفظ.
                 </Text>
               </View>
               <Field label="الباسورد" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
