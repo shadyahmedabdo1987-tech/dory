@@ -277,7 +277,7 @@ function CollectTab({
   const toggle = (m: Member) => {
     tap();
     const p = findPayment(payments, entry.period.id, m.id);
-    if (!p && entry.index > current) {
+    if (entry.index > current && (!p || p.status === 'claimed')) {
       // No collection before the installment's date.
       return alert('التحصيل لسه ما فتحش', `تحصيل ${periodTitle(entry)} بيفتح يوم ${formatDate(entry.date)}. لو عايز تبدأ بدري، غيّر تاريخ بداية الجمعية من الإعدادات.`, undefined, {
         icon: 'lock-closed',
@@ -531,7 +531,7 @@ function CollectTab({
             label="الكل دفع"
             icon="checkmark-done"
             variant="secondary"
-            disabled={s.confirmed.length === s.payers.length}
+            disabled={s.confirmed.length === s.payers.length || entry.index > current}
             onPress={async () => {
               const unverified = s.payers.filter((m) => {
                 const p = findPayment(payments, entry.period.id, m.id);

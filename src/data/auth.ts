@@ -14,7 +14,7 @@ import {
 } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 
-import { firebaseAuth, isFirebaseConfigured } from './firebase';
+import { firebaseAuth, isFirebaseConfigured, resetFirestore } from './firebase';
 
 export interface Session {
   user: User | null;
@@ -92,4 +92,7 @@ export async function ensureSignedIn(): Promise<User> {
 
 export async function signOut(): Promise<void> {
   await fbSignOut(firebaseAuth());
+  // Fresh database connection for whoever signs in next — the old one can stay
+  // tied to the previous account and hold the next sign-in's writes for a while.
+  await resetFirestore().catch(() => {});
 }

@@ -7,7 +7,7 @@ import { BackHandler, I18nManager, Linking, Platform, ScrollView, StyleSheet, Vi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatNumber, INSTAPAY_ADDRESS, normalizePayAccount, normalizePhone } from '@/core';
-import { changeMyEmail, clearPendingJoins, myAdminInstapay, myMemberProfiles, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles } from '@/data';
+import { changeMyEmail, clearPendingJoins, myAdminInstapay, myMemberProfiles, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles, withTimeout } from '@/data';
 import { useAppSession } from '@/data/session';
 import { clearReminders, unregisterPush } from '@/notifications';
 import { Badge, Button, Card, Field, Row, Segmented, Text } from '@/ui/components';
@@ -163,10 +163,12 @@ export default function Account() {
     );
     if (!ok) return;
     await run(async () => {
-      await unregisterPush(user.uid);
+      // Best effort, and never more than a few seconds on a slow network.
+      const quick = (p: Promise<unknown>) => withTimeout(p, 6_000).catch(() => {});
+      await quick(unregisterPush(user.uid));
       await clearReminders();
       // Free my member rows so code + number + password brings me back to them on any phone.
-      await releaseMyMemberships(user.uid, (refs ?? []).filter((r) => r.role === 'member'));
+      await quick(releaseMyMemberships(user.uid, (refs ?? []).filter((r) => r.role === 'member')));
       // Sign-in fields start empty next time.
       clearSignInPrefs();
       await clearPendingJoins();

@@ -53,7 +53,7 @@ import {
 } from '@/core';
 
 import { AppError, arabicError, errorCode, retry, withTimeout } from './errors';
-import { firestore } from './firebase';
+import { firestore, resetFirestore } from './firebase';
 import { circleNameOf, memberNameOf, myPushToken, pushToAdmin, pushToMembers, pushToUids, sendPush, uidOfMember } from './push';
 
 /**
@@ -814,18 +814,29 @@ export async function joinCircle(rawCode: string, rawPhone: string, uid: string,
   if (!lookup.exists()) throw new AppError('dory/phone-not-found', arabicError({ code: 'dory/phone-not-found' }));
   const memberId = String(lookup.data().memberId);
 
-  const batch = writeBatch(db);
-  batch.update(doc(membersCol(db, cid), memberId), { uid });
-  batch.set(membershipRef(db, cid, uid), {
-    uid,
-    circleId: cid,
-    memberId,
-    inviteCode: code,
-    joinedAt: serverTimestamp(),
-    ...(password ? { proof: passwordProof(cid, phone, password) } : {}),
-  });
+  const link = (d: Firestore) => {
+    const batch = writeBatch(d);
+    batch.update(doc(membersCol(d, cid), memberId), { uid });
+    batch.set(membershipRef(d, cid, uid), {
+      uid,
+      circleId: cid,
+      memberId,
+      inviteCode: code,
+      joinedAt: serverTimestamp(),
+      ...(password ? { proof: passwordProof(cid, phone, password) } : {}),
+    });
+    return withTimeout(batch.commit(), 12_000);
+  };
   try {
-    await withTimeout(batch.commit(), 15_000);
+    try {
+      await link(db);
+    } catch (e) {
+      // A client stuck after switching accounts never confirms the write:
+      // start a fresh connection (like reopening the app) and send it again.
+      if (errorCode(e) !== 'dory/offline-timeout') throw e;
+      await resetFirestore();
+      await link(firestore());
+    }
   } catch (e) {
     // Wrong password, or the member row is still linked to another phone.
     if ((e as { code?: string }).code === 'permission-denied') {
