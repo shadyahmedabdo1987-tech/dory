@@ -155,11 +155,12 @@ function Home({ uid }: { uid: string }) {
       )}
 
       <View style={[styles.actions, { paddingBottom: insets.bottom + space.lg }]}>
-        <Button label="عندي كود دعوة" icon="key-outline" variant="secondary" style={{ flex: 1 }} onPress={() => router.push('/join')} />
+        <Button label="عندي كود دعوة" icon="key-outline" variant="secondary" singleLine style={{ flex: 1 }} onPress={() => router.push('/join')} />
         <Button
           label="جمعية جديدة"
           icon="add-circle"
-          style={{ flex: 1.3 }}
+          singleLine
+          style={{ flex: 1 }}
           onPress={() => router.push(isAccount ? '/new' : '/auth')}
         />
       </View>

@@ -126,10 +126,13 @@ export function Button({
   disabled,
   loading,
   style,
+  singleLine,
 }: {
   label: string;
   onPress: () => void;
   icon?: IconName;
+  /** Keep the label on one line, shrinking it slightly if it must. */
+  singleLine?: boolean;
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'whatsapp';
   disabled?: boolean;
   loading?: boolean;
@@ -158,7 +161,14 @@ export function Button({
       ) : (
         <>
           {icon ? <Ionicons name={icon} size={20} color={v.fg} /> : null}
-          <Text weight="bold" color={v.fg} numberOfLines={2} style={{ flexShrink: 1, textAlign: 'center' }}>
+          <Text
+            weight="bold"
+            color={v.fg}
+            numberOfLines={singleLine ? 1 : 2}
+            adjustsFontSizeToFit={singleLine}
+            minimumFontScale={0.8}
+            style={{ flexShrink: 1, textAlign: 'center' }}
+          >
             {label}
           </Text>
         </>
