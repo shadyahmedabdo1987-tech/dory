@@ -247,9 +247,13 @@ describe('join requests (picked from the directory, approved in the app)', () =>
     await assertFails(signIn(anon('x1'), 'x1'));
     await assertFails(signIn(anon('x2'), 'x2', 'c'.repeat(64)));
     await assertSucceeds(signIn(anon('x3'), 'x3', proof));
+    // The right password moves the row to a new phone even while it's linked…
+    await assertSucceeds(signIn(anon('x5'), 'x5', proof));
+    // …the wrong one doesn't.
+    await assertFails(signIn(anon('x6'), 'x6', 'e'.repeat(64)));
     // Nobody else can read it; the member can see their own.
     await assertFails(getDoc(doc(anon('x4'), 'circles', CID, 'secrets', 'm1')));
-    await assertSucceeds(getDoc(doc(anon('x3'), 'circles', CID, 'secrets', 'm1')));
+    await assertSucceeds(getDoc(doc(anon('x5'), 'circles', CID, 'secrets', 'm1')));
     await assertFails(getDoc(doc(admin(), 'circles', CID, 'secrets', 'm1')));
   });
 

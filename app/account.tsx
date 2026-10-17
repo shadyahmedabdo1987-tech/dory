@@ -7,14 +7,14 @@ import { BackHandler, I18nManager, Linking, Platform, ScrollView, StyleSheet, Vi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatNumber, INSTAPAY_ADDRESS, normalizePayAccount, normalizePhone } from '@/core';
-import { changeMyEmail, myAdminInstapay, myMemberProfiles, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles } from '@/data';
+import { changeMyEmail, clearPendingJoins, myAdminInstapay, myMemberProfiles, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles } from '@/data';
 import { useAppSession } from '@/data/session';
 import { clearReminders, unregisterPush } from '@/notifications';
 import { Badge, Button, Card, Field, Row, Segmented, Text } from '@/ui/components';
 import { alert } from '@/ui/dialog';
 import { confirm, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
-import { readPrefsSync, writePrefs, type Lang, type ThemeMode } from '@/ui/prefs';
+import { clearSignInPrefs, readPrefsSync, writePrefs, type Lang, type ThemeMode } from '@/ui/prefs';
 import { lang as currentLang } from '@/i18n';
 import { colors, radius, space, themeMode } from '@/ui/theme';
 
@@ -41,8 +41,6 @@ export default function Account() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAccount, memberKey]);
-  const [instapay, setInstapay] = useState(() => readPrefsSync().myInstapay ?? '');
-  const [savedInstapay, setSavedInstapay] = useState(instapay);
   // Admin: InstaPay number and address members transfer to (receipts may show either).
   const [ipNumber, setIpNumber] = useState('');
   const [ipAddress, setIpAddress] = useState('');
@@ -87,7 +85,6 @@ export default function Account() {
       { success: 'الاسم اتحفظ ✓' },
     );
 
-  const instapayBad = !!instapay.trim() && !normalizePayAccount(instapay);
   const ipNumberBad = !!ipNumber.trim() && !normalizePhone(ipNumber);
   const ipAddressBad = !!ipAddress.trim() && !INSTAPAY_ADDRESS.test(ipAddress.trim());
   const ipChanged = ipNumber.trim() !== savedIp.number.trim() || ipAddress.trim() !== savedIp.address.trim();
@@ -100,18 +97,6 @@ export default function Account() {
         setSavedIp({ number: ipNumber, address: ipAddress });
       },
       { success: 'اتحفظ ✓ — في كل جمعياتك. الإيصال بيتقبل لو فيه الرقم أو العنوان.' },
-    );
-  const saveInstapay = () =>
-    run(
-      async () => {
-        const v = instapay.trim();
-        if (v && !normalizePayAccount(v)) throw new Error('اكتب رقم موبايل متوصل بإنستاباي أو عنوان إنستاباي زي name@instapay.');
-        writePrefs({ myInstapay: v });
-        setSavedInstapay(v);
-      },
-      {
-        success: 'اتحفظ ✓ — هيتكتب لوحده لما تطلب القبض.',
-      },
     );
 
   const emailBad = !!newEmail.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(newEmail.trim());
@@ -180,8 +165,11 @@ export default function Account() {
     await run(async () => {
       await unregisterPush(user.uid);
       await clearReminders();
-      // Free my member rows so code + number brings me back to them on any phone.
-      if (!isAccount) await releaseMyMemberships(user.uid, (refs ?? []).filter((r) => r.role === 'member'));
+      // Free my member rows so code + number + password brings me back to them on any phone.
+      await releaseMyMemberships(user.uid, (refs ?? []).filter((r) => r.role === 'member'));
+      // Sign-in fields start empty next time.
+      clearSignInPrefs();
+      await clearPendingJoins();
       await signOut();
     });
     if (router.canDismiss()) router.dismissAll();
@@ -245,13 +233,13 @@ export default function Account() {
               <Row gap={space.sm} style={styles.info}>
                 <Ionicons name="call-outline" size={18} color={colors.muted} />
                 <Text variant="caption" style={{ flex: 1 }}>
-                  رقم الموبايل
+                  رقم الموبايل (إنستاباي / فودافون كاش)
                 </Text>
                 <Text weight="semibold" style={{ writingDirection: 'ltr' }}>
                   {myPhone || '—'}
                 </Text>
               </Row>
-              <Text variant="caption">الاسم ده اللي اتسجّلت بيه في الجمعية، وصاحب الجمعية هو اللي يقدر يغيّره.</Text>
+              <Text variant="caption">ده الاسم والرقم اللي اتسجّلت بيهم. الرقم ده هو اللي بتقبض عليه بإنستاباي أو فودافون كاش.</Text>
             </View>
           )}
           {isAccount ? (
@@ -281,23 +269,7 @@ export default function Account() {
                 <Button label="احفظ إنستاباي" icon="flash-outline" loading={busy} disabled={ipNumberBad || ipAddressBad} onPress={saveAdminInstapay} />
               ) : null}
             </>
-          ) : (
-            <>
-              <Field
-                label="حساب إنستاباي بتاعي (للقبض)"
-                value={instapay}
-                onChangeText={setInstapay}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                placeholder="01xxxxxxxxx / name@instapay"
-                error={instapayBad ? 'رقم موبايل متوصل بإنستاباي أو عنوان إنستاباي زي name@instapay' : undefined}
-                style={{ textAlign: 'left', writingDirection: 'ltr' }}
-              />
-              {instapay.trim() !== savedInstapay.trim() ? (
-                <Button label="احفظ حساب إنستاباي" icon="flash-outline" loading={busy} disabled={instapayBad} onPress={saveInstapay} />
-              ) : null}
-            </>
-          )}
+          ) : null}
 
           {isAccount ? (
             <View style={styles.info}>

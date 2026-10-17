@@ -42,3 +42,15 @@ export function writePrefs(next: Prefs): boolean {
     return false;
   }
 }
+
+/** On sign-out: forget everything typed into sign-in forms (number, InstaPay). Theme and language stay. */
+export function clearSignInPrefs() {
+  try {
+    const f = prefsFile();
+    const { theme, lang } = readPrefsSync();
+    if (!f.exists) return;
+    f.write(JSON.stringify({ ...(theme ? { theme } : {}), ...(lang ? { lang } : {}) }));
+  } catch {
+    // ignore
+  }
+}

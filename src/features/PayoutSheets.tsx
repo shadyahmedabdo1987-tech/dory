@@ -97,7 +97,7 @@ export function PayoutRequestSheet({
   uid: string;
   onClose: () => void;
 }) {
-  const myInstapay = readPrefsSync().myInstapay ?? '';
+  const myInstapay = readPrefsSync().myInstapay ?? readPrefsSync().myPhone ?? '';
   const [method, setMethod] = useState<PaymentMethod>(request?.method ?? (myInstapay ? 'instapay' : 'vodafone_cash'));
   const [account, setAccount] = useState(request?.account ?? myInstapay);
   const [note, setNote] = useState(request?.note ?? '');

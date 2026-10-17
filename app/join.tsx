@@ -290,10 +290,8 @@ function JoinSheet({
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [name, setName] = useState(user?.displayName ?? '');
-  const [account, setAccount] = useState(() => readPrefsSync().myInstapay ?? '');
   const { busy, run } = useAction();
   const phoneOk = !!normalizePhone(phone);
-  const accountBad = !!account.trim() && !normalizePayAccount(account);
   const passwordShort = !!password && password.length < MIN_PASSWORD;
   const mismatch = !!password2 && password2 !== password;
 
@@ -337,8 +335,9 @@ function JoinSheet({
       if (password.length < MIN_PASSWORD || password !== password2) throw new AppError('auth/weak-password', arabicError({ code: 'auth/weak-password' }));
       // So the admin's approval reaches this phone as a notification.
       await ensurePushToken().catch(() => null);
-      const result = await requestJoin(circle.id, { name, phone, password, payAccount: account || phone }, uid);
-      writePrefs({ myPhone: phone.trim(), ...(normalizePayAccount(account || phone) ? { myInstapay: (account || phone).trim() } : {}) });
+      // The mobile number is also the InstaPay / Vodafone Cash number they get paid on.
+      const result = await requestJoin(circle.id, { name, phone, password, payAccount: phone }, uid);
+      writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
       if (result.joined) return open(circle.id);
       await addPendingJoin({ cid: circle.id, circleName: circle.name, name: name.trim() });
       onSent({ cid: circle.id, circleName: circle.name, name: name.trim() });
@@ -349,7 +348,7 @@ function JoinSheet({
       <View style={{ flexShrink: 1 }}>
         <ScrollView contentContainerStyle={{ gap: space.md, paddingBottom: space.lg }} keyboardShouldPersistTaps="handled">
           <Field
-            label="رقم موبايلك"
+            label="رقم موبايلك (المتسجّل على إنستاباي أو فودافون كاش)"
             value={phone}
             onChangeText={(t) => {
               setPhone(t);
@@ -411,22 +410,11 @@ function JoinSheet({
                 autoCapitalize="none"
                 error={mismatch ? 'الباسورد مش زي اللي فوق' : undefined}
               />
-              <Field
-                label="إنستاباي (اختياري)"
-                value={account}
-                onChangeText={setAccount}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder="لو فاضي هنستخدم رقم موبايلك"
-                error={accountBad ? 'اكتب رقم موبايل أو إيميل إنستاباي صحيح' : undefined}
-                hint="علشان تقبض عليه لما ييجي دورك"
-              />
               <Button
                 label="ابعت طلب الانضمام"
                 icon="send"
                 loading={busy}
-                disabled={!name.trim() || !phoneOk || accountBad || password.length < MIN_PASSWORD || password !== password2}
+                disabled={!name.trim() || !phoneOk || password.length < MIN_PASSWORD || password !== password2}
                 onPress={submit}
               />
             </>

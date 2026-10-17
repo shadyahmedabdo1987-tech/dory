@@ -80,7 +80,8 @@ function Home({ uid }: { uid: string }) {
 
   const admin = refs?.filter((r) => r.role === 'admin') ?? [];
   const member = refs?.filter((r) => r.role === 'member') ?? [];
-  const memberIds = new Set(member.map((r) => r.id));
+  // Already in that circle (as member or organizer) → the request is done, don't show it.
+  const memberIds = new Set((refs ?? []).map((r) => r.id));
   const waiting = pending.filter((p) => !memberIds.has(p.cid));
   const sections: (CircleRef | { header: string } | { pending: PendingJoin })[] = [
     ...(waiting.length ? [{ header: 'طلبات مستنية موافقة' }, ...waiting.map((p) => ({ pending: p }))] : []),

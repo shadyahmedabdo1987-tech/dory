@@ -45,6 +45,11 @@ export async function removePendingJoin(cid: string) {
   await save(items.filter((i) => i.cid !== cid));
 }
 
+/** On sign-out: forget requests sent from this phone. */
+export async function clearPendingJoins() {
+  await save([]);
+}
+
 export function usePendingJoins(): PendingJoin[] {
   const [items, setItems] = useState<PendingJoin[]>(cache ?? []);
   useEffect(() => {

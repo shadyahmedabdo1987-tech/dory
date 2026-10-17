@@ -144,12 +144,16 @@ service cloud.firestore {
         // Admin edits (including resetting a member's device link).
         allow update: if isAdminAfter(cid) && validMember(request.resource.data);
 
-        // A member claims their row while joining (batched with the membership doc).
+        // A member claims their row while joining (batched with the membership doc):
+        // a free row, or — with the right password — moving it to a new phone.
         allow update: if signedIn()
-          && resource.data.uid == null
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid'])
-          && getAfter(membershipPath(cid, request.auth.uid)).data.memberId == mid;
+          && getAfter(membershipPath(cid, request.auth.uid)).data.memberId == mid
+          && (resource.data.uid == null
+              || (exists(/databases/$(database)/documents/circles/$(cid)/secrets/$(mid))
+                  && getAfter(membershipPath(cid, request.auth.uid)).data.get('proof', '')
+                     == get(/databases/$(database)/documents/circles/$(cid)/secrets/$(mid)).data.proof));
 
         // A member releases their own row when leaving.
         allow update: if signedIn()

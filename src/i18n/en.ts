@@ -625,7 +625,11 @@ export const EXACT: Record<string, string> = {
  "رقم الموبايل": "Mobile number",
  "الاسم ده اللي اتسجّلت بيه في الجمعية، وصاحب الجمعية هو اللي يقدر يغيّره.": "This is the name you registered with; only the organizer can change it.",
  "حساب إنستاباي ده بيتكتب لوحده لما تطلب القبض.": "This InstaPay account is filled in automatically when you request your payout.",
- "إنت صاحب الجمعية دي ومسجّل فيها بالفعل. علشان تجرب كعضو، استخدم موبايل تاني أو اعمل تسجيل خروج من حساب صاحب الجمعية الأول.": "You run this circle and are already in it. To try it as a member, use another phone or sign out of the organizer account first."
+ "إنت صاحب الجمعية دي ومسجّل فيها بالفعل. علشان تجرب كعضو، استخدم موبايل تاني أو اعمل تسجيل خروج من حساب صاحب الجمعية الأول.": "You run this circle and are already in it. To try it as a member, use another phone or sign out of the organizer account first.",
+ "الباسورد غلط. لو نسيته، اطلب من صاحب الجمعية يفك الربط وبعدها تختار باسورد جديد.": "Wrong password. If you forgot it, ask the organizer to unlink you, then choose a new one.",
+ "رقم موبايلك (المتسجّل على إنستاباي أو فودافون كاش)": "Your mobile number (registered on InstaPay or Vodafone Cash)",
+ "رقم الموبايل (إنستاباي / فودافون كاش)": "Mobile (InstaPay / Vodafone Cash)",
+ "ده الاسم والرقم اللي اتسجّلت بيهم. الرقم ده هو اللي بتقبض عليه بإنستاباي أو فودافون كاش.": "This is the name and number you registered with. You get paid on this number via InstaPay or Vodafone Cash."
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
