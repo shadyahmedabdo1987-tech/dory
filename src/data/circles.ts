@@ -507,21 +507,28 @@ export async function deleteCircle(circle: Circle): Promise<void> {
   await withTimeout(deleteDoc(directoryRef(firestore(), circle.id))).catch(() => {});
   const db = firestore();
   const cid = circle.id;
-  const [joinRequests, announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members, secrets, receiptRefs] = await Promise.all(
-    ['joinRequests', 'announcements', 'payoutReceipts', 'payouts', 'receipts', 'payments', 'memberships', 'phones', 'contacts', 'members', 'secrets', 'receiptRefs'].map((c) =>
+  const [joinRequests, announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members] = await Promise.all(
+    ['joinRequests', 'announcements', 'payoutReceipts', 'payouts', 'receipts', 'payments', 'memberships', 'phones', 'contacts', 'members'].map((c) =>
       retry(() => getDocs(collection(db, 'circles', cid, c))),
     ),
   );
+  const memberIds = [...new Set([...circle.members.map((m) => m.id), ...members.docs.map((d) => d.id)])];
   const inboxes = await Promise.all(
-    circle.members.map((m) => retry(() => getDocs(inboxCol(db, cid, m.id))).catch(() => null)),
+    memberIds.map((id) => retry(() => getDocs(inboxCol(db, cid, id))).catch(() => null)),
+  );
+  // Passwords and receipt fingerprints can't be listed — delete them by key.
+  const secretRefs = memberIds.map((id) => secretRef(db, cid, id));
+  const printRefs = payments.docs
+    .map((d) => d.data().receiptRef)
+    .filter((r): r is string => typeof r === 'string' && !!r)
+    .map((r) => doc(db, 'circles', cid, 'receiptRefs', r));
+  await deleteInChunks(
+    db,
+    [...inboxes.flatMap((snap) => (snap ? snap.docs.map((d) => d.ref) : [])), ...secretRefs, ...printRefs],
   );
   await deleteInChunks(
     db,
-    inboxes.flatMap((snap) => (snap ? snap.docs.map((d) => d.ref) : [])),
-  );
-  await deleteInChunks(
-    db,
-    [joinRequests, announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members, secrets, receiptRefs].flatMap((s) => s.docs.map((d) => d.ref)),
+    [joinRequests, announcements, payoutReceipts, payouts, receipts, payments, memberships, phones, contacts, members].flatMap((s) => s.docs.map((d) => d.ref)),
   );
   const batch = writeBatch(db);
   batch.delete(inviteRef(db, circle.inviteCode));
