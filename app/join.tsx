@@ -8,7 +8,7 @@ import { extractInviteCode, FREQUENCY_LABEL, formatDate, formatMoney, formatNumb
 import {
   addPendingJoin,
   AppError,
-  isPhoneRegistered,
+  phoneStatus,
   memberIdForPhone,
   hasMyPassword,
   setMyPassword,
@@ -18,6 +18,7 @@ import {
   removePendingJoin,
   requestJoin,
   arabicError,
+  errorCode,
   findCircleByCode,
   useJoinStatus,
   useMyCircles,
@@ -288,7 +289,7 @@ function JoinSheet({
   onSent: (s: { cid: string; circleName: string; name: string }) => void;
 }) {
   const { user } = useAppSession();
-  const [step, setStep] = useState<'phone' | 'login' | 'details'>('phone');
+  const [step, setStep] = useState<'phone' | 'login' | 'setpw' | 'details'>('phone');
   const [phone, setPhone] = useState(() => readPrefsSync().myPhone ?? '');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
@@ -315,7 +316,14 @@ function JoinSheet({
   const next = () =>
     circle &&
     run(async () => {
-      if (await isPhoneRegistered(circle.id, phone)) return setStep('login');
+      const registered = await phoneStatus(circle.id, phone);
+      // Added by the admin (or reset) and no password yet → choose one now.
+      if (registered && !registered.secured && !(await hasMyPassword(circle.id, registered.memberId).catch(() => false))) {
+        setPassword('');
+        setPassword2('');
+        return setStep('setpw');
+      }
+      if (registered) return setStep('login');
       if (!allowNew) throw new AppError('dory/phone-not-found', arabicError({ code: 'dory/phone-not-found' }));
       setStep('details');
     });
@@ -333,6 +341,29 @@ function JoinSheet({
       }
       writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
       alert('أهلًا بيك تاني ✓', 'دخلت باسمك ودورك المسجّلين في الجمعية.');
+      open(circle.id);
+    });
+
+  // Number the admin registered: choose a password (twice) and get linked to the row.
+  const choosePassword = () =>
+    circle &&
+    run(async () => {
+      if (password.length < MIN_PASSWORD || password !== password2) throw new AppError('auth/weak-password', arabicError({ code: 'auth/weak-password' }));
+      await ensurePushToken().catch(() => null);
+      try {
+        await joinCircle(code, phone, uid, password);
+      } catch (e) {
+        // The number already has a password after all → sign in with it instead.
+        if (errorCode(e) === 'dory/signin-failed') {
+          setPassword2('');
+          setStep('login');
+        }
+        throw e;
+      }
+      const memberId = await memberIdForPhone(circle.id, phone).catch(() => null);
+      if (memberId) await setMyPassword(circle.id, memberId, phone, password);
+      writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
+      alert('تم حفظ الباسورد ✓', 'بقيت مربوط بالجمعية باسمك ودورك. المرة الجاية تدخل بالكود ورقمك والباسورد ده.');
       open(circle.id);
     });
 
@@ -372,6 +403,38 @@ function JoinSheet({
           />
           {step === 'phone' ? (
             <Button label="متابعة" icon="arrow-back" loading={busy} disabled={!phoneOk} onPress={next} />
+          ) : step === 'setpw' ? (
+            <>
+              <View style={styles.firstTime}>
+                <Ionicons name="key-outline" size={18} color={colors.primary} />
+                <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
+                  صاحب الجمعية مسجّلك بالرقم ده. اختار باسورد واكتبه مرتين، وهتدخل الجمعية باسمك ودورك على طول.
+                </Text>
+              </View>
+              <Field
+                label="اختار باسورد"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                error={passwordShort ? '٦ حروف أو أكتر' : undefined}
+              />
+              <Field
+                label="اكتب الباسورد تاني"
+                value={password2}
+                onChangeText={setPassword2}
+                secureTextEntry
+                autoCapitalize="none"
+                error={mismatch ? 'الباسورد مش زي اللي فوق' : undefined}
+              />
+              <Button
+                label="حفظ ودخول"
+                icon="checkmark-circle-outline"
+                loading={busy}
+                disabled={password.length < MIN_PASSWORD || password !== password2}
+                onPress={choosePassword}
+              />
+            </>
           ) : step === 'login' ? (
             <>
               <View style={styles.firstTime}>

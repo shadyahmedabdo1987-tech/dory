@@ -278,7 +278,7 @@ export function CircleForm({
           <Text variant="caption">
             {creating
               ? 'الترتيب هنا هو ترتيب القبض. الأعضاء بيبعتوا طلبات انضمام وإنت بتوافق عليهم من التطبيق. خانة إنستاباي اختيارية للقبض بس: اكتب رقم الموبايل المتوصل بإنستاباي أو إيميل إنستاباي (زي name@instapay).'
-              : 'الأعضاء بيدخلوا بنفسهم بكود الدعوة ورقمهم. هنا تقدر تعدّل اسم عضو أو تشيله. ترتيب الأدوار من تبويب "الجدول".'}
+              : 'تقدر تضيف عضو بنفسك باسمه ورقم موبايله، وابعتله كود الدعوة: يدخل بالكود ونفس الرقم ويختار باسورد. الأعضاء الجداد بيتضاف دورهم في آخر الجدول.'}
           </Text>
           {creating && (
             <Pressable
@@ -346,16 +346,27 @@ export function CircleForm({
                 onChangeText={(t) => update(m.id, { name: t })}
                 style={[styles.input, showErrors && !m.name.trim() && { borderColor: colors.danger }]}
               />
-              {/* Members join themselves with the invite code; their number is shown, not typed here. */}
-              {m.phone && !locked(i) ? (
-                <Text variant="caption" style={{ writingDirection: 'ltr', textAlign: 'left' }}>
-                  📱 {m.phone.startsWith('20') ? `0${m.phone.slice(2)}` : m.phone}
-                </Text>
-              ) : null}
+              <TextInput
+                placeholder={tr("رقم موبايل العضو (إنستاباي / فودافون كاش)")}
+                placeholderTextColor={colors.muted}
+                keyboardType="phone-pad"
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={m.phone ?? ''}
+                onChangeText={(t) => update(m.id, { phone: t })}
+                style={[styles.input, !!m.phone && !normalizePayAccount(m.phone) && { borderColor: colors.danger }]}
+              />
             </View>
           ))}
 
           <Row gap={space.sm}>
+            <Button
+              label="ضيف عضو"
+              icon="person-add-outline"
+              variant="secondary"
+              style={{ flex: 1 }}
+              onPress={() => setMembers((l) => [...l, blankMember()])}
+            />
             {creating && (
               <Button
                 label="عجلة القرعة"

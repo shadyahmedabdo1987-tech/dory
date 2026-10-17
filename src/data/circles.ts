@@ -408,6 +408,7 @@ export async function saveCircle(
     if (keep.has(old.id)) continue;
     batch.delete(doc(membersCol(db, cid), old.id));
     batch.delete(doc(contactsCol(db, cid), old.id));
+    batch.delete(secretRef(db, cid, old.id));
     if (old.uid) batch.delete(membershipRef(db, cid, old.uid));
   }
 
@@ -447,6 +448,8 @@ export async function unlinkMember(circle: Circle, member: Member): Promise<void
   batch.update(doc(membersCol(db, circle.id), member.id), { uid: null });
   // Forgot password / lost phone: they choose a new password when they sign back in.
   batch.delete(secretRef(db, circle.id, member.id));
+  const numbers = await getDocs(query(collection(db, 'circles', circle.id, 'phones'), where('memberId', '==', member.id))).catch(() => null);
+  numbers?.docs.forEach((d) => batch.set(d.ref, { memberId: member.id, secured: false }));
   await withTimeout(batch.commit());
 }
 
@@ -488,7 +491,7 @@ export async function setMyPassword(cid: string, memberId: string, rawPhone: str
     throw new AppError('dory/phone-taken', arabicError({ code: 'dory/phone-taken' }));
   }
   const batch = writeBatch(db);
-  if (!lookup.exists()) batch.set(phoneRef(db, cid, phone), { memberId });
+  batch.set(phoneRef(db, cid, phone), { memberId, secured: true });
   batch.set(secretRef(db, cid, memberId), { proof: passwordProof(cid, phone, password) });
   await withTimeout(batch.commit(), 15_000);
 }
@@ -927,6 +930,14 @@ async function assertNotMyOwnCircle(cid: string, uid: string) {
   }
 }
 
+/** A registered number: its member row, and whether that member has chosen a password yet. */
+export async function phoneStatus(cid: string, rawPhone: string): Promise<{ memberId: string; secured: boolean } | null> {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) return null;
+  const snap = await retry(() => getDoc(phoneRef(firestore(), cid, phone)));
+  return snap.exists() ? { memberId: String(snap.data().memberId), secured: snap.data().secured === true } : null;
+}
+
 /** The member row a registered number belongs to. */
 export async function memberIdForPhone(cid: string, rawPhone: string): Promise<string | null> {
   const phone = normalizePhone(rawPhone);
@@ -1082,7 +1093,7 @@ export async function approveJoin(circle: Circle, request: JoinRequest, existing
   if (existingMemberId) {
     const batch = writeBatch(db);
     batch.update(doc(membersCol(db, cid), existingMemberId), { uid: request.uid });
-    if (request.phone) batch.set(phoneRef(db, cid, request.phone), { memberId: existingMemberId });
+    if (request.phone) batch.set(phoneRef(db, cid, request.phone), { memberId: existingMemberId, secured: !!request.proof });
     if (request.proof) batch.set(secretRef(db, cid, existingMemberId), { proof: request.proof });
     if (request.payAccount) batch.set(doc(contactsCol(db, cid), existingMemberId), { phone: request.payAccount });
     batch.set(membershipRef(db, cid, request.uid), {
@@ -1121,7 +1132,7 @@ export async function approveJoin(circle: Circle, request: JoinRequest, existing
       });
       tx.set(doc(contactsCol(db, cid), memberId), { phone: request.payAccount ?? request.phone ?? null });
       // The number is the member's key for signing back in later (code + number).
-      if (request.phone) tx.set(phoneRef(db, cid, request.phone), { memberId });
+      if (request.phone) tx.set(phoneRef(db, cid, request.phone), { memberId, secured: !!request.proof });
       if (request.proof) tx.set(secretRef(db, cid, memberId), { proof: request.proof });
       tx.set(membershipRef(db, cid, request.uid), {
         uid: request.uid,

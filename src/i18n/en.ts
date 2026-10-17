@@ -631,7 +631,14 @@ export const EXACT: Record<string, string> = {
  "رقم الموبايل (إنستاباي / فودافون كاش)": "Mobile (InstaPay / Vodafone Cash)",
  "ده الاسم والرقم اللي اتسجّلت بيهم. الرقم ده هو اللي بتقبض عليه بإنستاباي أو فودافون كاش.": "This is the name and number you registered with. You get paid on this number via InstaPay or Vodafone Cash.",
  "الأعضاء بيدخلوا بنفسهم بكود الدعوة ورقمهم. هنا تقدر تعدّل اسم عضو أو تشيله. ترتيب الأدوار من تبويب \"الجدول\".": "Members join themselves with the invite code and their number. Here you can rename or remove a member. Reorder turns from the \"Schedule\" tab.",
- "الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك وهتدخل على طول. لو دي أول مرة تدخل برقمك، اختار باسورد دلوقتي وهيتحفظ.": "This number is registered in the circle. Enter your password to sign in. If it's your first time with this number, choose a password now and it will be saved."
+ "الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك وهتدخل على طول. لو دي أول مرة تدخل برقمك، اختار باسورد دلوقتي وهيتحفظ.": "This number is registered in the circle. Enter your password to sign in. If it's your first time with this number, choose a password now and it will be saved.",
+ "صاحب الجمعية مسجّلك بالرقم ده. اختار باسورد واكتبه مرتين، وهتدخل الجمعية باسمك ودورك على طول.": "The organizer registered you with this number. Choose a password and type it twice to enter the circle with your name and turn.",
+ "اختار باسورد": "Choose a password",
+ "حفظ ودخول": "Save & sign in",
+ "تم حفظ الباسورد ✓": "Password saved ✓",
+ "بقيت مربوط بالجمعية باسمك ودورك. المرة الجاية تدخل بالكود ورقمك والباسورد ده.": "You're now linked to the circle with your name and turn. Next time sign in with the code, your number and this password.",
+ "رقم موبايل العضو (إنستاباي / فودافون كاش)": "Member's mobile (InstaPay / Vodafone Cash)",
+ "تقدر تضيف عضو بنفسك باسمه ورقم موبايله، وابعتله كود الدعوة: يدخل بالكود ونفس الرقم ويختار باسورد. الأعضاء الجداد بيتضاف دورهم في آخر الجدول.": "You can add a member yourself with their name and mobile number, then send them the invite code: they enter the code and the same number and choose a password. New members are added at the end of the schedule."
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
