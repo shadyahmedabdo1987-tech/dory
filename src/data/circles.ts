@@ -450,6 +450,24 @@ export async function unlinkMember(circle: Circle, member: Member): Promise<void
   await withTimeout(batch.commit());
 }
 
+/** Member: my name and circle in each circle I belong to (from my member rows). */
+export async function myMemberProfiles(refs: { id: string; memberId?: string }[]): Promise<{ cid: string; circleName: string; name: string }[]> {
+  const db = firestore();
+  const out = await Promise.all(
+    refs
+      .filter((r) => r.memberId)
+      .map(async (r) => {
+        try {
+          const [m, c] = await Promise.all([getDoc(doc(membersCol(db, r.id), r.memberId!)), getDoc(circleRef(db, r.id))]);
+          return { cid: r.id, circleName: c.exists() ? String(c.data().name ?? '') : '', name: m.exists() ? String(m.data().name ?? '') : '' };
+        } catch {
+          return null;
+        }
+      }),
+  );
+  return out.filter((x): x is { cid: string; circleName: string; name: string } => !!x && !!x.name);
+}
+
 /** Member: do I already have a password in this circle? */
 export async function hasMyPassword(cid: string, memberId: string): Promise<boolean> {
   try {

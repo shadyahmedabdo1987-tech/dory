@@ -7,7 +7,7 @@ import { BackHandler, I18nManager, Linking, Platform, ScrollView, StyleSheet, Vi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatNumber, INSTAPAY_ADDRESS, normalizePayAccount, normalizePhone } from '@/core';
-import { changeMyEmail, myAdminInstapay, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles } from '@/data';
+import { changeMyEmail, myAdminInstapay, myMemberProfiles, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles } from '@/data';
 import { useAppSession } from '@/data/session';
 import { clearReminders, unregisterPush } from '@/notifications';
 import { Badge, Button, Card, Field, Row, Segmented, Text } from '@/ui/components';
@@ -29,6 +29,18 @@ export default function Account() {
   const [theme, setTheme] = useState<ThemeMode>(themeMode);
   const [language, setLanguage] = useState<Lang>(currentLang);
   const [notif, setNotif] = useState<'on' | 'off' | 'unknown'>('unknown');
+  // Members: the name they registered with in each circle (the admin sees it).
+  const [profiles, setProfiles] = useState<{ cid: string; circleName: string; name: string }[]>([]);
+  const memberKey = (refs ?? []).filter((r) => r.role === 'member').map((r) => `${r.id}:${r.memberId}`).join('|');
+  useEffect(() => {
+    if (isAccount || !memberKey) return;
+    myMemberProfiles((refs ?? []).filter((r) => r.role === 'member')).then((p) => {
+      setProfiles(p);
+      // Show it in the app header too.
+      if (p[0] && !user?.displayName) updateMyName(p[0].name).then(() => refresh?.()).catch(() => {});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAccount, memberKey]);
   const [instapay, setInstapay] = useState(() => readPrefsSync().myInstapay ?? '');
   const [savedInstapay, setSavedInstapay] = useState(instapay);
   // Admin: InstaPay number and address members transfer to (receipts may show either).
@@ -61,7 +73,8 @@ export default function Account() {
 
   const admin = refs?.filter((r) => r.role === 'admin').length ?? 0;
   const member = refs?.filter((r) => r.role === 'member').length ?? 0;
-  const shownName = user.displayName?.trim() || (isAccount ? 'صاحب جمعية' : 'عضو');
+  const myPhone = readPrefsSync().myPhone ?? '';
+  const shownName = (isAccount ? user.displayName?.trim() : profiles[0]?.name || user.displayName?.trim()) || (isAccount ? 'صاحب جمعية' : 'عضو');
   const nameChanged = name.trim() !== (user.displayName ?? '').trim();
 
   const saveName = () =>
@@ -209,8 +222,38 @@ export default function Account() {
             <Ionicons name="person-circle-outline" size={22} color={colors.primary} />
             <Text variant="heading">بياناتي</Text>
           </Row>
-          <Field label="الاسم" value={name} onChangeText={setName} maxLength={60} placeholder="اسمك" />
-          {nameChanged ? <Button label="احفظ الاسم" icon="save-outline" loading={busy} onPress={saveName} /> : null}
+          {isAccount ? (
+            <>
+              <Field label="الاسم" value={name} onChangeText={setName} maxLength={60} placeholder="اسمك" />
+              {nameChanged ? <Button label="احفظ الاسم" icon="save-outline" loading={busy} onPress={saveName} /> : null}
+            </>
+          ) : (
+            <View style={{ gap: space.xs }}>
+              {profiles.length ? (
+                profiles.map((p) => (
+                  <Row key={p.cid} gap={space.sm} style={styles.info}>
+                    <Ionicons name="person-outline" size={18} color={colors.muted} />
+                    <View style={{ flex: 1 }}>
+                      <Text weight="semibold">{p.name}</Text>
+                      <Text variant="caption">اسمك في جمعية "{p.circleName}"</Text>
+                    </View>
+                  </Row>
+                ))
+              ) : (
+                <Text variant="caption">لسه مش عضو في جمعية.</Text>
+              )}
+              <Row gap={space.sm} style={styles.info}>
+                <Ionicons name="call-outline" size={18} color={colors.muted} />
+                <Text variant="caption" style={{ flex: 1 }}>
+                  رقم الموبايل
+                </Text>
+                <Text weight="semibold" style={{ writingDirection: 'ltr' }}>
+                  {myPhone || '—'}
+                </Text>
+              </Row>
+              <Text variant="caption">الاسم ده اللي اتسجّلت بيه في الجمعية، وصاحب الجمعية هو اللي يقدر يغيّره.</Text>
+            </View>
+          )}
           {isAccount ? (
             <>
               <Text weight="semibold">إنستاباي اللي الأعضاء بيحوّلوا عليه</Text>
@@ -246,7 +289,7 @@ export default function Account() {
                 onChangeText={setInstapay}
                 autoCapitalize="none"
                 keyboardType="email-address"
-                placeholder="01xxxxxxxxx أو name@instapay"
+                placeholder="01xxxxxxxxx / name@instapay"
                 error={instapayBad ? 'رقم موبايل متوصل بإنستاباي أو عنوان إنستاباي زي name@instapay' : undefined}
                 style={{ textAlign: 'left', writingDirection: 'ltr' }}
               />
@@ -299,7 +342,7 @@ export default function Account() {
               ) : null}
             </View>
           ) : (
-            <Text variant="caption">إنت داخل كعضو. اسمك وحساب إنستاباي بيظهروا لصاحب الجمعية لما تبعت طلب الانضمام.</Text>
+            <Text variant="caption">حساب إنستاباي ده بيتكتب لوحده لما تطلب القبض.</Text>
           )}
         </Card>
 

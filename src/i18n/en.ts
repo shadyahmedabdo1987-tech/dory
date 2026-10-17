@@ -620,7 +620,11 @@ export const EXACT: Record<string, string> = {
  "ضيف رقم وعنوان إنستاباي ورقم فودافون كاش علشان الأعضاء يعرفوا يحوّلوا على فين.": "Add your InstaPay number and address and Vodafone Cash number so members know where to transfer.",
  "الإيصال بيتقبل لو فيه الرقم أو العنوان": "A receipt is accepted if it shows the number or the address",
  "⚡ رقم إنستاباي:": "⚡ InstaPay number:",
- "⚡ عنوان إنستاباي:": "⚡ InstaPay address:"
+ "⚡ عنوان إنستاباي:": "⚡ InstaPay address:",
+ "لسه مش عضو في جمعية.": "Not a member of a circle yet.",
+ "رقم الموبايل": "Mobile number",
+ "الاسم ده اللي اتسجّلت بيه في الجمعية، وصاحب الجمعية هو اللي يقدر يغيّره.": "This is the name you registered with; only the organizer can change it.",
+ "حساب إنستاباي ده بيتكتب لوحده لما تطلب القبض.": "This InstaPay account is filled in automatically when you request your payout."
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
@@ -944,6 +948,10 @@ export const PATTERNS: [string, string][] = [
  [
   "لسه ما دفعوش ({0}):",
   "Not paid yet ({0}):"
+ ],
+ [
+  "اسمك في جمعية \"{0}\"",
+  "Your name in \"{0}\""
  ],
  [
   "أجّل الفترة دي {0}",
