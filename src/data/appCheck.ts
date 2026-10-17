@@ -71,11 +71,31 @@ export function setupAppCheck(app: FirebaseApp) {
     isTokenAutoRefreshEnabled: true,
     provider: new CustomProvider({
       getToken: async () => {
-        const nativeAppCheck = await loadNative();
-        if (!nativeAppCheck) throw new Error('App Check not available in this build');
-        const { token } = await nativeAppCheck.getToken(false);
+        // Never hold the database back for long: without a token the request
+        // still goes out (enforcement stays off until store builds are verified).
+        const token = await quickAppCheckToken();
+        if (!token) throw new Error('App Check token unavailable');
         return { token, expireTimeMillis: expiryOf(token) };
       },
     }),
   });
+}
+
+let lastFailure = 0;
+/** A token for direct requests — but never wait more than a moment for it. */
+export async function quickAppCheckToken(): Promise<string | null> {
+  if (Platform.OS === 'web' || process.env.EXPO_PUBLIC_APP_CHECK === 'off') return null;
+  if (Date.now() - lastFailure < 10 * 60 * 1000) return null;
+  try {
+    const nativeAppCheck = await Promise.race([loadNative(), new Promise<null>((r) => setTimeout(() => r(null), 2000))]);
+    if (!nativeAppCheck) throw new Error('no app check');
+    const result = await Promise.race([
+      nativeAppCheck.getToken(false),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error('slow')), 2500)),
+    ]);
+    return result.token;
+  } catch {
+    lastFailure = Date.now();
+    return null;
+  }
 }

@@ -53,7 +53,8 @@ import {
 } from '@/core';
 
 import { AppError, arabicError, errorCode, retry, withTimeout } from './errors';
-import { firestore, resetFirestore } from './firebase';
+import { firestore } from './firebase';
+import { restCommit, restGet } from './rest';
 import { circleNameOf, memberNameOf, myPushToken, pushToAdmin, pushToMembers, pushToUids, sendPush, uidOfMember } from './push';
 
 /**
@@ -475,7 +476,7 @@ export async function myMemberProfiles(refs: { id: string; memberId?: string }[]
 /** Member: do I already have a password in this circle? */
 export async function hasMyPassword(cid: string, memberId: string): Promise<boolean> {
   try {
-    return (await getDoc(secretRef(firestore(), cid, memberId))).exists();
+    return (await restGet(`circles/${cid}/secrets/${memberId}`)) !== null;
   } catch {
     return true; // offline: don't nag
   }
@@ -486,15 +487,14 @@ export async function setMyPassword(cid: string, memberId: string, rawPhone: str
   const phone = normalizePhone(rawPhone);
   if (!phone) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
   if (password.length < MIN_PASSWORD) throw new AppError('auth/weak-password', arabicError({ code: 'auth/weak-password' }));
-  const db = firestore();
-  const lookup = await retry(() => getDoc(phoneRef(db, cid, phone)));
-  if (lookup.exists() && String(lookup.data().memberId) !== memberId) {
+  const lookup = await restGet(`circles/${cid}/phones/${phone}`);
+  if (lookup && String(lookup.memberId) !== memberId) {
     throw new AppError('dory/phone-taken', arabicError({ code: 'dory/phone-taken' }));
   }
-  const batch = writeBatch(db);
-  if (!lookup.exists()) batch.set(phoneRef(db, cid, phone), { memberId });
-  batch.set(secretRef(db, cid, memberId), { proof: passwordProof(cid, phone, password) });
-  await withTimeout(batch.commit(), 15_000);
+  await restCommit([
+    ...(lookup ? [] : [{ set: `circles/${cid}/phones/${phone}`, data: { memberId } }]),
+    { set: `circles/${cid}/secrets/${memberId}`, data: { proof: passwordProof(cid, phone, password) } },
+  ]);
 }
 
 async function deleteInChunks(db: Firestore, refs: DocumentReference[]) {
@@ -796,50 +796,35 @@ export async function myAdminInstapay(uid: string): Promise<{ number: string; ad
 // ---------------------------------------------------------------------------
 
 export async function joinCircle(rawCode: string, rawPhone: string, uid: string, password?: string): Promise<string> {
-  const db = firestore();
   const code = rawCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
   const phone = normalizePhone(rawPhone);
   if (!phone) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
 
-  const invite = await retry(() => getDoc(inviteRef(db, code)));
-  if (!invite.exists()) throw new AppError('dory/invite-not-found', arabicError({ code: 'dory/invite-not-found' }));
-  const cid = String(invite.data().circleId);
+  // Plain requests (see rest.ts): they answer or fail in seconds, never hang.
+  const invite = await restGet(`invites/${code}`);
+  if (!invite) throw new AppError('dory/invite-not-found', arabicError({ code: 'dory/invite-not-found' }));
+  const cid = String(invite.circleId);
   await assertNotMyOwnCircle(cid, uid);
 
   // Already joined from this device?
-  const existing = await retry(() => getDoc(membershipRef(db, cid, uid)));
-  if (existing.exists()) return cid;
+  if (await restGet(`circles/${cid}/memberships/${uid}`).catch(() => null)) return cid;
 
-  const lookup = await retry(() => getDoc(phoneRef(db, cid, phone)));
-  if (!lookup.exists()) throw new AppError('dory/phone-not-found', arabicError({ code: 'dory/phone-not-found' }));
-  const memberId = String(lookup.data().memberId);
+  const lookup = await restGet(`circles/${cid}/phones/${phone}`);
+  if (!lookup) throw new AppError('dory/phone-not-found', arabicError({ code: 'dory/phone-not-found' }));
+  const memberId = String(lookup.memberId);
 
-  const link = (d: Firestore) => {
-    const batch = writeBatch(d);
-    batch.update(doc(membersCol(d, cid), memberId), { uid });
-    batch.set(membershipRef(d, cid, uid), {
-      uid,
-      circleId: cid,
-      memberId,
-      inviteCode: code,
-      joinedAt: serverTimestamp(),
-      ...(password ? { proof: passwordProof(cid, phone, password) } : {}),
-    });
-    return withTimeout(batch.commit(), 12_000);
-  };
   try {
-    try {
-      await link(db);
-    } catch (e) {
-      // A client stuck after switching accounts never confirms the write:
-      // start a fresh connection (like reopening the app) and send it again.
-      if (errorCode(e) !== 'dory/offline-timeout') throw e;
-      await resetFirestore();
-      await link(firestore());
-    }
+    await restCommit([
+      { update: `circles/${cid}/members/${memberId}`, data: { uid } },
+      {
+        set: `circles/${cid}/memberships/${uid}`,
+        data: { uid, circleId: cid, memberId, inviteCode: code, ...(password ? { proof: passwordProof(cid, phone, password) } : {}) },
+        serverTime: ['joinedAt'],
+      },
+    ]);
   } catch (e) {
     // Wrong password, or the member row is still linked to another phone.
-    if ((e as { code?: string }).code === 'permission-denied') {
+    if (errorCode(e) === 'permission-denied') {
       throw new AppError('dory/signin-failed', arabicError({ code: 'dory/signin-failed' }));
     }
     throw e;
@@ -932,8 +917,8 @@ const joinRequestsCol = (db: Firestore, cid: string) => collection(db, 'circles'
 /** The organizer can't join their own circle as another member (they already are its first member). */
 async function assertNotMyOwnCircle(cid: string, uid: string) {
   try {
-    const snap = await getDoc(circleRef(firestore(), cid));
-    if (snap.exists() && snap.data().adminUid === uid) {
+    const circle = await restGet(`circles/${cid}`);
+    if (circle && circle.adminUid === uid) {
       throw new AppError('dory/own-circle', arabicError({ code: 'dory/own-circle' }));
     }
   } catch (e) {
@@ -954,16 +939,15 @@ export async function phoneStatus(cid: string, rawPhone: string): Promise<{ memb
 export async function memberIdForPhone(cid: string, rawPhone: string): Promise<string | null> {
   const phone = normalizePhone(rawPhone);
   if (!phone) return null;
-  const snap = await retry(() => getDoc(phoneRef(firestore(), cid, phone)));
-  return snap.exists() ? String(snap.data().memberId) : null;
+  const found = await restGet(`circles/${cid}/phones/${phone}`);
+  return found ? String(found.memberId) : null;
 }
 
 /** Is this mobile number already a member of the circle? (Then it signs in instead of asking again.) */
 export async function isPhoneRegistered(cid: string, rawPhone: string): Promise<boolean> {
   const phone = normalizePhone(rawPhone);
   if (!phone) return false;
-  const snap = await retry(() => getDoc(phoneRef(firestore(), cid, phone)));
-  return snap.exists();
+  return (await restGet(`circles/${cid}/phones/${phone}`)) !== null;
 }
 
 /** Member: ask to join a circle from the directory with my own details. */
@@ -1179,7 +1163,7 @@ export async function releaseMyMemberships(uid: string, refs: { id: string; memb
         // With a password the row stays theirs (the admin keeps seeing them as joined);
         // signing back in on any phone takes it over with that password.
         if (await hasMyPassword(r.id, r.memberId!).catch(() => false)) {
-          await deleteDoc(membershipRef(firestore(), r.id, uid)).catch(() => {});
+          await restCommit([{ delete: `circles/${r.id}/memberships/${uid}` }]).catch(() => {});
           return;
         }
         await leaveCircle(r.id, r.memberId!, uid).catch(() => {});
@@ -1211,11 +1195,10 @@ export async function backfillPhones(circle: Circle): Promise<void> {
 }
 
 export async function leaveCircle(cid: string, memberId: string, uid: string): Promise<void> {
-  const db = firestore();
-  const batch = writeBatch(db);
-  batch.update(doc(membersCol(db, cid), memberId), { uid: null });
-  batch.delete(membershipRef(db, cid, uid));
-  await withTimeout(batch.commit());
+  await restCommit([
+    { update: `circles/${cid}/members/${memberId}`, data: { uid: null } },
+    { delete: `circles/${cid}/memberships/${uid}` },
+  ]);
 }
 
 // ---------------------------------------------------------------------------

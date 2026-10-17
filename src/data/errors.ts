@@ -10,7 +10,7 @@ export class AppError extends Error {
   }
 }
 
-const MESSAGES: Record<string, string> = {
+export const MESSAGES: Record<string, string> = {
   // App-level
   'dory/circle-full': 'الجمعية كملت عدد أعضائها. زوّد العدد من الإعدادات الأول.',
   'dory/instapay-invalid': 'رقم أو إيميل إنستاباي مش صحيح. مثال: 01012345678 أو name@instapay',
