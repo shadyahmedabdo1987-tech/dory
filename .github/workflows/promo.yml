@@ -1,5 +1,6 @@
 name: Promo video
 on: { push: { branches: [promo-video] } }
+permissions: { contents: write }
 jobs:
   render:
     runs-on: ubuntu-latest
@@ -14,5 +15,7 @@ jobs:
           OFF=$(cat offset.txt)
           ffmpeg -y -ss "$OFF" -i vid/*.webm -c:v libx264 -preset slow -crf 20 -pix_fmt yuv420p -r 30 -movflags +faststart dory-promo.mp4
           ls -la dory-promo.mp4
-      - uses: actions/upload-artifact@v4
-        with: { name: dory-promo, path: dory-promo.mp4 }
+      - env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          gh release delete promo-video -y --cleanup-tag || true
+          gh release create promo-video dory-promo.mp4 --target promo-video --title "Promo video" --notes "Dory promo" --prerelease
