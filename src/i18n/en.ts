@@ -641,11 +641,17 @@ export const EXACT: Record<string, string> = {
  "تقدر تضيف عضو بنفسك باسمه ورقم موبايله، وابعتله كود الدعوة: يدخل بالكود ونفس الرقم ويختار باسورد. الأعضاء الجداد بيتضاف دورهم في آخر الجدول.": "You can add a member yourself with their name and mobile number, then send them the invite code: they enter the code and the same number and choose a password. New members are added at the end of the schedule.",
  "الرقم ده عليه باسورد": "This number already has a password",
  "اكتب الباسورد اللي اخترته قبل كده علشان تدخل.": "Enter the password you chose before to sign in.",
- "التحصيل لسه ما فتحش": "Collection isn't open yet"
+ "التحصيل لسه ما فتحش": "Collection isn't open yet",
+ "مينفعش يتمسح": "Can't be removed",
+ "امسح العضو": "Remove member",
+ "اسحب العضو لليمين أو دوس عليه دوسة طويلة علشان تمسحه أو تفك ربطه.": "Swipe a member right or long-press to remove or unlink them."
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
 export const PATTERNS: [string, string][] = [
+ ["مسح {0}؟", "Remove {0}?"],
+ ["{0} اتمسح من الجمعية.", "{0} was removed from the circle."],
+ ["{0} قبض دوره بالفعل، فلازم يكمّل أقساطه في الجمعية.", "{0} already received their payout, so they must keep paying."],
  ["الدفع بيفتح يوم {0}", "Payment opens on {0}"],
  ["التحصيل بيفتح يوم {0} — غيّر تاريخ البداية من الإعدادات لو عايز تبدأ بدري.", "Collection opens on {0} — change the start date in settings to start earlier."],
  ["تحصيل {0} بيفتح يوم {1}. لو عايز تبدأ بدري، غيّر تاريخ بداية الجمعية من الإعدادات.", "Collection for {0} opens on {1}. To start earlier, change the circle's start date in settings."],

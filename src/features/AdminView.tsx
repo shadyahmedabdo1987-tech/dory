@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
-import { Linking as RNLinking, Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Animated, I18nManager, Linking as RNLinking, PanResponder, Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,6 +47,7 @@ import {
   PAYOUT_STATUS_LABEL,
 } from '@/core';
 import {
+  saveCircle,
   backfillPhones,
   syncDirectory,
   approveJoin,
@@ -175,7 +176,7 @@ export function AdminView({
 
       {tab === 'collect' && <CollectTab circle={circle} payments={payments} payouts={payouts} uid={uid} />}
       {tab === 'schedule' && <ScheduleTab circle={circle} payments={payments} />}
-      {tab === 'members' && <MembersTab circle={circle} requests={joinRequests} />}
+      {tab === 'members' && <MembersTab circle={circle} payments={payments} requests={joinRequests} />}
       {tab === 'messages' && <MessagesTab circle={circle} payments={payments} uid={uid} />}
     </ScrollView>
     </KeyboardScreen>
@@ -790,7 +791,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
 // Members: invites & device links
 // ---------------------------------------------------------------------------
 
-function MembersTab({ circle, requests }: { circle: Circle; requests: JoinRequest[] }) {
+function MembersTab({ circle, payments, requests }: { circle: Circle; payments: Payment[]; requests: JoinRequest[] }) {
   const { run } = useAction();
   // The organizer manages from their own account, so they don't "join" as a member.
   const others = circle.members.filter((m) => m.id !== circle.ownerMemberId);
@@ -802,6 +803,28 @@ function MembersTab({ circle, requests }: { circle: Circle; requests: JoinReques
       run(() => unlinkMember(circle, m));
     }
   };
+
+  /** Remove the member from the circle entirely (their turn leaves the schedule). */
+  const remove = async (m: Member) => {
+    if (circle.periods.some((p) => p.kind === 'payout' && p.recipientId === m.id && p.paidOut)) {
+      return alert('مينفعش يتمسح', `${m.name} قبض دوره بالفعل، فلازم يكمّل أقساطه في الجمعية.`, undefined, { icon: 'lock-closed', tone: 'info' });
+    }
+    const paid = payments.filter((p) => p.memberId === m.id).length;
+    const msg =
+      `${m.name} هيتشال من الجمعية خالص: دوره هيتشال من الجدول، وهيخرج من التطبيق لو كان داخل.` +
+      (paid ? ` وعنده ${formatNumber(paid)} دفعة متسجّلة هتفضل في السجل.` : '');
+    if (await confirm(`مسح ${m.name}؟`, msg, 'امسح العضو', true)) {
+      run(() => saveCircle(circle, circle.members.filter((x) => x.id !== m.id)), { success: `${m.name} اتمسح من الجمعية.` });
+    }
+  };
+
+  /** Long press: everything you can do with this member. */
+  const actions = (m: Member) =>
+    alert(m.name, m.uid ? 'داخل من موبايله' : 'لسه ما دخلش', [
+      ...(m.uid ? [{ text: 'فك الربط', icon: 'unlink-outline' as const, onPress: () => unlink(m) }] : []),
+      { text: 'امسح العضو', style: 'destructive' as const, icon: 'trash-outline' as const, onPress: () => remove(m) },
+      { text: 'إلغاء', style: 'cancel' as const },
+    ]);
 
   return (
     <View style={{ gap: space.md }}>
@@ -823,7 +846,8 @@ function MembersTab({ circle, requests }: { circle: Circle; requests: JoinReques
               <Badge label="الأدمن" tone="gold" />
             </View>
           ) : (
-          <View key={m.id} style={[styles.row, k > 0 && styles.divider]}>
+          <SwipeToDelete key={m.id} onDelete={() => remove(m)} style={k > 0 ? styles.divider : undefined}>
+          <Pressable onLongPress={() => actions(m)} delayLongPress={350} style={styles.row}>
             <Ionicons
               name={m.uid ? 'phone-portrait' : 'phone-portrait-outline'}
               size={22}
@@ -841,10 +865,59 @@ function MembersTab({ circle, requests }: { circle: Circle; requests: JoinReques
             {m.uid ? (
               <IconButton icon="unlink-outline" label="فك الربط" color={colors.danger} bg={colors.dangerSoft} onPress={() => unlink(m)} />
             ) : null}
-          </View>
+          </Pressable>
+          </SwipeToDelete>
           ),
         )}
       </Card>
+      <Text variant="caption" center>
+        اسحب العضو لليمين أو دوس عليه دوسة طويلة علشان تمسحه أو تفك ربطه.
+      </Text>
+    </View>
+  );
+}
+
+/** Drag a row to the right to reveal a delete button behind it. */
+function SwipeToDelete({ children, onDelete, style }: { children: ReactNode; onDelete: () => void; style?: object }) {
+  const OPEN = 88;
+  const x = useMemo(() => new Animated.Value(0), []);
+  const [open, setOpen] = useState(false);
+  const settle = (to: number) => {
+    setOpen(to !== 0);
+    Animated.spring(x, { toValue: to, useNativeDriver: true, bounciness: 4 }).start();
+  };
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        // Only clear horizontal drags — vertical scrolling stays with the list.
+        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+        onPanResponderMove: (_, g) => x.setValue(Math.max(0, Math.min(OPEN * 1.4, g.dx + (open ? OPEN : 0)))),
+        onPanResponderRelease: (_, g) => settle(g.dx + (open ? OPEN : 0) > OPEN / 2 ? OPEN : 0),
+        onPanResponderTerminate: () => settle(open ? OPEN : 0),
+      }),
+    [open],
+  );
+  return (
+    <View style={[{ overflow: 'hidden' }, style]}>
+      <View style={styles.swipeBehind}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="امسح العضو"
+          onPress={() => {
+            settle(0);
+            onDelete();
+          }}
+          style={styles.swipeDelete}
+        >
+          <Ionicons name="trash" size={22} color={colors.white} />
+          <Text variant="caption" weight="bold" color={colors.white}>
+            امسح
+          </Text>
+        </Pressable>
+      </View>
+      <Animated.View style={{ transform: [{ translateX: x }], backgroundColor: colors.card }} {...pan.panHandlers}>
+        {children}
+      </Animated.View>
     </View>
   );
 }
@@ -1166,6 +1239,9 @@ function PayInfoCard({ circle }: { circle: Circle }) {
 }
 
 const styles = StyleSheet.create({
+  swipeBehind: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.danger },
+  // Physical left edge in both directions (RN swaps left/right under RTL).
+  swipeDelete: { position: 'absolute', top: 0, bottom: 0, width: 88, alignItems: 'center', justifyContent: 'center', gap: 2, ...(I18nManager.isRTL ? { right: 0 } : { left: 0 }) },
   hero: { backgroundColor: colors.primary, borderRadius: radius.lg, padding: space.xl, alignItems: 'center', gap: 2 },
   heroHint: { marginTop: space.sm, alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md },
