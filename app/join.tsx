@@ -8,7 +8,7 @@ import { extractInviteCode, FREQUENCY_LABEL, formatDate, formatMoney, formatNumb
 import {
   addPendingJoin,
   AppError,
-  phoneStatus,
+  isPhoneRegistered,
   memberIdForPhone,
   hasMyPassword,
   setMyPassword,
@@ -316,14 +316,21 @@ function JoinSheet({
   const next = () =>
     circle &&
     run(async () => {
-      const registered = await phoneStatus(circle.id, phone);
-      // Added by the admin (or reset) and no password yet → choose one now.
-      if (registered && !registered.secured && !(await hasMyPassword(circle.id, registered.memberId).catch(() => false))) {
+      if (await isPhoneRegistered(circle.id, phone)) {
+        // Try the number alone: it only works while that member has no password yet
+        // (e.g. the admin added them) — then they're linked and choose one now.
+        await ensurePushToken().catch(() => null);
+        try {
+          await joinCircle(code, phone, uid);
+        } catch (e) {
+          if (errorCode(e) !== 'dory/signin-failed') throw e;
+          setPassword('');
+          return setStep('login');
+        }
         setPassword('');
         setPassword2('');
         return setStep('setpw');
       }
-      if (registered) return setStep('login');
       if (!allowNew) throw new AppError('dory/phone-not-found', arabicError({ code: 'dory/phone-not-found' }));
       setStep('details');
     });
@@ -349,19 +356,9 @@ function JoinSheet({
     circle &&
     run(async () => {
       if (password.length < MIN_PASSWORD || password !== password2) throw new AppError('auth/weak-password', arabicError({ code: 'auth/weak-password' }));
-      await ensurePushToken().catch(() => null);
-      try {
-        await joinCircle(code, phone, uid, password);
-      } catch (e) {
-        // The number already has a password after all → sign in with it instead.
-        if (errorCode(e) !== 'dory/signin-failed') throw e;
-        setPassword('');
-        setPassword2('');
-        setStep('login');
-        return alert('الرقم ده عليه باسورد', 'اكتب الباسورد اللي اخترته قبل كده علشان تدخل.');
-      }
-      const memberId = await memberIdForPhone(circle.id, phone).catch(() => null);
-      if (memberId) await setMyPassword(circle.id, memberId, phone, password);
+      const memberId = await memberIdForPhone(circle.id, phone);
+      if (!memberId) throw new AppError('dory/phone-not-found', arabicError({ code: 'dory/phone-not-found' }));
+      await setMyPassword(circle.id, memberId, phone, password);
       writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
       alert('تم حفظ الباسورد ✓', 'بقيت مربوط بالجمعية باسمك ودورك. المرة الجاية تدخل بالكود ورقمك والباسورد ده.');
       open(circle.id);

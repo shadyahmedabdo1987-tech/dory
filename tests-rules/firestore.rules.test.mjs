@@ -257,15 +257,6 @@ describe('join requests (picked from the directory, approved in the app)', () =>
     await assertFails(getDoc(doc(admin(), 'circles', CID, 'secrets', 'm1')));
   });
 
-  it('marks a number as secured once its member chose a password', async () => {
-    const db = anon('u1');
-    await joinBatch(db, 'u1');
-    await assertSucceeds(setDoc(doc(db, 'circles', CID, 'phones', '201011111111'), { memberId: 'm1', secured: true }));
-    await assertFails(setDoc(doc(db, 'circles', CID, 'phones', '201011111111'), { memberId: 'm2', secured: true }));
-    await assertFails(setDoc(doc(anon('zz'), 'circles', CID, 'phones', '201011111111'), { memberId: 'm1', secured: false }));
-    await assertSucceeds(setDoc(doc(admin(), 'circles', CID, 'phones', '201011111111'), { memberId: 'm1', secured: false }));
-  });
-
   it('lets a member set their own password, and the admin reset it', async () => {
     const db = anon('u1');
     await joinBatch(db, 'u1');

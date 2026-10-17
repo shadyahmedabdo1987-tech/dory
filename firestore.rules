@@ -176,22 +176,14 @@ service cloud.firestore {
       match /phones/{phone} {
         allow get: if signedIn();
         allow list: if isAdmin(cid);
-        // `secured`: the member has chosen a password (so signing in asks for it).
         allow create, update: if isAdminAfter(cid)
-          && request.resource.data.keys().hasOnly(['memberId', 'secured'])
-          && request.resource.data.memberId is string
-          && (!('secured' in request.resource.data) || request.resource.data.secured is bool);
-        // A member registers their own number / marks it secured after choosing a password.
+          && request.resource.data.keys().hasOnly(['memberId'])
+          && request.resource.data.memberId is string;
+        // A member who joined before numbers were the sign-in key registers theirs.
         allow create: if isMember(cid)
           && phone.matches('^[0-9]{8,15}$')
-          && request.resource.data.keys().hasOnly(['memberId', 'secured'])
-          && request.resource.data.memberId == myMemberId(cid)
-          && (!('secured' in request.resource.data) || request.resource.data.secured == true);
-        allow update: if isMember(cid)
-          && resource.data.memberId == myMemberId(cid)
-          && request.resource.data.memberId == resource.data.memberId
-          && request.resource.data.keys().hasOnly(['memberId', 'secured'])
-          && request.resource.data.secured == true;
+          && request.resource.data.keys().hasOnly(['memberId'])
+          && request.resource.data.memberId == myMemberId(cid);
         allow delete: if isAdmin(cid);
       }
 
