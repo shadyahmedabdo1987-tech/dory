@@ -87,10 +87,16 @@ export function IntroSplash({ ready, onShown, onDone }: { ready: boolean; onShow
             transform: [{ translateY: title.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
           }}
         >
-          <Text weight="bold" color={colors.white} style={{ fontSize: 40, lineHeight: 60 }}>
+          <Text
+            weight="bold"
+            color={colors.white}
+            // Full width: the text can be measured before the Cairo font arrives,
+            // and a width sized to that measurement cut off the last letter.
+            style={{ fontSize: 40, lineHeight: 72, width: "100%", textAlign: "center" }}
+          >
             دوري
           </Text>
-          <Text color="rgba(255,255,255,0.75)" style={{ fontSize: 15 }}>
+          <Text color="rgba(255,255,255,0.75)" style={{ fontSize: 15, lineHeight: 26, width: "100%", textAlign: "center" }}>
             جمعيتك في جيبك… بأمان
           </Text>
         </Animated.View>
