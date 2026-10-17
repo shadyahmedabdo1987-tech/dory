@@ -1,0 +1,15 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch();
+const ctx = await b.newContext({ viewport: { width: 1080, height: 1920 }, recordVideo: { dir: 'vid', size: { width: 1080, height: 1920 } } });
+const t0 = Date.now();
+const p = await ctx.newPage();
+await p.goto('file://' + process.cwd() + '/index.html?rec=1', { waitUntil: 'networkidle' });
+await p.evaluate(() => document.fonts.ready);
+await p.waitForTimeout(1500);
+const offset = (Date.now() - t0) / 1000;
+await p.evaluate(() => window.__start());
+const total = await p.$$eval('.scene', s => s.reduce((a, x) => a + +x.dataset.dur, 0));
+await p.waitForTimeout(total + 300);
+await ctx.close(); await b.close();
+const fs = await import('fs');
+fs.writeFileSync('offset.txt', String(offset));
