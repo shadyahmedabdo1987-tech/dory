@@ -1159,7 +1159,17 @@ export async function rejectJoin(cid: string, requesterUid: string, pushToken?: 
  */
 export async function releaseMyMemberships(uid: string, refs: { id: string; memberId?: string }[]): Promise<void> {
   await Promise.all(
-    refs.filter((r) => r.memberId).map((r) => leaveCircle(r.id, r.memberId!, uid).catch(() => {})),
+    refs
+      .filter((r) => r.memberId)
+      .map(async (r) => {
+        // With a password the row stays theirs (the admin keeps seeing them as joined);
+        // signing back in on any phone takes it over with that password.
+        if (await hasMyPassword(r.id, r.memberId!).catch(() => false)) {
+          await deleteDoc(membershipRef(firestore(), r.id, uid)).catch(() => {});
+          return;
+        }
+        await leaveCircle(r.id, r.memberId!, uid).catch(() => {});
+      }),
   );
 }
 

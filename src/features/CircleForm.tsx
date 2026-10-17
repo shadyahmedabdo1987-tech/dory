@@ -314,6 +314,13 @@ export function CircleForm({
                         داخل من موبايله
                       </Text>
                     </Row>
+                  ) : !creating ? (
+                    <Row gap={4}>
+                      <Ionicons name="time-outline" size={14} color={colors.muted} />
+                      <Text variant="caption" color={colors.muted}>
+                        لسه ما دخلش
+                      </Text>
+                    </Row>
                   ) : null}
                 </Row>
                 <Row gap={space.xs}>
