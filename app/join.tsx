@@ -155,7 +155,15 @@ function FoundCircle({
   const { refs } = useMyCircles(uid);
   const pending = usePendingJoins();
   const [joining, setJoining] = useState(false);
-  const state = (refs ?? []).some((r) => r.id === circle.id)
+  // Wait for "my circles" so the organizer (or an existing member) isn't offered to join again.
+  if (refs === undefined) {
+    return (
+      <View style={styles.loadingRoot}>
+        <SpinningLogo label="بنفتح الجمعية بتاعتك…" />
+      </View>
+    );
+  }
+  const state = refs.some((r) => r.id === circle.id)
     ? 'member'
     : pending.some((p) => p.cid === circle.id)
       ? 'waiting'

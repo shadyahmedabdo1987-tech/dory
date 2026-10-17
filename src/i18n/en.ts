@@ -624,7 +624,8 @@ export const EXACT: Record<string, string> = {
  "لسه مش عضو في جمعية.": "Not a member of a circle yet.",
  "رقم الموبايل": "Mobile number",
  "الاسم ده اللي اتسجّلت بيه في الجمعية، وصاحب الجمعية هو اللي يقدر يغيّره.": "This is the name you registered with; only the organizer can change it.",
- "حساب إنستاباي ده بيتكتب لوحده لما تطلب القبض.": "This InstaPay account is filled in automatically when you request your payout."
+ "حساب إنستاباي ده بيتكتب لوحده لما تطلب القبض.": "This InstaPay account is filled in automatically when you request your payout.",
+ "إنت صاحب الجمعية دي ومسجّل فيها بالفعل. علشان تجرب كعضو، استخدم موبايل تاني أو اعمل تسجيل خروج من حساب صاحب الجمعية الأول.": "You run this circle and are already in it. To try it as a member, use another phone or sign out of the organizer account first."
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */

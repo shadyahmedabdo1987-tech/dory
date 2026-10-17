@@ -800,6 +800,7 @@ export async function joinCircle(rawCode: string, rawPhone: string, uid: string,
   const invite = await retry(() => getDoc(inviteRef(db, code)));
   if (!invite.exists()) throw new AppError('dory/invite-not-found', arabicError({ code: 'dory/invite-not-found' }));
   const cid = String(invite.data().circleId);
+  await assertNotMyOwnCircle(cid, uid);
 
   // Already joined from this device?
   const existing = await retry(() => getDoc(membershipRef(db, cid, uid)));
@@ -913,6 +914,19 @@ export interface JoinRequest {
 
 const joinRequestsCol = (db: Firestore, cid: string) => collection(db, 'circles', cid, 'joinRequests');
 
+/** The organizer can't join their own circle as another member (they already are its first member). */
+async function assertNotMyOwnCircle(cid: string, uid: string) {
+  try {
+    const snap = await getDoc(circleRef(firestore(), cid));
+    if (snap.exists() && snap.data().adminUid === uid) {
+      throw new AppError('dory/own-circle', arabicError({ code: 'dory/own-circle' }));
+    }
+  } catch (e) {
+    if (errorCode(e) === 'dory/own-circle') throw e;
+    // Not readable → not mine.
+  }
+}
+
 /** Is this mobile number already a member of the circle? (Then it signs in instead of asking again.) */
 export async function isPhoneRegistered(cid: string, rawPhone: string): Promise<boolean> {
   const phone = normalizePhone(rawPhone);
@@ -932,6 +946,7 @@ export async function requestJoin(
   if (!name) throw new AppError('dory/name-missing', arabicError({ code: 'dory/name-missing' }));
   const phone = normalizePhone(input.phone);
   if (!phone) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
+  await assertNotMyOwnCircle(cid, uid);
   if (await isPhoneRegistered(cid, phone)) throw new AppError('dory/phone-taken', arabicError({ code: 'dory/phone-taken' }));
   if (input.password.length < MIN_PASSWORD) throw new AppError('auth/weak-password', arabicError({ code: 'auth/weak-password' }));
   const raw = input.payAccount?.trim() ?? '';
