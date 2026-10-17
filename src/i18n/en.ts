@@ -638,7 +638,9 @@ export const EXACT: Record<string, string> = {
  "تم حفظ الباسورد ✓": "Password saved ✓",
  "بقيت مربوط بالجمعية باسمك ودورك. المرة الجاية تدخل بالكود ورقمك والباسورد ده.": "You're now linked to the circle with your name and turn. Next time sign in with the code, your number and this password.",
  "رقم موبايل العضو (إنستاباي / فودافون كاش)": "Member's mobile (InstaPay / Vodafone Cash)",
- "تقدر تضيف عضو بنفسك باسمه ورقم موبايله، وابعتله كود الدعوة: يدخل بالكود ونفس الرقم ويختار باسورد. الأعضاء الجداد بيتضاف دورهم في آخر الجدول.": "You can add a member yourself with their name and mobile number, then send them the invite code: they enter the code and the same number and choose a password. New members are added at the end of the schedule."
+ "تقدر تضيف عضو بنفسك باسمه ورقم موبايله، وابعتله كود الدعوة: يدخل بالكود ونفس الرقم ويختار باسورد. الأعضاء الجداد بيتضاف دورهم في آخر الجدول.": "You can add a member yourself with their name and mobile number, then send them the invite code: they enter the code and the same number and choose a password. New members are added at the end of the schedule.",
+ "الرقم ده عليه باسورد": "This number already has a password",
+ "اكتب الباسورد اللي اخترته قبل كده علشان تدخل.": "Enter the password you chose before to sign in."
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */

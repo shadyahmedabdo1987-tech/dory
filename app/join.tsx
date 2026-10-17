@@ -354,11 +354,11 @@ function JoinSheet({
         await joinCircle(code, phone, uid, password);
       } catch (e) {
         // The number already has a password after all → sign in with it instead.
-        if (errorCode(e) === 'dory/signin-failed') {
-          setPassword2('');
-          setStep('login');
-        }
-        throw e;
+        if (errorCode(e) !== 'dory/signin-failed') throw e;
+        setPassword('');
+        setPassword2('');
+        setStep('login');
+        return alert('الرقم ده عليه باسورد', 'اكتب الباسورد اللي اخترته قبل كده علشان تدخل.');
       }
       const memberId = await memberIdForPhone(circle.id, phone).catch(() => null);
       if (memberId) await setMyPassword(circle.id, memberId, phone, password);
