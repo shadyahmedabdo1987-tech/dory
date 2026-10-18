@@ -652,7 +652,9 @@ export const EXACT: Record<string, string> = {
  "👑 صاحب الجمعية (إنت)": "👑 Organizer (you)",
  "إنستاباي بتاعك من حسابك — الأعضاء بيحوّلوا عليه.": "Your InstaPay from your account — members transfer to it.",
  "سجّل رقم أو عنوان إنستاباي في حسابي علشان الأعضاء يحوّلوا عليه.": "Add your InstaPay number or address in My account so members can transfer to it.",
- "سجّله": "Add it"
+ "سجّله": "Add it",
+ " القرعة بتعيد ترتيب الأدوار اللي لسه ما جاش ميعادها بس — اللي قبض أو دوره جه بيفضل مكانه.": " The draw reorders only turns that haven't come yet — anyone already paid or whose turn arrived stays put.",
+ "قرعة على الأدوار الجاية": "Draw for the upcoming turns"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */

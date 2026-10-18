@@ -342,3 +342,18 @@ describe('owner keeps the first turn', () => {
     assert.equal(drawablePayouts(moved).fixed.length, 0);
   });
 });
+
+it('redraw only touches turns that have not come yet', async () => {
+  const { openPayouts, assignRecipients } = await import('../src/core/schedule.ts');
+  const periods = [
+    { id: 'p1', kind: 'payout', recipientId: 'owner', paidOut: true },
+    { id: 'p2', kind: 'payout', recipientId: 'a' },
+    { id: 'p3', kind: 'payout', recipientId: 'b' },
+    { id: 'p4', kind: 'payout', recipientId: 'c' },
+  ] as any;
+  const open = openPayouts({ periods, ownerMemberId: 'owner' }, 1);
+  assert.deepEqual(open.map((p: any) => p.id), ['p3', 'p4']);
+  const next = assignRecipients(periods, ['p3', 'p4'], ['c', 'b']);
+  assert.deepEqual(next.map((p: any) => p.recipientId), ['owner', 'a', 'c', 'b']);
+  assert.throws(() => assignRecipients(periods, ['p3', 'p4'], ['a', 'b']));
+});

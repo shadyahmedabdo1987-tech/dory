@@ -468,6 +468,28 @@ export function drawablePayouts(circle: Pick<Circle, 'periods' | 'ownerMemberId'
   return { fixed, open: payouts.slice(fixed.length) };
 }
 
+/**
+ * Turns still open to a (re)draw: payout periods that haven't started and
+ * weren't paid out, except the organizer's fixed first turn. Lets the
+ * organizer redraw the rest of the order at any time.
+ */
+export function openPayouts(circle: Pick<Circle, 'periods' | 'ownerMemberId'>, current: number): Period[] {
+  const { fixed } = drawablePayouts(circle);
+  const fixedIds = new Set(fixed.map((p) => p.id));
+  return circle.periods.filter((p, i) => p.kind === 'payout' && !p.paidOut && i > current && !fixedIds.has(p.id));
+}
+
+/** Gives these periods (in schedule order) the drawn recipients, one each. */
+export function assignRecipients(periods: Period[], periodIds: string[], recipientIds: string[]): Period[] {
+  const targets = periods.filter((p) => periodIds.includes(p.id));
+  const sorted = (xs: string[]) => [...xs].sort().join('|');
+  if (targets.length !== recipientIds.length || sorted(targets.map((p) => p.recipientId ?? '')) !== sorted(recipientIds)) {
+    throw new Error('Drawn order does not match the open turns');
+  }
+  let k = 0;
+  return periods.map((p) => (periodIds.includes(p.id) ? { ...p, recipientId: recipientIds[k++], paidOut: false } : p));
+}
+
 /** Combines the fixed owner turn with the drawn order. */
 export function ownerFirstOrder(circle: Pick<Circle, 'periods' | 'ownerMemberId'>, drawn: string[]): string[] {
   const { fixed } = drawablePayouts(circle);

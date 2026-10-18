@@ -14,9 +14,9 @@ import {
   addExtraInstallment,
   addExtraTurn,
   currentIndex,
-  applyTurnOrder,
+  assignRecipients,
+  openPayouts,
   drawablePayouts,
-  ownerFirstOrder,
   FREQUENCY_LABEL,
   formatDate,
   formatMoney,
@@ -624,14 +624,16 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
   const [extraOpen, setExtraOpen] = useState(false);
   const [turnOpen, setTurnOpen] = useState(false);
   const [wheelOpen, setWheelOpen] = useState(false);
-  const { fixed: ownerTurn, open: drawable } = drawablePayouts(circle);
+  const { fixed: ownerTurn } = drawablePayouts(circle);
+  // Any turn that hasn't come yet can be (re)drawn — before or after the circle starts.
+  const drawable = openPayouts(circle, current);
+  const drawStarted = current >= 0 || circle.periods.some((p) => p.paidOut);
   const nameOf = (id?: string) => circle.members.find((m) => m.id === id)?.name ?? '—';
   const wheelEntries = drawable.map((p) => ({ key: p.id, value: p.recipientId ?? '', name: nameOf(p.recipientId) }));
   const [amount, setAmount] = useState(String(circle.installment));
   const [note, setNote] = useState('');
 
   const hasPayments = (periodId: string) => payments.some((p) => p.periodId === periodId);
-  const anyPayout = circle.periods.some((p) => p.paidOut);
   const unit = FREQUENCY_LABEL[circle.frequency].unit;
 
   const doPostpone = async (at: number) => {
@@ -683,12 +685,13 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
             icon="sync-circle-outline"
             variant="secondary"
             style={{ flex: 1 }}
-            disabled={anyPayout || current >= 0}
+            disabled={drawable.length < 2}
             onPress={() => setWheelOpen(true)}
           />
         </Row>
         <Text variant="caption">
-          دوس على أي فترة لتأجيلها، أو تحريكها، أو حذفها.{current >= 0 || anyPayout ? ' (القرعة بتتقفل بعد ما الجمعية تبدأ.)' : ''}
+          دوس على أي فترة لتأجيلها، أو تحريكها، أو حذفها.
+          {drawStarted ? ' القرعة بتعيد ترتيب الأدوار اللي لسه ما جاش ميعادها بس — اللي قبض أو دوره جه بيفضل مكانه.' : ''}
         </Text>
       </Card>
 
@@ -755,10 +758,17 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         visible={wheelOpen}
         entries={wheelEntries}
         onClose={() => setWheelOpen(false)}
-        title={ownerTurn.length ? `قرعة الأعضاء (${nameOf(ownerTurn[0].recipientId)} ثابت في الدور الأول)` : undefined}
+        title={
+          drawStarted
+            ? 'قرعة على الأدوار الجاية'
+            : ownerTurn.length
+              ? `قرعة الأعضاء (${nameOf(ownerTurn[0].recipientId)} ثابت في الدور الأول)`
+              : undefined
+        }
         onDone={(order) => {
           setWheelOpen(false);
-          run(() => mutatePeriods(circle.id, (ps) => applyTurnOrder(ps, ownerFirstOrder({ ...circle, periods: ps }, order))), {
+          const ids = drawable.map((p) => p.id);
+          run(() => mutatePeriods(circle.id, (ps) => assignRecipients(ps, ids, order)), {
             success: 'اتسجّل ترتيب القبض الجديد.',
           });
         }}
