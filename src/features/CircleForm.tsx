@@ -25,7 +25,6 @@ import {
   type Frequency,
   type Member,
   monthsLabel,
-  periodsBetween,
 } from '@/core';
 import { Button, Card, Chip, Field, IconButton, Row, Text } from '@/ui/components';
 import { isEn, tr } from '@/i18n';
@@ -209,10 +208,6 @@ export function CircleForm({
   };
 
   const cadenceText = stepN ? monthsLabel(stepN) : 'كل أسبوع';
-  // Possible last months: every step from the start, up to 4 years.
-  const endChoices = stepN
-    ? Array.from({ length: Math.min(48, Math.floor(48 / stepN)) }, (_, k) => addMonths(startDate, stepN * (k + 1)))
-    : [];
   const size = mode === 'create' ? (slots ?? members.length) : Math.max(members.length, slots ?? 0);
   const pot = Number.isFinite(installment) ? installment * size : 0;
 
@@ -290,30 +285,6 @@ export function CircleForm({
           )}
         </Card>
 
-        {stepN ? (
-          <Card>
-            <Text variant="heading">الجمعية هتخلص إمتى؟</Text>
-            <Text variant="caption">اختار آخر شهر، وعدد الأدوار بيتحسب لوحده ({cadenceText}).</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
-              {endChoices.map((iso) => {
-                const p = parseISODate(iso);
-                const n = periodsBetween(startDate, iso, stepN);
-                return (
-                  <Chip
-                    key={iso}
-                    label={`${monthName(p.m)} ${formatNumber(p.y).replace(/[٬,]/g, '')}`}
-                    sub={`${formatNumber(n)} دور`}
-                    active={!!slots && slots === n}
-                    onPress={() => setSlotsText(String(n))}
-                  />
-                );
-              })}
-            </ScrollView>
-            {slots ? (
-              <Text variant="caption" weight="bold" color={colors.primary}>
-                {formatNumber(slots)} دور • من {formatDate(startDate)} لحد {formatDate(addMonths(startDate, stepN * (slots - 1)))}
-              </Text>
-            ) : null}
           </Card>
         ) : null}
 

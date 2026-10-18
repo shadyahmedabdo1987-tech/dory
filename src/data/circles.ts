@@ -38,6 +38,8 @@ import {
   type Frequency,
   requiresReceipt,
   passwordProof,
+  sha256,
+  toAsciiDigits,
   MIN_PASSWORD,
   validateClaim,
   type Announcement,
@@ -513,30 +515,28 @@ export async function hasMyPassword(cid: string, memberId: string): Promise<bool
  * Only for members who haven't signed in yet (their row has no device).
  */
 export async function issueFirstLoginCode(cid: string, memberId: string, rawPhone: string): Promise<string> {
-  const given = normalizePhone(rawPhone);
-  if (!given) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
+  const phone = normalizePhone(rawPhone);
+  if (!phone) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
   const bytes = new Uint32Array(1);
   globalThis.crypto?.getRandomValues?.(bytes);
   const n = String(100000 + ((bytes[0] || Math.floor(Math.random() * 2 ** 32)) % 900000));
-  // 123-456: a shape nobody picks as a password, so signing in with it always asks for a new one.
   const code = `${n.slice(0, 3)}-${n.slice(3)}`;
-  // The number the member signs in with is the one in the lookup — use exactly that
-  // (the number saved on the row can be written differently, and then the code never matched).
-  const signInPhone = await withTimeout(
+  // Older codes of this member stop working.
+  const old = await withTimeout(
     getDocs(query(collection(firestore(), 'circles', cid, 'phones'), where('memberId', '==', memberId))),
     8_000,
   )
-    .then((snap) => {
-      const ids = snap.docs.map((d) => d.id).filter((id) => !id.startsWith('code-'));
-      return ids.includes(given) ? given : (ids[0] ?? given);
-    })
-    .catch(() => given);
-  const phone = signInPhone;
-  await restCommit([{ delete: `circles/${cid}/secrets/${memberId}` }]).catch(() => {});
+    .then((snap) => snap.docs.map((d) => d.id).filter((id) => id.startsWith('k-')))
+    .catch(() => [] as string[]);
   await restCommit([
-    { set: `circles/${cid}/secrets/${memberId}`, data: { proof: passwordProof(cid, phone, code) } },
-    // A public marker (no secret in it) so the sign-in screen asks for the code instead of a password.
+    // The old password goes: the member enters with the code and chooses a new one.
+    { delete: `circles/${cid}/secrets/${memberId}` },
+    ...old.map((id) => ({ delete: `circles/${cid}/phones/${id}` })),
+    // "This member has a code" (so the sign-in screen asks for it)…
     { set: `circles/${cid}/phones/${codeMarker(memberId)}`, data: { memberId } },
+    // …and the code itself, only as a one-way fingerprint in the document's name:
+    // the right code finds it, nothing else does.
+    { set: `circles/${cid}/phones/${codeKey(cid, memberId, code)}`, data: { memberId } },
   ]);
   const all = readPrefsSync().memberCodes ?? {};
   writePrefs({ memberCodes: { ...all, [cid]: { ...(all[cid] ?? {}), [memberId]: code } } });
@@ -545,9 +545,16 @@ export async function issueFirstLoginCode(cid: string, memberId: string, rawPhon
 
 /** Remove a member's sign-in code (only for members who haven't signed in): they choose a password on entry. */
 export async function clearFirstLoginCode(cid: string, memberId: string): Promise<void> {
+  const keys = await withTimeout(
+    getDocs(query(collection(firestore(), 'circles', cid, 'phones'), where('memberId', '==', memberId))),
+    8_000,
+  )
+    .then((snap) => snap.docs.map((d) => d.id).filter((id) => id.startsWith('k-')))
+    .catch(() => [] as string[]);
   await restCommit([
     { delete: `circles/${cid}/secrets/${memberId}` },
     { delete: `circles/${cid}/phones/${codeMarker(memberId)}` },
+    ...keys.map((id) => ({ delete: `circles/${cid}/phones/${id}` })),
   ]);
   const all = readPrefsSync().memberCodes ?? {};
   if (all[cid]?.[memberId]) {
@@ -555,6 +562,38 @@ export async function clearFirstLoginCode(cid: string, memberId: string): Promis
     writePrefs({ memberCodes: { ...all, [cid]: rest } });
   }
 }
+
+/** Where a code's fingerprint lives (code written as 123-456). */
+const codeKey = (cid: string, memberId: string, code: string) => `k-${sha256(`dory:code:v1:${cid}:${memberId}:${code}`).slice(0, 40)}`;
+
+/**
+ * Member: enter with the organizer's sign-in code. The code is checked against its
+ * fingerprint; then the number links to the member row (no password yet), and the
+ * member chooses one right after.
+ */
+export async function joinWithLoginCode(rawCode: string, rawPhone: string, uid: string, typed: string): Promise<string> {
+  const digits = toAsciiDigits(typed).replace(/\D/g, '');
+  if (digits.length !== 6) throw new AppError('dory/code-wrong', CODE_WRONG);
+  const loginCode = `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  const invite = await restGet(`invites/${rawCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')}`);
+  if (!invite) throw new AppError('dory/invite-not-found', arabicError({ code: 'dory/invite-not-found' }));
+  const cid = String(invite.circleId);
+  const memberId = await memberIdForPhone(cid, rawPhone);
+  if (!memberId) throw new AppError('dory/phone-not-found', arabicError({ code: 'dory/phone-not-found' }));
+  const found = await restGet(`circles/${cid}/phones/${codeKey(cid, memberId, loginCode)}`);
+  if (!found || String(found.memberId) !== memberId) throw new AppError('dory/code-wrong', CODE_WRONG);
+  try {
+    return await joinCircle(rawCode, rawPhone, uid);
+  } catch (e) {
+    // The member chose a password in the meantime (the code was already used).
+    if (errorCode(e) === 'dory/signin-failed') {
+      throw new AppError('dory/code-used', 'الكود ده اتستخدم قبل كده واتعمل باسورد. ادخل بالباسورد، أو اطلب من صاحب الجمعية كود جديد.');
+    }
+    throw e;
+  }
+}
+
+const CODE_WRONG = 'كود الدخول مش صح. اتأكد من الكود اللي وصلك من صاحب الجمعية، أو اطلب منه كود جديد.';
 
 /** Marker doc id: this member was given a sign-in code by the organizer. */
 const codeMarker = (memberId: string) => `code-${memberId}`;
@@ -1362,14 +1401,14 @@ export async function releaseMyMemberships(uid: string, refs: { id: string; memb
 export async function backfillPhones(circle: Circle): Promise<void> {
   const db = firestore();
   const existing = await getDocs(collection(db, 'circles', circle.id, 'phones'));
-  const numbers = existing.docs.filter((d) => !d.id.startsWith('code-'));
+  const numbers = existing.docs.filter((d) => /^\d+$/.test(d.id));
   const taken = new Set(numbers.map((d) => d.id));
   const linked = new Set(numbers.map((d) => String(d.data().memberId)));
   const batch = writeBatch(db);
   let n = 0;
   // A sign-in code is done with once the member is in: drop its marker (and the copy kept on this phone).
   for (const d of existing.docs) {
-    if (!d.id.startsWith('code-')) continue;
+    if (/^\d+$/.test(d.id)) continue;
     const mid = String(d.data().memberId);
     const m = circle.members.find((x) => x.id === mid);
     if (m && !m.uid) continue;

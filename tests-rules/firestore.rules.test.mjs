@@ -790,3 +790,28 @@ describe('private messages', () => {
 function addDocTo(db, data) {
   return setDoc(doc(collection(db, 'circles', CID, 'announcements')), data);
 }
+
+describe('organizer sign-in codes', () => {
+  it('admin stores a code fingerprint; the member finds it and joins, then sets a password', async () => {
+    const adb = admin();
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'circles', CID, 'secrets', 'm1'), { proof: 'f'.repeat(64) }));
+    // Issue: old password gone, "has a code" marker, and the code's fingerprint doc.
+    await assertSucceeds(deleteDoc(doc(adb, 'circles', CID, 'secrets', 'm1')));
+    await assertSucceeds(setDoc(doc(adb, 'circles', CID, 'phones', 'code-m1'), { memberId: 'm1' }));
+    await assertSucceeds(setDoc(doc(adb, 'circles', CID, 'phones', 'k-' + 'a'.repeat(40)), { memberId: 'm1' }));
+    // Nobody but the admin can write them.
+    await assertFails(setDoc(doc(anon('z1'), 'circles', CID, 'phones', 'k-' + 'b'.repeat(40)), { memberId: 'm1' }));
+    // The member (not joined yet) can look both up by name…
+    const m = anon('z2');
+    await assertSucceeds(getDoc(doc(m, 'circles', CID, 'phones', 'code-m1')));
+    await assertSucceeds(getDoc(doc(m, 'circles', CID, 'phones', 'k-' + 'a'.repeat(40))));
+    // …but can't list them.
+    await assertFails(getDocs(collection(m, 'circles', CID, 'phones')));
+    // Joins (no password yet), then chooses one.
+    await assertSucceeds(joinBatch(m, 'z2'));
+    await assertSucceeds(setDoc(doc(m, 'circles', CID, 'secrets', 'm1'), { proof: 'c'.repeat(64) }));
+    // The admin lists the member's code docs to clean them up.
+    await assertSucceeds(getDocs(query(collection(adb, 'circles', CID, 'phones'), where('memberId', '==', 'm1'))));
+    await assertSucceeds(deleteDoc(doc(adb, 'circles', CID, 'phones', 'code-m1')));
+  });
+});

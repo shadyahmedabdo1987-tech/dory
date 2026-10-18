@@ -12,6 +12,7 @@ import {
   memberIdForPhone,
   hasMyPassword,
   hasLoginCode,
+  joinWithLoginCode,
   setMyPassword,
   joinCircle,
   cancelJoinRequest,
@@ -321,17 +322,22 @@ function JoinSheet({
     circle &&
     run(async () => {
       if (await isPhoneRegistered(circle.id, phone)) {
+        await ensurePushToken().catch(() => null);
+        // The organizer gave this number a sign-in code: ask for the code first.
+        const mid = await memberIdForPhone(circle.id, phone).catch(() => null);
+        if (mid && (await hasLoginCode(circle.id, mid))) {
+          setPassword('');
+          setWithCode(true);
+          return setStep('login');
+        }
+        setWithCode(false);
         // Try the number alone: it only works while that member has no password yet
         // (e.g. the admin added them) — then they're linked and choose one now.
-        await ensurePushToken().catch(() => null);
         try {
           await joinCircle(code, phone, (await ensureSignedIn()).uid);
         } catch (e) {
           if (errorCode(e) !== 'dory/signin-failed') throw e;
           setPassword('');
-          // The organizer gave this number a sign-in code: ask for the code, not a password.
-          const mid = await memberIdForPhone(circle.id, phone).catch(() => null);
-          setWithCode(mid ? await hasLoginCode(circle.id, mid) : false);
           return setStep('login');
         }
         setPassword('');
@@ -349,31 +355,23 @@ function JoinSheet({
       await ensurePushToken().catch(() => null);
       // Always the account signed in right now (it changes after signing out).
       const me = (await ensureSignedIn()).uid;
-      // The organizer's code is 123-456; typed without the dash it still works.
-      const typed = password.trim();
-      const asCode = /^\d{6}$/.test(typed) ? `${typed.slice(0, 3)}-${typed.slice(3)}` : null;
-      let used = password;
+      if (withCode) {
+        // The organizer's code (checked against its fingerprint), then a password of their own.
+        await joinWithLoginCode(code, phone, me, password);
+        writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
+        setFromCode(true);
+        setPassword('');
+        setPassword2('');
+        return setStep('setpw');
+      }
+      const used = password;
       try {
         await joinCircle(code, phone, me, password);
       } catch (e) {
         if (errorCode(e) !== 'dory/signin-failed') throw e;
-        try {
-          if (!asCode) throw e;
-          await joinCircle(code, phone, me, asCode);
-          used = asCode;
-        } catch (e2) {
-          if (errorCode(e2) !== 'dory/signin-failed') throw e2;
-          // A sign-out from another phone may still be landing — try once more.
-          await new Promise((r) => setTimeout(r, 1500));
-          try {
-            await joinCircle(code, phone, me, password);
-          } catch (e3) {
-            if (withCode && errorCode(e3) === 'dory/signin-failed') {
-              throw new AppError('dory/code-wrong', 'كود الدخول مش صح. اتأكد من الكود اللي وصلك من صاحب الجمعية، أو اطلب منه كود جديد.');
-            }
-            throw e3;
-          }
-        }
+        // A sign-out from another phone may still be landing — try once more.
+        await new Promise((r) => setTimeout(r, 1500));
+        await joinCircle(code, phone, me, password);
       }
       // First sign-in for a member who never chose a password: this one becomes theirs.
       const memberId = await memberIdForPhone(circle.id, phone).catch(() => null);
@@ -381,14 +379,6 @@ function JoinSheet({
         await setMyPassword(circle.id, memberId, phone, used).catch(() => {});
       }
       writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
-      // Came in with the one-time code from the organizer: now choose a password of their own.
-      // Only the organizer's codes look like this (123-456) — a normal password never triggers it.
-      if (/^\d{3}-\d{3}$/.test(used.trim())) {
-        setFromCode(true);
-        setPassword('');
-        setPassword2('');
-        return setStep('setpw');
-      }
       alert('أهلًا بيك تاني ✓', 'دخلت باسمك ودورك المسجّلين في الجمعية.');
       open(circle.id);
     });
