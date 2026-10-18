@@ -102,7 +102,8 @@ export function IntroSplash({ ready, onShown, onDone }: { ready: boolean; onShow
         </Animated.View>
       </Animated.View>
       <Animated.View style={[styles.credit, { opacity: title }]}>
-        <Text color="rgba(255,255,255,0.65)" style={{ fontSize: 13, letterSpacing: 1, writingDirection: 'ltr' }}>
+        {/* Full width: measured before the font loads, a hugging width cut the name off. */}
+        <Text color="rgba(255,255,255,0.65)" style={{ fontSize: 13, lineHeight: 22, letterSpacing: 1, writingDirection: 'ltr', width: '100%', textAlign: 'center' }}>
           Powered by{' '}
           <Text weight="bold" color={colors.gold} style={{ fontSize: 13 }}>
             Shady Ahmed

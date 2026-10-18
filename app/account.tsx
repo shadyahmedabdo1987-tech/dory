@@ -378,7 +378,7 @@ export default function Account() {
         <Text variant="caption" center>
           دوري • نسخة {Constants.expoConfig?.version ?? ''}
         </Text>
-        <Text variant="caption" center style={{ writingDirection: 'ltr', marginTop: -8 }}>
+        <Text variant="caption" center style={{ writingDirection: 'ltr', marginTop: -8, width: '100%' }}>
           Powered by{' '}
           <Text variant="caption" weight="bold" color={colors.goldText}>
             Shady Ahmed
