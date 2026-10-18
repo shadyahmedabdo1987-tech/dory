@@ -180,8 +180,54 @@ export function postpone(periods: Period[], index: number, note?: string): Perio
 }
 
 /** Extra turn at the end for a member (a second share, a new member, or the organizer's fee). */
-export function addExtraTurn(periods: Period[], recipientId: string): Period[] {
-  return [...periods, { id: newId('p'), kind: 'payout', recipientId }];
+export function addExtraTurn(periods: Period[], recipientId: string, at?: number): Period[] {
+  const turn: Period = { id: newId('p'), kind: 'payout', recipientId };
+  if (at === undefined || at >= periods.length) return [...periods, turn];
+  return [...periods.slice(0, at), turn, ...periods.slice(at)];
+}
+
+/** Which round a payout is for its member: 1 = their first turn, 2 = their second… */
+export function roundOf(periods: Period[], index: number): number {
+  const p = periods[index];
+  if (!p || p.kind !== 'payout') return 0;
+  return periods.slice(0, index + 1).filter((q) => q.kind === 'payout' && q.recipientId === p.recipientId).length;
+}
+
+/**
+ * Where a member's extra turn may go: never before today's turn, and a second
+ * turn only after everyone's first (no two turns close together) — so it's
+ * placed among the later rounds. Returns insert positions (index in periods).
+ */
+export function extraTurnSlots(periods: Period[], recipientId: string, current: number): number[] {
+  const nextRound = periods.filter((p) => p.kind === 'payout' && p.recipientId === recipientId).length + 1;
+  let from = Math.max(0, current + 1);
+  periods.forEach((p, i) => {
+    // Everyone's turns of an earlier round must come first.
+    if (p.kind === 'payout' && roundOf(periods, i) < nextRound) from = Math.max(from, i + 1);
+  });
+  const slots: number[] = [];
+  for (let i = from; i <= periods.length; i++) slots.push(i);
+  return slots;
+}
+
+/**
+ * A drawn order applied round by round: everyone's first turn comes before
+ * anyone's second, whatever the wheel says.
+ */
+export function orderByRounds(periods: Period[], openIds: string[], drawn: string[]): string[] {
+  const before = new Map<string, number>();
+  periods.forEach((p) => {
+    if (p.kind === 'payout' && p.recipientId && !openIds.includes(p.id)) before.set(p.recipientId, (before.get(p.recipientId) ?? 0) + 1);
+  });
+  const seen = new Map<string, number>();
+  return drawn
+    .map((id, k) => {
+      const n = (seen.get(id) ?? 0) + 1;
+      seen.set(id, n);
+      return { id, k, round: (before.get(id) ?? 0) + n };
+    })
+    .sort((a, b) => a.round - b.round || a.k - b.k)
+    .map((x) => x.id);
 }
 
 /** Extra installment everyone pays at `index` without anyone receiving it. */

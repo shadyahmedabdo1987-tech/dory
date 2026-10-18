@@ -712,11 +712,20 @@ export const EXACT: Record<string, string> = {
  "لو غيّرت الرقم، هيتعمل كود دخول جديد للرقم الصح.": "If you change the number, a new sign-in code is made for it.",
  "العضو داخل من موبايله، فرقمه بيتغيّر لما تفك الربط ويدخل بالرقم الجديد.": "This member is signed in; to change their number, unlink them and they sign in with the new one.",
  "دخلت بكود الدخول ✓ دلوقتي اختار باسورد خاص بيك واكتبه مرتين — هو اللي هتدخل بيه بعد كده.": "Signed in with the code ✓ Now choose your own password (twice) — you'll use it from now on.",
- "الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك. ولو دي أول مرة تدخل، اكتب كود الدخول اللي وصلك من صاحب الجمعية على الواتساب.": "This number is registered. Enter your password — or, the first time, the sign-in code the organizer sent you on WhatsApp."
+ "الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك. ولو دي أول مرة تدخل، اكتب كود الدخول اللي وصلك من صاحب الجمعية على الواتساب.": "This number is registered. Enter your password — or, the first time, the sign-in code the organizer sent you on WhatsApp.",
+ "مينفعش": "Not allowed",
+ "الدور التاني لأي عضو بييجي بعد ما كل الأعضاء ياخدوا دورهم الأول.": "A member's second turn comes after everyone's first turn.",
+ "الدور التاني بييجي بعد ما كل الأعضاء ياخدوا دورهم الأول، ومش قبل النهارده. اختار ميعاده، أو حطه في الآخر ووزّع الأدوار الجاية بعجلة القرعة.": "A second turn comes after everyone's first, and never before today. Pick its date, or put it at the end and spread the upcoming turns with the draw wheel.",
+ "في آخر الجدول": "At the end",
+ "اختار العضو اللي هياخد دور قبض زيادة (سهم تاني، أو عمولة صاحب الجمعية).": "Pick who gets an extra payout turn (a second share, or the organizer's fee)."
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
 export const PATTERNS: [string, string][] = [
+ ["دور إضافي لـ {0} — إمتى؟", "Extra turn for {0} — when?"],
+ ["مكان دور {0} — وده واللي بعده يتأخروا {1}", "In place of {0}'s turn — it and later ones move one {1}"],
+ ["اتضاف دور لـ {0} يوم {1}.", "Turn added for {0} on {1}."],
+ ["اتضاف دور لـ {0}.", "Turn added for {0}."],
  ["كود الدخول: {0}", "Sign-in code: {0}"],
  ["تعديل {0}", "Edit {0}"],
  ["كل {0} شهور", "Every {0} months"],

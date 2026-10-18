@@ -430,3 +430,16 @@ it('a circle every 2 months steps by 2 months and counts turns to an end month',
   assert.equal(cadenceLabel(circle), 'كل شهرين');
   assert.deepEqual(periodDates({ ...circle, periods: withStep(periods, 3) }), ['2026-01-15', '2026-02-15', '2026-03-15'].length ? periodDates({ ...circle, periods: withStep(periods, 3) }) : []);
 });
+
+it('a second turn goes after everyone first turn, and draws keep rounds in order', async () => {
+  const { extraTurnSlots, orderByRounds } = await import('../src/core/schedule.ts');
+  const periods = [
+    { id: 'p1', kind: 'payout', recipientId: 'a' },
+    { id: 'p2', kind: 'payout', recipientId: 'b' },
+    { id: 'p3', kind: 'payout', recipientId: 'c' },
+  ] as any;
+  assert.deepEqual(extraTurnSlots(periods, 'a', 0), [3]);
+  assert.deepEqual(extraTurnSlots([...periods, { id: 'p4', kind: 'payout', recipientId: 'a' }], 'b', 0), [3, 4]);
+  const all = [...periods, { id: 'p4', kind: 'payout', recipientId: 'a' }];
+  assert.deepEqual(orderByRounds(all, ['p2', 'p3', 'p4'], ['a', 'c', 'b']), ['c', 'b', 'a']);
+});

@@ -17,6 +17,9 @@ import {
   currentIndex,
   assignRecipients,
   openPayouts,
+  extraTurnSlots,
+  roundOf,
+  orderByRounds,
   addBonus,
   speedUp,
   isSpedUp,
@@ -682,6 +685,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
   const { run } = useAction();
   const [extraOpen, setExtraOpen] = useState(false);
   const [turnOpen, setTurnOpen] = useState(false);
+  const [turnFor, setTurnFor] = useState<Member | null>(null);
   const [wheelOpen, setWheelOpen] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
   const { fixed: ownerTurn } = drawablePayouts(circle);
@@ -767,10 +771,17 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
     const started = e.index <= current;
     const buttons: DialogButton[] = [];
     if (!started) buttons.push({ text: `أجّل الفترة دي ${unit}`, icon: 'time', color: colors.goldText, onPress: () => doPostpone(e.index) });
-    if (e.index > 0 && !started)
-      buttons.push({ text: 'طلّعها لفوق', icon: 'arrow-up', onPress: () => run(() => mutatePeriods(circle.id, (ps) => movePeriod(ps, e.index, e.index - 1))) });
+    // A second turn can't jump ahead of someone's first one (and the reverse).
+    const swapOk = (a: number, b: number) => {
+      const ra = roundOf(circle.periods, a);
+      const rb = roundOf(circle.periods, b);
+      return !ra || !rb || ra === rb;
+    };
+    const blocked = () => alert('مينفعش', 'الدور التاني لأي عضو بييجي بعد ما كل الأعضاء ياخدوا دورهم الأول.', undefined, { icon: 'lock-closed', tone: 'info' });
+    if (e.index > 0 && !started && e.index - 1 > current)
+      buttons.push({ text: 'طلّعها لفوق', icon: 'arrow-up', onPress: () => (swapOk(e.index, e.index - 1) ? run(() => mutatePeriods(circle.id, (ps) => movePeriod(ps, e.index, e.index - 1))) : blocked()) });
     if (e.index < entries.length - 1 && !started)
-      buttons.push({ text: 'نزّلها لتحت', icon: 'arrow-down', onPress: () => run(() => mutatePeriods(circle.id, (ps) => movePeriod(ps, e.index, e.index + 1))) });
+      buttons.push({ text: 'نزّلها لتحت', icon: 'arrow-down', onPress: () => (swapOk(e.index, e.index + 1) ? run(() => mutatePeriods(circle.id, (ps) => movePeriod(ps, e.index, e.index + 1))) : blocked()) });
     if (e.period.kind !== 'payout' || !hasPayments(e.period.id)) {
       if (e.period.kind !== 'payout' || circle.periods.filter((p) => p.recipientId === e.period.recipientId).length > 1) {
         buttons.push({
@@ -982,23 +993,66 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         onDone={(order) => {
           setWheelOpen(false);
           const ids = drawable.map((p) => p.id);
-          run(() => mutatePeriods(circle.id, (ps) => assignRecipients(ps, ids, order)), {
+          run(() => mutatePeriods(circle.id, (ps) => assignRecipients(ps, ids, orderByRounds(ps, ids, order))), {
             success: 'اتسجّل ترتيب القبض الجديد.',
           });
         }}
       />
 
-      <Sheet visible={turnOpen} title="دور إضافي لمين؟" onClose={() => setTurnOpen(false)}>
-        <Text variant="caption">هيتضاف دور قبض جديد في آخر الجدول للعضو اللي تختاره (سهم تاني، أو عمولة صاحب الجمعية).</Text>
+      <Sheet
+        visible={turnOpen}
+        title={turnFor ? `دور إضافي لـ ${turnFor.name} — إمتى؟` : 'دور إضافي لمين؟'}
+        onClose={() => {
+          setTurnOpen(false);
+          setTurnFor(null);
+        }}
+      >
+        {turnFor ? (
+          <>
+            <Text variant="caption">
+              الدور التاني بييجي بعد ما كل الأعضاء ياخدوا دورهم الأول، ومش قبل النهارده. اختار ميعاده، أو حطه في الآخر ووزّع الأدوار الجاية بعجلة القرعة.
+            </Text>
+            <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ gap: space.xs }}>
+              {extraTurnSlots(circle.periods, turnFor.id, current).map((at) => {
+                const last = at >= entries.length;
+                const at_ = entries[at];
+                const date = last
+                  ? endDate({ ...circle, periods: [...circle.periods, { id: 'x', kind: 'payout', recipientId: turnFor.id }] })
+                  : at_?.date;
+                return (
+                  <Pressable
+                    key={at}
+                    style={({ pressed }) => [styles.speedRow, pressed && { opacity: 0.7 }]}
+                    onPress={() => {
+                      const m = turnFor;
+                      setTurnOpen(false);
+                      setTurnFor(null);
+                      run(() => mutatePeriods(circle.id, (ps) => addExtraTurn(ps, m.id, last ? undefined : at)), {
+                        success: `اتضاف دور لـ ${m.name}${date ? ` يوم ${formatDate(date)}` : ''}.`,
+                      });
+                    }}
+                  >
+                    <Ionicons name={last ? 'flag-outline' : 'calendar-outline'} size={22} color={colors.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text weight="semibold">{date ? formatDate(date) : '—'}</Text>
+                      <Text variant="caption">
+                        {last ? 'في آخر الجدول' : `مكان دور ${at_?.recipient?.name ?? periodTitle(at_!)} — وده واللي بعده يتأخروا ${unit}`}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </>
+        ) : (
+        <>
+        <Text variant="caption">اختار العضو اللي هياخد دور قبض زيادة (سهم تاني، أو عمولة صاحب الجمعية).</Text>
         <ScrollView style={{ maxHeight: 360 }}>
           {circle.members.map((m) => (
             <Pressable
               key={m.id}
               style={({ pressed }) => [styles.row, styles.divider, pressed && { opacity: 0.6 }]}
-              onPress={() => {
-                setTurnOpen(false);
-                run(() => mutatePeriods(circle.id, (ps) => addExtraTurn(ps, m.id)), { success: `اتضاف دور لـ ${m.name} في آخر الجدول.` });
-              }}
+              onPress={() => setTurnFor(m)}
             >
               <Ionicons name="person-circle-outline" size={26} color={colors.primary} />
               <Text style={{ flex: 1 }}>{m.name}</Text>
@@ -1006,6 +1060,8 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
             </Pressable>
           ))}
         </ScrollView>
+        </>
+        )}
       </Sheet>
     </View>
   );

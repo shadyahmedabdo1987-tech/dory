@@ -130,7 +130,8 @@ export function CircleForm({
   const months = useMemo(() => {
     const list: { key: string; y: number; m: number }[] = [];
     const base = `${today.slice(0, 8)}01`;
-    for (let i = -12; i < 36; i++) {
+    // Last month at the earliest — an older start would put every date in the past.
+    for (let i = -1; i < 36; i++) {
       const { y, m } = parseISODate(addMonths(base, i));
       list.push({ key: `${y}-${m}`, y, m });
     }
