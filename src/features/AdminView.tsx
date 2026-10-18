@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   circleInviteMessage,
   normalizePhone,
+  normalizePayAccount,
   INSTAPAY_ADDRESS,
   smsUrl,
   whatsappUrl,
@@ -61,6 +62,8 @@ import {
 } from '@/core';
 import {
   saveCircle,
+  issueFirstLoginCode,
+  firstLoginCodeOf,
   backfillPhones,
   syncDirectory,
   approveJoin,
@@ -1109,8 +1112,55 @@ function MembersTab({ circle, payments, requests }: { circle: Circle; payments: 
   };
 
   /** Long press: everything you can do with this member. */
+  const [editing, setEditing] = useState<Member | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [, bump] = useState(0);
+  const startEdit = (m: Member) => {
+    setEditName(m.name);
+    setEditPhone(m.phone ?? '');
+    setEditing(m);
+  };
+  const saveEdit = () => {
+    const m = editing;
+    if (!m) return;
+    const phone = editPhone.trim();
+    if (!editName.trim()) return alert('اكتب الاسم');
+    if (phone && !normalizePayAccount(phone)) return alert('رقم الموبايل مش صحيح');
+    setEditing(null);
+    run(
+      async () => {
+        await saveCircle(circle, circle.members.map((x) => (x.id === m.id ? { ...x, name: editName.trim(), ...(m.uid ? {} : { phone }) } : x)));
+        bump((n) => n + 1);
+      },
+      { success: 'اتعدّل ✓' },
+    );
+  };
+  /** The member's own message: invite code + their number + their one-time sign-in code. */
+  const sendCode = (m: Member, code: string) => {
+    const msg =
+      `أهلًا ${m.name} 👋\nصاحب "${circle.name}" ضافك في الجمعية على تطبيق دوري.\n` +
+      `كود الجمعية: ${circle.inviteCode}\nرقمك: ${m.phone ?? ''}\nكود الدخول (لأول مرة بس): ${code}\n` +
+      'ادخل بالكود ورقمك، واكتب كود الدخول، وبعدها اختار باسورد خاص بيك.';
+    RNLinking.openURL(whatsappUrl(normalizePhone(m.phone ?? '') ?? '', msg)).catch(() => Share.share({ message: msg }));
+  };
+  const newCode = async (m: Member) => {
+    if (!m.phone) return alert('ضيف رقم موبايل العضو الأول');
+    run(async () => {
+      const code = await issueFirstLoginCode(circle.id, m.id, m.phone!);
+      bump((n) => n + 1);
+      sendCode(m, code);
+    });
+  };
+
   const actions = (m: Member) =>
     alert(m.name, m.uid ? 'داخل من موبايله' : 'لسه ما دخلش', [
+      { text: 'عدّل الاسم أو الرقم', icon: 'create-outline' as const, onPress: () => startEdit(m) },
+      ...(!m.uid && m.phone ? [{ text: 'ابعتله كود الدخول', icon: 'logo-whatsapp' as const, color: colors.success, onPress: () => {
+        const code = firstLoginCodeOf(circle.id, m.id);
+        return code ? sendCode(m, code) : newCode(m);
+      } }] : []),
+      ...(!m.uid && m.phone ? [{ text: 'كود دخول جديد', icon: 'refresh' as const, onPress: () => newCode(m) }] : []),
       ...(m.uid ? [{ text: 'فك الربط', icon: 'unlink-outline' as const, onPress: () => unlink(m) }] : []),
       { text: 'امسح العضو', style: 'destructive' as const, icon: 'trash-outline' as const, onPress: () => remove(m) },
       { text: 'إلغاء', style: 'cancel' as const },
@@ -1151,7 +1201,13 @@ function MembersTab({ circle, payments, requests }: { circle: Circle; payments: 
                 {m.uid ? 'داخل من موبايله' : 'لسه ما دخلش'}
                 {m.phone ? ` • إنستاباي: ${m.phone}` : ''}
               </Text>
+              {!m.uid && firstLoginCodeOf(circle.id, m.id) ? (
+                <Text variant="caption" weight="bold" color={colors.primary}>
+                  كود الدخول: {firstLoginCodeOf(circle.id, m.id)}
+                </Text>
+              ) : null}
             </View>
+            <IconButton icon="create-outline" label="تعديل" onPress={() => startEdit(m)} />
             {m.uid ? (
               <IconButton icon="unlink-outline" label="فك الربط" color={colors.danger} bg={colors.dangerSoft} onPress={() => unlink(m)} />
             ) : null}
@@ -1161,8 +1217,25 @@ function MembersTab({ circle, payments, requests }: { circle: Circle; payments: 
         )}
       </Card>
       <Text variant="caption" center>
-        اسحب العضو لليمين أو دوس عليه دوسة طويلة علشان تمسحه أو تفك ربطه.
+        اسحب العضو لليمين أو دوس عليه دوسة طويلة: تعديل، كود الدخول، فك الربط، أو المسح.
       </Text>
+
+      <Sheet visible={!!editing} title={editing ? `تعديل ${editing.name}` : ''} onClose={() => setEditing(null)}>
+        <Field label="الاسم" value={editName} onChangeText={setEditName} maxLength={60} />
+        {editing && !editing.uid ? (
+          <Field
+            label="رقم الموبايل (إنستاباي / فودافون كاش)"
+            value={editPhone}
+            onChangeText={setEditPhone}
+            keyboardType="phone-pad"
+            placeholder="01xxxxxxxxx"
+            hint="لو غيّرت الرقم، هيتعمل كود دخول جديد للرقم الصح."
+          />
+        ) : (
+          <Text variant="caption">العضو داخل من موبايله، فرقمه بيتغيّر لما تفك الربط ويدخل بالرقم الجديد.</Text>
+        )}
+        <Button label="حفظ" icon="checkmark" onPress={saveEdit} />
+      </Sheet>
     </View>
   );
 }

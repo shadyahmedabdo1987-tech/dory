@@ -447,6 +447,16 @@ export async function saveCircle(
   });
 
   await withTimeout(batch.commit());
+
+  // Members added (or renumbered) by the organizer get a first sign-in code.
+  for (const m of withIds) {
+    const old = before.get(m.id);
+    const phone = phoneOf(m);
+    if (!isNumber(phone) || old?.uid || m.id === circle.ownerMemberId) continue;
+    if (!old || phoneOf(old) !== phone) {
+      await issueFirstLoginCode(cid, m.id, phone).catch(() => {});
+    }
+  }
 }
 
 export async function rotateInviteCode(circle: Circle): Promise<string> {
@@ -497,6 +507,29 @@ export async function hasMyPassword(cid: string, memberId: string): Promise<bool
   } catch {
     return true; // offline: don't nag
   }
+}
+
+/**
+ * Organizer: a first sign-in code for a member they added by number. Stored only
+ * as a salted hash (like a password), so someone who just knows the number can't
+ * claim the member's turn — the code goes to the member's own WhatsApp / SMS.
+ * Only for members who haven't signed in yet (their row has no device).
+ */
+export async function issueFirstLoginCode(cid: string, memberId: string, rawPhone: string): Promise<string> {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
+  const bytes = new Uint32Array(1);
+  globalThis.crypto?.getRandomValues?.(bytes);
+  const code = String(100000 + ((bytes[0] || Math.floor(Math.random() * 2 ** 32)) % 900000));
+  await restCommit([{ delete: `circles/${cid}/secrets/${memberId}` }]).catch(() => {});
+  await restCommit([{ set: `circles/${cid}/secrets/${memberId}`, data: { proof: passwordProof(cid, phone, code) } }]);
+  const all = readPrefsSync().memberCodes ?? {};
+  writePrefs({ memberCodes: { ...all, [cid]: { ...(all[cid] ?? {}), [memberId]: code } } });
+  return code;
+}
+
+export function firstLoginCodeOf(cid: string, memberId: string): string | undefined {
+  return readPrefsSync().memberCodes?.[cid]?.[memberId];
 }
 
 /** Member: choose / change my password (and register my number if the circle doesn't have it yet). */

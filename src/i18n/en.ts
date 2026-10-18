@@ -700,11 +700,25 @@ export const EXACT: Record<string, string> = {
  "القسط ده لسه ميعاده ما جاش. هيوصل لصاحب الجمعية كطلب سداد مبكر، وأول ما يوافق يتحسب إنك دفعته.": "This installment isn't due yet. It goes to the organizer as an early-payment request; once approved it counts as paid.",
  "الجمعية هتخلص إمتى؟": "When does the circle end?",
  "كل شهرين": "Every 2 months",
- "كل سنة": "Every year"
+ "كل سنة": "Every year",
+ "عدّل الاسم أو الرقم": "Edit name or number",
+ "ابعتله كود الدخول": "Send sign-in code",
+ "كود دخول جديد": "New sign-in code",
+ "اتعدّل ✓": "Updated ✓",
+ "اكتب الاسم": "Enter the name",
+ "رقم الموبايل مش صحيح": "Invalid mobile number",
+ "ضيف رقم موبايل العضو الأول": "Add the member's mobile first",
+ "اسحب العضو لليمين أو دوس عليه دوسة طويلة: تعديل، كود الدخول، فك الربط، أو المسح.": "Swipe right or long-press a member: edit, sign-in code, unlink or remove.",
+ "لو غيّرت الرقم، هيتعمل كود دخول جديد للرقم الصح.": "If you change the number, a new sign-in code is made for it.",
+ "العضو داخل من موبايله، فرقمه بيتغيّر لما تفك الربط ويدخل بالرقم الجديد.": "This member is signed in; to change their number, unlink them and they sign in with the new one.",
+ "دخلت بكود الدخول ✓ دلوقتي اختار باسورد خاص بيك واكتبه مرتين — هو اللي هتدخل بيه بعد كده.": "Signed in with the code ✓ Now choose your own password (twice) — you'll use it from now on.",
+ "الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك. ولو دي أول مرة تدخل، اكتب كود الدخول اللي وصلك من صاحب الجمعية على الواتساب.": "This number is registered. Enter your password — or, the first time, the sign-in code the organizer sent you on WhatsApp."
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
 export const PATTERNS: [string, string][] = [
+ ["كود الدخول: {0}", "Sign-in code: {0}"],
+ ["تعديل {0}", "Edit {0}"],
  ["كل {0} شهور", "Every {0} months"],
  ["سجّل سداد مبكر لـ {0}", "Record early payment for {0}"],
  ["اختار آخر شهر، وعدد الأدوار بيتحسب لوحده ({0}).", "Pick the last month; the number of turns is worked out ({0})."],

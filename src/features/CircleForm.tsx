@@ -376,6 +376,8 @@ export function CircleForm({
               </View>
             ) : (
             <TextInput
+              placeholder="رقم الموبايل أو name@instapay"
+              placeholderTextColor={colors.muted}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -507,10 +509,13 @@ export function CircleForm({
                   </Text>
                 </View>
               ) : (
+              <>
               <Text variant="caption" weight="bold">
                 رقم الموبايل (إنستاباي / فودافون كاش)
               </Text>
               <TextInput
+                placeholder="01xxxxxxxxx"
+                placeholderTextColor={colors.muted}
                 keyboardType="phone-pad"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -518,6 +523,7 @@ export function CircleForm({
                 onChangeText={(t) => update(m.id, { phone: t })}
                 style={[styles.input, !!m.phone && !normalizePayAccount(m.phone) && { borderColor: colors.danger }]}
               />
+              </>
               )}
             </View>
           ))}

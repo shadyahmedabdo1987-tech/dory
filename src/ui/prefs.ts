@@ -18,6 +18,8 @@ export interface Prefs {
   myPhone?: string;
   /** Organizer: my InstaPay number / address, filled into every new circle. */
   adminInstapay?: { number: string; address: string };
+  /** Organizer: first sign-in codes for members they added — circleId → memberId → code. */
+  memberCodes?: Record<string, Record<string, string>>;
 }
 
 function prefsFile() {

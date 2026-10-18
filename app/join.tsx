@@ -293,6 +293,7 @@ function JoinSheet({
   const [phone, setPhone] = useState(() => readPrefsSync().myPhone ?? '');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
+  const [fromCode, setFromCode] = useState(false);
   const [name, setName] = useState(user?.displayName ?? '');
   const { busy, run } = useAction();
   const phoneOk = !!normalizePhone(phone);
@@ -356,6 +357,13 @@ function JoinSheet({
         await setMyPassword(circle.id, memberId, phone, password).catch(() => {});
       }
       writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
+      // Came in with the one-time code from the organizer: now choose a password of their own.
+      if (/^\d{6}$/.test(password.trim())) {
+        setFromCode(true);
+        setPassword('');
+        setPassword2('');
+        return setStep('setpw');
+      }
       alert('أهلًا بيك تاني ✓', 'دخلت باسمك ودورك المسجّلين في الجمعية.');
       open(circle.id);
     });
@@ -414,7 +422,9 @@ function JoinSheet({
               <View style={styles.firstTime}>
                 <Ionicons name="key-outline" size={18} color={colors.primary} />
                 <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
-                  صاحب الجمعية مسجّلك بالرقم ده. اختار باسورد واكتبه مرتين، وهتدخل الجمعية باسمك ودورك على طول.
+                  {fromCode
+                    ? 'دخلت بكود الدخول ✓ دلوقتي اختار باسورد خاص بيك واكتبه مرتين — هو اللي هتدخل بيه بعد كده.'
+                    : 'صاحب الجمعية مسجّلك بالرقم ده. اختار باسورد واكتبه مرتين، وهتدخل الجمعية باسمك ودورك على طول.'}
                 </Text>
               </View>
               <Field
@@ -446,7 +456,7 @@ function JoinSheet({
               <View style={styles.firstTime}>
                 <Ionicons name="lock-closed-outline" size={18} color={colors.primary} />
                 <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
-                  الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك وهتدخل على طول. لو دي أول مرة تدخل برقمك، اختار باسورد دلوقتي وهيتحفظ.
+                  الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك. ولو دي أول مرة تدخل، اكتب كود الدخول اللي وصلك من صاحب الجمعية على الواتساب.
                 </Text>
               </View>
               <Field label="الباسورد" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
