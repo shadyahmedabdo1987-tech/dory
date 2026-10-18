@@ -25,6 +25,8 @@ export interface Period {
   recipientId?: string;
   /** Per-member amount for extra periods (defaults to the circle installment). */
   amount?: number;
+  /** Payout periods: extra amount every member adds on top of the installment (the recipient gets it too). */
+  bonus?: number;
   /** Payout handed to the recipient. */
   paidOut?: boolean;
   note?: string;

@@ -674,11 +674,26 @@ export const EXACT: Record<string, string> = {
  "ترجع المواعيد العادية؟": "Back to the normal schedule?",
  "المواعيد الجديدة اتسجّلت وظهرت عند كل الأعضاء.": "The new dates are saved and shown to every member.",
  "لو اتفقت مع الأعضاء تخلّصوا بدري. الأدوار اللي قبضت أو ميعادها جه ما بتتغيّرش. ولو عايزين يدفعوا مبلغ زيادة مرة واحدة استخدم \"قسط إضافي\".": "If you agreed with members to finish early. Turns already paid or due don't change. For a one-off extra amount use \"Extra installment\".",
- "رجّع المواعيد العادية": "Back to the normal schedule"
+ "رجّع المواعيد العادية": "Back to the normal schedule",
+ "مبلغ إضافي": "Extra amount",
+ "مبلغ إضافي على الأعضاء": "Extra amount from members",
+ "يتضاف على القسط": "Add to installment",
+ "قسط لوحده": "Separate installment",
+ "كل عضو يدفع المبلغ ده زيادة على قسطه في الدور اللي تختاره، وصاحب الدور بيقبضه معاه. المواعيد ما بتتغيّرش.": "Each member pays this on top of their installment for the turn you pick, and that turn's recipient collects it. Dates don't change.",
+ "كل الأعضاء يدفعوا المبلغ ده في فترة لوحدها من غير ما حد يقبض (مثلًا مصاريف). الأدوار اللي بعدها تتأخر فترة.": "Everyone pays this in its own period with no payout (e.g. fees). Later turns move one period.",
+ "المبلغ الزيادة على كل عضو": "Extra per member",
+ "مثلًا 200": "e.g. 200",
+ "كل الأدوار الجاية": "All upcoming turns",
+ "مفيش أدوار جاية لسه ما جاش ميعادها.": "No upcoming turns left.",
+ "مثلًا: علشان نخلّص بدري": "e.g. to finish early",
+ "ضيف المبلغ": "Add amount",
+ "اتضاف على القسط، وظهر عند كل الأعضاء.": "Added to the installment and shown to every member."
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
 export const PATTERNS: [string, string][] = [
+ ["القسط يبقى {0} وصاحب الدور يقبض {1}", "Installment becomes {0}, the recipient collects {1}"],
+ [" • القسط {0} (+{1})", " • installment {0} (+{1})"],
  ["تسريع الجمعية: {0}", "Speed up: {0}"],
  ["تخلص {0} بدل {1}", "Ends {0} instead of {1}"],
  ["ده بيغيّر مواعيد الأدوار اللي لسه ما جاش ميعادها بس. آخر دور هيبقى {0} بدل {1}. بلّغ الأعضاء من تبويب الرسائل.", "This changes only turns that haven't come yet. The last turn will be {0} instead of {1}. Tell members from the Messages tab."],

@@ -24,7 +24,7 @@ export function paymentId(periodId: string, memberId: string): string {
 export function periodDue(circle: Pick<Circle, 'installment'>, period: Period): number {
   if (period.kind === 'skip') return 0;
   if (period.kind === 'extra') return period.amount ?? circle.installment;
-  return circle.installment;
+  return circle.installment + (period.bonus && period.bonus > 0 ? period.bonus : 0);
 }
 
 /**
@@ -96,8 +96,9 @@ export function payoutPot(circle: Pick<Circle, 'installment' | 'members'>): numb
  * What the recipient is actually handed: the others' installments. The
  * recipient doesn't pay in their own payout period — their share is netted out.
  */
-export function payoutNet(circle: Pick<Circle, 'installment' | 'members'>): number {
-  return circle.installment * Math.max(0, circle.members.length - 1);
+export function payoutNet(circle: Pick<Circle, 'installment' | 'members'>, period?: Period): number {
+  const each = period ? periodDue(circle, period) : circle.installment;
+  return each * Math.max(0, circle.members.length - 1);
 }
 
 /** True when `memberId` receives this period's payout (so they don't pay it). */
@@ -142,6 +143,23 @@ export function addExtraTurn(periods: Period[], recipientId: string): Period[] {
 }
 
 /** Extra installment everyone pays at `index` without anyone receiving it. */
+/** Every member adds `amount` to these turns' installments — the recipients collect it. */
+export function addBonus(periods: Period[], periodIds: string[], amount: number, note?: string): Period[] {
+  return periods.map((p) =>
+    periodIds.includes(p.id) && p.kind === 'payout'
+      ? { ...p, bonus: (p.bonus ?? 0) + amount, ...(note ? { note } : {}) }
+      : p,
+  );
+}
+
+export function clearBonus(periods: Period[], periodId: string): Period[] {
+  return periods.map((p) => {
+    if (p.id !== periodId) return p;
+    const { bonus: _b, ...rest } = p;
+    return rest;
+  });
+}
+
 export function addExtraInstallment(periods: Period[], index: number, amount: number, note?: string): Period[] {
   const at = Math.max(0, Math.min(index, periods.length));
   const extra: Period = { id: newId('p'), kind: 'extra', amount, ...(note ? { note } : {}) };
@@ -382,10 +400,10 @@ export function memberAccount(
   const overdue = lines.filter((l) => l.state === 'overdue');
   const totalCommitment = sum(lines);
 
-  const pot = payoutNet(circle);
+  const potOf = (p: Period) => payoutNet(circle, p);
   const myPayouts = lines
     .filter((l) => l.isMyPayout)
-    .map((l) => ({ entry: l.entry, amount: pot, received: !!l.entry.period.paidOut }));
+    .map((l) => ({ entry: l.entry, amount: potOf(l.entry.period), received: !!l.entry.period.paidOut }));
   const upcomingPayout = myPayouts.find((p) => !p.received);
 
   return {

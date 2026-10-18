@@ -382,3 +382,13 @@ it('speeding up changes only the turns that have not come yet', async () => {
   assert.deepEqual(periodDates({ ...base, periods: biweekly }), ['2026-10-18', '2026-11-18', '2026-12-02', '2026-12-16', '2026-12-30']);
   assert.deepEqual(periodDates({ ...base, periods: speedUp(doubled, 1, 'normal') }), periodDates({ ...base, periods }));
 });
+
+it('an extra amount on a turn raises that installment and the payout', async () => {
+  const { addBonus, periodDue, payoutNet } = await import('../src/core/schedule.ts');
+  const circle = { installment: 500, members: [{}, {}, {}, {}] } as any;
+  const periods = [{ id: 'a', kind: 'payout', recipientId: 'x' }, { id: 'b', kind: 'payout', recipientId: 'y' }] as any;
+  const next = addBonus(periods, ['b'], 200);
+  assert.equal(periodDue(circle, next[0]), 500);
+  assert.equal(periodDue(circle, next[1]), 700);
+  assert.equal(payoutNet(circle, next[1]), 2100);
+});

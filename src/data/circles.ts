@@ -90,6 +90,7 @@ function cleanPeriods(periods: Period[]): Period[] {
     const out: Period = { id: p.id, kind: p.kind };
     if (p.recipientId) out.recipientId = p.recipientId;
     if (p.amount != null) out.amount = p.amount;
+    if (p.bonus && p.bonus > 0) out.bonus = p.bonus;
     if (p.paidOut) out.paidOut = true;
     if (p.note) out.note = p.note.slice(0, 120);
     if (p.deferrals && Object.keys(p.deferrals).length) out.deferrals = { ...p.deferrals };

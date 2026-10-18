@@ -16,6 +16,7 @@ import {
   currentIndex,
   assignRecipients,
   openPayouts,
+  addBonus,
   speedUp,
   isSpedUp,
   endDate,
@@ -73,7 +74,7 @@ import {
   unlinkMember,
   updatePayInfo,
 } from '@/data';
-import { Badge, Button, Card, Field, IconButton, ProgressBar, Row, Segmented, Text, tap } from '@/ui/components';
+import { Badge, Button, Card, Chip, Field, IconButton, ProgressBar, Row, Segmented, Text, tap } from "@/ui/components";
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { colors, radius, space } from '@/ui/theme';
@@ -665,7 +666,11 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
   const drawStarted = current >= 0 || circle.periods.some((p) => p.paidOut);
   const nameOf = (id?: string) => circle.members.find((m) => m.id === id)?.name ?? '—';
   const wheelEntries = drawable.map((p) => ({ key: p.id, value: p.recipientId ?? '', name: nameOf(p.recipientId) }));
-  const [amount, setAmount] = useState(String(circle.installment));
+  const [amount, setAmount] = useState('');
+  const [extraMode, setExtraMode] = useState<'bonus' | 'separate'>('bonus');
+  // Upcoming turns the extra can be added to (the recipient collects it).
+  const upcomingTurns = entries.filter((e) => e.period.kind === 'payout' && e.index > current && !e.period.paidOut);
+  const [bonusTarget, setBonusTarget] = useState<string>('all');
   const [note, setNote] = useState('');
 
   const hasPayments = (periodId: string) => payments.some((p) => p.periodId === periodId);
@@ -743,7 +748,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         <Text variant="heading">تحكّم في الجدول</Text>
         <Row gap={space.sm}>
           <Button label="تأجيل قسط" icon="pause-circle-outline" variant="secondary" style={{ flex: 1 }} onPress={() => doPostpone(nextIndex)} />
-          <Button label="قسط إضافي" icon="add-circle-outline" variant="secondary" style={{ flex: 1 }} onPress={() => setExtraOpen(true)} />
+          <Button label="مبلغ إضافي" icon="add-circle-outline" variant="secondary" style={{ flex: 1 }} onPress={() => setExtraOpen(true)} />
         </Row>
         <Row gap={space.sm}>
           <Button label="دور إضافي" icon="person-add-outline" variant="secondary" style={{ flex: 1 }} onPress={() => setTurnOpen(true)} />
@@ -795,6 +800,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
                 <Text variant="caption">
                   {formatDate(e.date)}
                   {e.period.kind === 'extra' ? ` • ${formatMoney(e.due)} للفرد` : ''}
+                  {e.period.kind === 'payout' && e.period.bonus ? ` • القسط ${formatMoney(e.due)} (+${formatMoney(e.period.bonus)})` : ''}
                   {e.period.note ? ` • ${e.period.note}` : ''}
                 </Text>
               </View>
@@ -812,25 +818,69 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         })}
       </Card>
 
-      <Sheet visible={extraOpen} title="قسط إضافي" onClose={() => setExtraOpen(false)}>
-        <Text variant="caption">كل الأعضاء هيدفعوا المبلغ ده في الفترة الجاية، ومن غير ما حد يقبض. الأدوار اللي بعدها هتتأخر فترة.</Text>
-        <Field label="المبلغ على كل عضو" keyboardType="numeric" value={amount} onChangeText={setAmount} />
-        <Field label="السبب (اختياري)" value={note} onChangeText={setNote} placeholder="مثلًا: مصاريف إدارية" maxLength={120} />
+      <Sheet visible={extraOpen} title="مبلغ إضافي على الأعضاء" onClose={() => setExtraOpen(false)}>
+        <Segmented
+          value={extraMode}
+          onChange={setExtraMode}
+          options={[
+            { value: 'bonus', label: 'يتضاف على القسط' },
+            { value: 'separate', label: 'قسط لوحده' },
+          ]}
+        />
+        <Text variant="caption">
+          {extraMode === 'bonus'
+            ? 'كل عضو يدفع المبلغ ده زيادة على قسطه في الدور اللي تختاره، وصاحب الدور بيقبضه معاه. المواعيد ما بتتغيّرش.'
+            : 'كل الأعضاء يدفعوا المبلغ ده في فترة لوحدها من غير ما حد يقبض (مثلًا مصاريف). الأدوار اللي بعدها تتأخر فترة.'}
+        </Text>
+        <Field label="المبلغ الزيادة على كل عضو" keyboardType="numeric" value={amount} onChangeText={setAmount} placeholder="مثلًا 200" />
+        {extraMode === 'bonus' ? (
+          upcomingTurns.length ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.xs }}>
+              <Chip label="كل الأدوار الجاية" active={bonusTarget === 'all'} onPress={() => setBonusTarget('all')} />
+              {upcomingTurns.map((e) => (
+                <Chip
+                  key={e.period.id}
+                  label={`${e.recipient?.name ?? ''} • ${formatDate(e.date)}`}
+                  active={bonusTarget === e.period.id}
+                  onPress={() => setBonusTarget(e.period.id)}
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            <Text variant="caption" color={colors.danger}>مفيش أدوار جاية لسه ما جاش ميعادها.</Text>
+          )
+        ) : null}
+        {extraMode === 'bonus' && parseAmount(amount) > 0 && upcomingTurns.length ? (
+          <Text variant="caption" weight="bold" color={colors.success}>
+            القسط يبقى {formatMoney(circle.installment + parseAmount(amount))} وصاحب الدور يقبض{' '}
+            {formatMoney((circle.installment + parseAmount(amount)) * Math.max(0, circle.members.length - 1))}
+          </Text>
+        ) : null}
+        <Field label="السبب (اختياري)" value={note} onChangeText={setNote} placeholder="مثلًا: علشان نخلّص بدري" maxLength={120} />
         <Button
-          label="ضيف القسط"
+          label="ضيف المبلغ"
           icon="checkmark"
-          disabled={!(parseAmount(amount) > 0)}
+          disabled={!(parseAmount(amount) > 0) || (extraMode === 'bonus' && !upcomingTurns.length)}
           onPress={() => {
             setExtraOpen(false);
-            run(() => mutatePeriods(circle.id, (ps) => addExtraInstallment(ps, nextIndex, parseAmount(amount), note.trim())));
+            const value = parseAmount(amount);
+            if (extraMode === 'bonus') {
+              const ids = bonusTarget === 'all' ? upcomingTurns.map((e) => e.period.id) : [bonusTarget];
+              run(() => mutatePeriods(circle.id, (ps) => addBonus(ps, ids, value, note.trim())), {
+                success: 'اتضاف على القسط، وظهر عند كل الأعضاء.',
+              });
+            } else {
+              run(() => mutatePeriods(circle.id, (ps) => addExtraInstallment(ps, nextIndex, value, note.trim())));
+            }
             setNote('');
+            setAmount('');
           }}
         />
       </Sheet>
 
       <Sheet visible={speedOpen} title="تسريع الجمعية" onClose={() => setSpeedOpen(false)}>
         <Text variant="caption">
-          لو اتفقت مع الأعضاء تخلّصوا بدري. الأدوار اللي قبضت أو ميعادها جه ما بتتغيّرش. ولو عايزين يدفعوا مبلغ زيادة مرة واحدة استخدم "قسط إضافي".
+          لو اتفقت مع الأعضاء تخلّصوا بدري. الأدوار اللي قبضت أو ميعادها جه ما بتتغيّرش. ولو عايزين يدفعوا مبلغ زيادة مرة واحدة استخدم "مبلغ إضافي".
         </Text>
         <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: space.sm }}>
           {speedOptions.map((o) => {

@@ -59,7 +59,7 @@ export function planReminders(
         push(pid, 'due', myDue, `النهارده ميعاد قسط ${circle.name}`, `${amount}. ادخل دوري ودوس "دفعت" بعد ما تدفع.`);
       }
       if (ownTurn && !entry.period.paidOut) {
-        push(pid, 'payout', entry.date, `النهارده دورك تقبض 🎉`, `قبض ${circle.name}: ${formatMoney(payoutNet(circle), circle.currency)} (من غير ما تدفع قسط الدور ده)`);
+        push(pid, 'payout', entry.date, `النهارده دورك تقبض 🎉`, `قبض ${circle.name}: ${formatMoney(payoutNet(circle, entry.period), circle.currency)} (من غير ما تدفع قسط الدور ده)`);
       }
     } else if (entry.due > 0) {
       const missing = circle.members.filter(

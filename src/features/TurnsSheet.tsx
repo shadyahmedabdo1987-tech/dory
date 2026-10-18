@@ -133,7 +133,7 @@ function MyTurnBanner({
             {formatDate(next.date)}
           </Text>
           <Text variant="caption" weight="semibold" color={colors.white}>
-            {done ? `قبضت ${formatMoney(payoutNet(circle))} ✓` : `${days === 0 ? 'النهارده' : relativeDays(days)} • هتقبض ${formatMoney(payoutNet(circle))}`}
+            {done ? `قبضت ${formatMoney(payoutNet(circle, next.period))} ✓` : `${days === 0 ? 'النهارده' : relativeDays(days)} • هتقبض ${formatMoney(payoutNet(circle, next.period))}`}
           </Text>
         </View>
       </Row>
@@ -239,7 +239,7 @@ function TurnRow({
         </View>
         {isPayout ? (
           <Text weight="bold" color={colors.primary}>
-            {formatMoney(payoutNet(circle))}
+            {formatMoney(payoutNet(circle, entry.period))}
           </Text>
         ) : null}
       </Row>

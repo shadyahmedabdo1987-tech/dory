@@ -113,7 +113,7 @@ export function PayoutRequestSheet({
   }, [entry?.period.id]);
 
   if (!entry) return null;
-  const pot = payoutNet(circle);
+  const pot = payoutNet(circle, entry.period);
 
   const submit = () => {
     if (validatePayoutRequest(method, account)) return setShowError(true);
@@ -185,11 +185,11 @@ export function AdminPayoutSheet({
   }, [entry?.period.id, request?.status]);
 
   // The admin's receipt must show exactly the payout, sent to the recipient's account.
-  const rc = useReceiptVerification(receipt, payoutNet(circle), [account], { due: entry?.date });
+  const rc = useReceiptVerification(receipt, entry ? payoutNet(circle, entry.period) : payoutNet(circle), [account], { due: entry?.date });
 
   if (!entry) return null;
   const recipient = entry.recipient;
-  const pot = payoutNet(circle);
+  const pot = payoutNet(circle, entry.period);
   const paid = !!entry.period.paidOut;
   const edited = !!request && (method !== request.method || (account || '') !== (request.account || ''));
   const needsReceipt = payoutNeedsReceipt(method);

@@ -64,7 +64,7 @@ export function groupTemplates(circle: Circle, entry: TimelineEntry | undefined,
       label: `دور القبض: ${entry.recipient.name}`,
       text: [
         `🎉 مبروك يا ${entry.recipient.name} — دورك تقبض`,
-        `هتقبض ${formatMoney(payoutNet(circle), circle.currency)} يوم ${formatDate(entry.date)}.`,
+        `هتقبض ${formatMoney(payoutNet(circle, entry.period), circle.currency)} يوم ${formatDate(entry.date)}.`,
         'ادخل التطبيق ودوس "حدد طريقة القبض" واختار هتستلم إزاي.',
       ].join('\n'),
       audience: 'recipient',
