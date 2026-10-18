@@ -39,7 +39,8 @@ import {
   removePeriod,
   timeline,
   periodDue,
-  upcomingExtrasPerMember,
+  upcomingExtras,
+  clearBonus,
   todayISO,
   findPayment,
   METHOD_LABEL,
@@ -140,7 +141,11 @@ export function AdminView({
   // The amounts shown up top follow the turn being collected now (or the next one), extras included.
   const heroEntry = timeline(circle).find((e) => e.period.kind === 'payout' && !e.period.paidOut && e.index >= Math.max(0, o.current));
   const heroPeriod = heroEntry?.period;
-  const extrasLeft = upcomingExtrasPerMember(circle, o.current);
+  const extras = upcomingExtras(circle, o.current);
+  // The headline total grows with every extra amount still to be collected.
+  const extrasTotal = extras.reduce((s, x) => s + x.total, 0);
+  const heroBonusTotal = heroPeriod?.bonus ? heroPeriod.bonus * Math.max(0, circle.members.length - 1) : 0;
+  const headlineTotal = payoutPot(circle, heroPeriod) + extrasTotal - heroBonusTotal;
 
   return (
     <KeyboardScreen>
@@ -150,8 +155,13 @@ export function AdminView({
           {heroPeriod ? `القبض في دور ${heroEntry?.recipient?.name ?? ''} (${formatDate(heroEntry!.date)})` : 'القبض في كل دور'}
         </Text>
         <Text variant="number" color={colors.gold}>
-          {formatMoney(payoutPot(circle, heroPeriod))}
+          {formatMoney(extrasTotal ? headlineTotal : payoutPot(circle, heroPeriod))}
         </Text>
+        {extrasTotal ? (
+          <Text variant="caption" color="rgba(255,255,255,0.85)">
+            القبض {formatMoney(payoutPot(circle, heroPeriod) - heroBonusTotal)} + مبالغ إضافية {formatMoney(extrasTotal)}
+          </Text>
+        ) : null}
         <Text variant="caption" color="rgba(255,255,255,0.85)">
           {formatNumber(circle.members.length)} عضو × {formatMoney(heroPeriod ? periodDue(circle, heroPeriod) : circle.installment)}{' '}
           {heroPeriod?.bonus ? `(القسط ${formatMoney(circle.installment)} + زيادة ${formatMoney(heroPeriod.bonus)})` : FREQUENCY_LABEL[circle.frequency].every}
@@ -159,11 +169,12 @@ export function AdminView({
         <Text variant="caption" color="rgba(255,255,255,0.75)">
           صاحب الدور ما بيدفعش قسطه وبيستلم {formatMoney(payoutNet(circle, heroPeriod))}
         </Text>
-        {extrasLeft > 0 ? (
-          <Text variant="caption" weight="bold" color="#FFD6A5">
-            مبالغ إضافية جاية: {formatMoney(extrasLeft)} على كل عضو
+        {extras.map((x) => (
+          <Text key={x.entry.period.id} variant="caption" weight="bold" color="#FFD6A5">
+            ➕ {x.kind === 'bonus' ? `زيادة على قسط دور ${x.entry.recipient?.name ?? ''}` : 'قسط إضافي'} ({formatDate(x.entry.date)}): {formatMoney(x.perMember)} على كل عضو
+            {x.entry.period.note ? ` — ${x.entry.period.note}` : ''}
           </Text>
-        ) : null}
+        ))}
         <View style={{ alignSelf: 'stretch', gap: space.xs, marginTop: space.sm }}>
           <ProgressBar value={o.ratio} />
           <Row style={{ justifyContent: 'space-between' }}>
@@ -733,6 +744,25 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
     if (ok) run(() => mutatePeriods(circle.id, (ps) => speedUp(ps, speedFrom, mode)), { success: 'المواعيد الجديدة اتسجّلت وظهرت عند كل الأعضاء.' });
   };
 
+  const scheduleExtras = upcomingExtras(circle, current);
+  const cancelExtra = async (x: (typeof scheduleExtras)[number]) => {
+    if (hasPayments(x.entry.period.id)) {
+      return alert('مينفعش يتلغي', 'في أعضاء دفعوا الفترة دي بالفعل. شيل مدفوعاتهم الأول من تبويب التحصيل لو عايز تلغيه.', undefined, { icon: 'lock-closed', tone: 'info' });
+    }
+    const ok = await confirm(
+      'إلغاء المبلغ الإضافي؟',
+      x.kind === 'bonus'
+        ? `قسط دور ${x.entry.recipient?.name ?? ''} يرجع ${formatMoney(circle.installment)} زي الأول، والإجمالي يقل ${formatMoney(x.total)}.`
+        : `القسط الإضافي بتاع ${formatDate(x.entry.date)} هيتشال، والأدوار اللي بعده ترجع لمواعيدها.`,
+      'إلغاء المبلغ',
+      true,
+    );
+    if (ok)
+      run(() => mutatePeriods(circle.id, (ps) => (x.kind === 'bonus' ? clearBonus(ps, x.entry.period.id) : removePeriod(ps, x.entry.period.id))), {
+        success: 'اتلغى، وظهر التعديل عند كل الأعضاء.',
+      });
+  };
+
   const actions = (e: TimelineEntry) => {
     const started = e.index <= current;
     const buttons: DialogButton[] = [];
@@ -786,6 +816,27 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
           {drawStarted ? ' القرعة بتعيد ترتيب الأدوار اللي لسه ما جاش ميعادها بس — اللي قبض أو دوره جه بيفضل مكانه.' : ''}
         </Text>
       </Card>
+
+      {scheduleExtras.length ? (
+        <Card>
+          <Text variant="heading">المبالغ الإضافية</Text>
+          {scheduleExtras.map((x) => (
+            <Row key={x.entry.period.id} gap={space.sm}>
+              <Ionicons name="add-circle" size={22} color={colors.gold} />
+              <View style={{ flex: 1 }}>
+                <Text weight="semibold">
+                  {x.kind === 'bonus' ? `زيادة على قسط دور ${x.entry.recipient?.name ?? ''}` : 'قسط إضافي'} • {formatMoney(x.perMember)} على كل عضو
+                </Text>
+                <Text variant="caption">
+                  {formatDate(x.entry.date)} • الإجمالي {formatMoney(x.total)}
+                  {x.entry.period.note ? ` • ${x.entry.period.note}` : ''}
+                </Text>
+              </View>
+              <IconButton icon="close" label="إلغاء" color={colors.danger} bg={colors.dangerSoft} onPress={() => cancelExtra(x)} />
+            </Row>
+          ))}
+        </Card>
+      ) : null}
 
       <Card style={{ gap: 0, paddingVertical: space.sm }}>
         {entries.map((e, k) => {

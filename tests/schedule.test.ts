@@ -405,3 +405,18 @@ it('the top card counts upcoming extras per member', async () => {
   } as any;
   assert.equal(upcomingExtrasPerMember(circle, 0), 500);
 });
+
+it('extras add up into the headline total', async () => {
+  const { upcomingExtras } = await import('../src/core/schedule.ts');
+  const circle = {
+    installment: 500, startDate: '2026-10-18', frequency: 'monthly',
+    members: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'c', name: 'c' }, { id: 'd', name: 'd' }],
+    periods: [
+      { id: 'p1', kind: 'payout', recipientId: 'a' },
+      { id: 'x', kind: 'extra', amount: 500 },
+      { id: 'p2', kind: 'payout', recipientId: 'b', bonus: 200 },
+    ],
+  } as any;
+  const xs = upcomingExtras(circle, 0);
+  assert.deepEqual(xs.map((x: any) => [x.kind, x.perMember, x.total]), [['extra', 500, 2000], ['bonus', 200, 600]]);
+});

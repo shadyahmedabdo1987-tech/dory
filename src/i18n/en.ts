@@ -688,11 +688,23 @@ export const EXACT: Record<string, string> = {
  "مثلًا: علشان نخلّص بدري": "e.g. to finish early",
  "ضيف المبلغ": "Add amount",
  "اتضاف على القسط، وظهر عند كل الأعضاء.": "Added to the installment and shown to every member.",
- "أو في شهر معيّن (نفس اليوم)": "Or in a specific month (same day)"
+ "أو في شهر معيّن (نفس اليوم)": "Or in a specific month (same day)",
+ "المبالغ الإضافية": "Extra amounts",
+ "مينفعش يتلغي": "Can't be cancelled",
+ "في أعضاء دفعوا الفترة دي بالفعل. شيل مدفوعاتهم الأول من تبويب التحصيل لو عايز تلغيه.": "Some members already paid this period. Remove their payments from the Collection tab first to cancel it.",
+ "إلغاء المبلغ الإضافي؟": "Cancel the extra amount?",
+ "إلغاء المبلغ": "Cancel amount",
+ "اتلغى، وظهر التعديل عند كل الأعضاء.": "Cancelled — every member sees the change.",
+ "زيادة على القسط": "Added to installment"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
 export const PATTERNS: [string, string][] = [
+ ["القبض {0} + مبالغ إضافية {1}", "Payout {0} + extras {1}"],
+ ["زيادة على قسط دور {0}", "Extra on {0}'s turn"],
+ ["{0} • الإجمالي {1}", "{0} • total {1}"],
+ ["قسط دور {0} يرجع {1} زي الأول، والإجمالي يقل {2}.", "{0}'s turn installment goes back to {1}; the total drops by {2}."],
+ ["القسط الإضافي بتاع {0} هيتشال، والأدوار اللي بعده ترجع لمواعيدها.", "The extra installment on {0} is removed and later turns move back."],
  ["القبض في دور {0} ({1})", "Payout for {0}'s turn ({1})"],
  ["(القسط {0} + زيادة {1})", "(installment {0} + extra {1})"],
  ["مبالغ إضافية جاية: {0} على كل عضو", "Upcoming extras: {0} per member"],

@@ -154,6 +154,30 @@ export function upcomingExtrasPerMember(circle: Circle, current: number): number
   }, 0);
 }
 
+export interface ExtraItem {
+  entry: TimelineEntry;
+  /** 'bonus' = added on top of a turn's installment; 'extra' = its own installment. */
+  kind: 'bonus' | 'extra';
+  perMember: number;
+  /** Everyone together. */
+  total: number;
+}
+
+/** Every extra amount still to come (raised turns + separate installments), oldest first. */
+export function upcomingExtras(circle: Circle, current: number): ExtraItem[] {
+  const n = circle.members.length;
+  return timeline(circle)
+    .filter((e) => current < 0 || e.index >= current)
+    .flatMap((e): ExtraItem[] => {
+      if (e.period.kind === 'payout' && e.period.bonus && !e.period.paidOut) {
+        // The recipient doesn't pay their own turn, so n - 1 people pay the extra.
+        return [{ entry: e, kind: 'bonus', perMember: e.period.bonus, total: e.period.bonus * Math.max(0, n - 1) }];
+      }
+      if (e.period.kind === 'extra') return [{ entry: e, kind: 'extra', perMember: e.due, total: e.due * n }];
+      return [];
+    });
+}
+
 export function addBonus(periods: Period[], periodIds: string[], amount: number, note?: string): Period[] {
   return periods.map((p) =>
     periodIds.includes(p.id) && p.kind === 'payout'

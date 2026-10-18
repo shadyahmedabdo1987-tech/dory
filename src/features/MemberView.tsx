@@ -23,7 +23,7 @@ import {
   type Circle,
   type MemberPaymentState,
   type Payment,
-  type TimelineEntry, deferralOf } from '@/core';
+  type TimelineEntry, deferralOf, upcomingExtras, currentIndex } from "@/core";
 import { confirmPayoutReceived, disputePayout, hasMyPassword, loadPayoutReceipt, loadReceipt, removePayment, setMyPassword, usePayouts } from '@/data';
 import { readPrefsSync, writePrefs } from '@/ui/prefs';
 import { Badge, Button, Card, Field, ProgressBar, Row, Text, tap } from '@/ui/components';
@@ -97,6 +97,10 @@ export function MemberView({
 
   const next = acc.nextDue;
   const paidRatio = acc.totalCommitment ? acc.totalPaid / acc.totalCommitment : 0;
+  // Extra amounts the organizer added that this member still pays (already inside the totals above).
+  const extraLines = upcomingExtras(circle, currentIndex(circle)).filter(
+    (x) => !(x.kind === 'bonus' && x.entry.period.recipientId === memberId),
+  );
 
   return (
     <KeyboardScreen>
@@ -126,6 +130,16 @@ export function MemberView({
             من {formatMoney(acc.totalCommitment)}
           </Text>
         </Row>
+        {extraLines.length ? (
+          <View style={{ gap: 2, marginTop: space.xs }}>
+            {extraLines.map((x) => (
+              <Text key={x.entry.period.id} variant="caption" weight="bold" color="#FFD6A5">
+                ➕ {x.kind === 'bonus' ? 'زيادة على القسط' : 'قسط إضافي'} ({formatDate(x.entry.date)}): {formatMoney(x.perMember)}
+                {x.entry.period.note ? ` — ${x.entry.period.note}` : ''}
+              </Text>
+            ))}
+          </View>
+        ) : null}
         {acc.myPayouts.length ? (() => {
           const t = acc.myPayouts.find((p) => !p.received) ?? acc.myPayouts[acc.myPayouts.length - 1];
           const d = daysBetween(today, t.entry.date);
