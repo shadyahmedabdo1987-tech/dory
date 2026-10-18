@@ -101,6 +101,14 @@ export function IntroSplash({ ready, onShown, onDone }: { ready: boolean; onShow
           </Text>
         </Animated.View>
       </Animated.View>
+      <Animated.View style={[styles.credit, { opacity: title }]}>
+        <Text color="rgba(255,255,255,0.65)" style={{ fontSize: 13, letterSpacing: 1, writingDirection: 'ltr' }}>
+          Powered by{' '}
+          <Text weight="bold" color={colors.gold} style={{ fontSize: 13 }}>
+            Shady Ahmed
+          </Text>
+        </Text>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -108,4 +116,5 @@ export function IntroSplash({ ready, onShown, onDone }: { ready: boolean; onShow
 const styles = StyleSheet.create({
   bg: { backgroundColor: '#0F5C4D', alignItems: 'center', justifyContent: 'center', zIndex: 1000, elevation: 1000 },
   layer: { position: 'absolute', width: SIZE, height: SIZE },
+  credit: { position: 'absolute', bottom: 48, left: 0, right: 0, alignItems: 'center' },
 });
