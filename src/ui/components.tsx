@@ -54,6 +54,8 @@ export function Text({
   return (
     <RNText
       maxFontSizeMultiplier={1.15}
+      // Big amounts stay on one line and shrink a little if they must.
+      {...(variant === 'number' ? { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.6 } : null)}
       {...rest}
       style={[
         styles.text,
@@ -107,7 +109,7 @@ export function Badge({ label, tone = 'neutral' }: { label: string; tone?: 'neut
   }[tone];
   return (
     <View style={[styles.badge, { backgroundColor: palette[0] }]}>
-      <Text variant="caption" weight="semibold" color={palette[1]}>
+      <Text variant="caption" weight="semibold" color={palette[1]} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -414,6 +416,8 @@ export function ActionTile({
         weight="bold"
         center
         numberOfLines={2}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
         maxFontSizeMultiplier={1.15}
         style={{ fontSize: 13, lineHeight: 19 }}
       >
@@ -440,7 +444,8 @@ export function EmptyState({ icon, title, body }: { icon: IconName; title: strin
 }
 
 const styles = StyleSheet.create({
-  text: { color: colors.text, writingDirection: isEn ? 'ltr' : 'rtl', textAlign: 'left' },
+  // flexShrink: text next to icons/badges in a row wraps inside the screen instead of running off it.
+  text: { color: colors.text, writingDirection: isEn ? 'ltr' : 'rtl', textAlign: 'left', flexShrink: 1 },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
@@ -453,7 +458,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   track: { height: 8, borderRadius: radius.pill, backgroundColor: 'rgba(0,0,0,0.08)', overflow: 'hidden' },
   fill: { height: '100%', borderRadius: radius.pill },
-  badge: { paddingHorizontal: space.sm + 2, paddingVertical: 2, borderRadius: radius.pill, alignSelf: 'flex-start' },
+  badge: { paddingHorizontal: space.sm + 2, paddingVertical: 2, borderRadius: radius.pill, alignSelf: 'flex-start', flexShrink: 0 },
   button: {
     minHeight: 52,
     borderRadius: radius.md,

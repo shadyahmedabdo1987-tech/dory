@@ -50,12 +50,24 @@ export function ReportSheet({
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
+function Stat({ label, value, tone, sub }: { label: string; value: string; tone?: string; sub?: string }) {
   return (
     <View style={styles.stat}>
-      <Text variant="caption">{label}</Text>
-      <Text weight="bold" color={tone ?? colors.text} style={{ fontSize: 17 }}>
+      <Text variant="caption" weight="semibold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+        {label}
+      </Text>
+      <Text
+        weight="bold"
+        color={tone ?? colors.text}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
+        style={{ fontSize: 18, lineHeight: 28 }}
+      >
         {value}
+      </Text>
+      <Text variant="caption" numberOfLines={1} style={{ fontSize: 11, lineHeight: 16, opacity: sub ? 1 : 0 }}>
+        {sub ?? '—'}
       </Text>
     </View>
   );
@@ -116,10 +128,11 @@ function MemberReportView({ report: r, circle, share }: { report: MemberReport; 
           دفع {formatNumber(r.installmentsPaid)} من {formatNumber(r.installmentsTotal)} قسط
         </Text>
         <View style={styles.stats}>
-          <Stat label="اتدفع" value={formatMoney(r.amountPaid)} tone={colors.success} />
-          <Stat label={`باقي (${formatNumber(r.installmentsLeft)} قسط)`} value={formatMoney(r.amountLeft)} />
+          <Stat label="اتدفع" value={formatMoney(r.amountPaid)} tone={colors.success} sub={`${formatNumber(r.installmentsPaid)} قسط`} />
+          <Stat label="باقي" value={formatMoney(r.amountLeft)} sub={`${formatNumber(r.installmentsLeft)} قسط`} />
           <Stat
-            label={`متأخر (${formatNumber(r.installmentsOverdue)})`}
+            label="متأخر"
+            sub={`${formatNumber(r.installmentsOverdue)} قسط`}
             value={formatMoney(r.amountOverdue)}
             tone={r.amountOverdue ? colors.danger : colors.muted}
           />
@@ -139,9 +152,13 @@ function MemberReportView({ report: r, circle, share }: { report: MemberReport; 
           {r.paid.map((p, i) => (
             <Row key={`${p.date}-${i}`} gap={space.sm} style={styles.line}>
               <Ionicons name={p.how === 'covered' ? 'gift-outline' : 'checkmark-circle'} size={18} color={colors.success} />
-              <Text style={{ flex: 1 }}>{formatDate(p.date)}</Text>
-              <Text variant="caption">{p.how === 'covered' ? 'دوره — محسوب' : p.method ? METHOD_LABEL[p.method] : 'مدفوع'}</Text>
-              <Text weight="bold">{formatMoney(p.amount)}</Text>
+              <View style={{ flex: 1 }}>
+                <Text numberOfLines={1}>{formatDate(p.date)}</Text>
+                <Text variant="caption" numberOfLines={1}>
+                  {p.how === 'covered' ? 'دوره في القبض — محسوب مدفوع' : p.method ? METHOD_LABEL[p.method] : 'مدفوع'}
+                </Text>
+              </View>
+              <Text weight="bold" numberOfLines={1}>{formatMoney(p.amount)}</Text>
             </Row>
           ))}
         </Card>
@@ -235,9 +252,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     borderRadius: radius.md,
-    padding: space.sm,
+    paddingVertical: space.md,
+    paddingHorizontal: space.sm,
     gap: 2,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   turn: { paddingVertical: space.xs },
   turnNum: {

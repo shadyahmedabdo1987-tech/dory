@@ -209,22 +209,22 @@ export function AdminView({
             </Text>
           </Row>
         ) : null}
-        <Text variant="caption" color="rgba(255,255,255,0.75)">
+        <Text variant="caption" color="rgba(255,255,255,0.75)" center>
           {heroPeriod ? `القبض في دور ${heroEntry?.recipient?.name ?? ''} (${formatDate(heroEntry!.date)})` : 'القبض في كل دور'}
         </Text>
         <Text variant="number" color={colors.gold}>
           {formatMoney(extrasTotal ? headlineTotal : payoutPot(circle, heroPeriod))}
         </Text>
         {extrasTotal ? (
-          <Text variant="caption" color="rgba(255,255,255,0.85)">
+          <Text variant="caption" color="rgba(255,255,255,0.85)" center>
             القبض {formatMoney(payoutPot(circle, heroPeriod) - heroBonusTotal)} + مبالغ إضافية {formatMoney(extrasTotal)}
           </Text>
         ) : null}
-        <Text variant="caption" color="rgba(255,255,255,0.85)">
+        <Text variant="caption" color="rgba(255,255,255,0.85)" center>
           {formatNumber(circle.members.length)} عضو × {formatMoney(heroPeriod ? periodDue(circle, heroPeriod) : circle.installment)}{' '}
           {heroPeriod?.bonus ? `(القسط ${formatMoney(circle.installment)} + زيادة ${formatMoney(heroPeriod.bonus)})` : cadenceLabel(circle)}
         </Text>
-        <Text variant="caption" color="rgba(255,255,255,0.75)">
+        <Text variant="caption" color="rgba(255,255,255,0.75)" center>
           صاحب الدور ما بيدفعش قسطه وبيستلم {formatMoney(payoutNet(circle, heroPeriod))}
         </Text>
         {extras.map((x) => (
