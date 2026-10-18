@@ -236,9 +236,7 @@ export function Field({
         maxFontSizeMultiplier={1.15}
         placeholderTextColor={colors.muted}
         {...input}
-        // Fields start empty (the label says what goes in them) — except InstaPay
-        // fields, where an example of the number / address format helps.
-        placeholder={input.placeholder && /instapay|إنستاباي|فودافون/i.test(`${label} ${input.placeholder}`) ? tr(input.placeholder) : undefined}
+        placeholder={tr(input.placeholder)}
         style={[styles.input, error ? { borderColor: colors.danger } : null, style]}
       />
       {error ? (

@@ -346,6 +346,8 @@ export function CircleForm({
               اسمك
             </Text>
             <TextInput
+              placeholder={tr("اسمك")}
+              placeholderTextColor={colors.muted}
               value={members[0]?.name ?? ''}
               maxLength={60}
               onChangeText={(t) => members[0] && update(members[0].id, { name: t })}
@@ -475,6 +477,8 @@ export function CircleForm({
                 الاسم
               </Text>
               <TextInput
+                placeholder={tr("الاسم")}
+                placeholderTextColor={colors.muted}
                 value={m.name}
                 maxLength={60}
                 onChangeText={(t) => update(m.id, { name: t })}
