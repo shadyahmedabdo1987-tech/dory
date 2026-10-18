@@ -13,6 +13,8 @@ import {
   hasMyPassword,
   hasLoginCode,
   joinWithLoginCode,
+  hasPasswordFlag,
+  markPasswordSet,
   setMyPassword,
   joinCircle,
   cancelJoinRequest,
@@ -325,7 +327,8 @@ function JoinSheet({
         await ensurePushToken().catch(() => null);
         // The organizer gave this number a sign-in code: ask for the code first.
         const mid = await memberIdForPhone(circle.id, phone).catch(() => null);
-        if (mid && (await hasLoginCode(circle.id, mid))) {
+        // …unless they already used it and chose a password: then it's the password.
+        if (mid && (await hasLoginCode(circle.id, mid)) && !(await hasPasswordFlag(circle.id, mid))) {
           setPassword('');
           setWithCode(true);
           return setStep('login');
@@ -377,6 +380,8 @@ function JoinSheet({
       const memberId = await memberIdForPhone(circle.id, phone).catch(() => null);
       if (memberId && !(await hasMyPassword(circle.id, memberId))) {
         await setMyPassword(circle.id, memberId, phone, used).catch(() => {});
+      } else if (memberId) {
+        await markPasswordSet(circle.id, memberId).catch(() => {});
       }
       writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
       alert('أهلًا بيك تاني ✓', 'دخلت باسمك ودورك المسجّلين في الجمعية.');

@@ -478,6 +478,7 @@ export async function unlinkMember(circle: Circle, member: Member): Promise<void
   batch.update(doc(membersCol(db, circle.id), member.id), { uid: null });
   // Forgot password / lost phone: they choose a new password when they sign back in.
   batch.delete(secretRef(db, circle.id, member.id));
+  batch.delete(doc(db, 'circles', circle.id, 'phones', passwordFlag(member.id)));
   await withTimeout(batch.commit());
 }
 
@@ -531,6 +532,7 @@ export async function issueFirstLoginCode(cid: string, memberId: string, rawPhon
   await restCommit([
     // The old password goes: the member enters with the code and chooses a new one.
     { delete: `circles/${cid}/secrets/${memberId}` },
+    { delete: `circles/${cid}/phones/${passwordFlag(memberId)}` },
     ...old.map((id) => ({ delete: `circles/${cid}/phones/${id}` })),
     // "This member has a code" (so the sign-in screen asks for it)…
     { set: `circles/${cid}/phones/${codeMarker(memberId)}`, data: { memberId } },
@@ -554,6 +556,7 @@ export async function clearFirstLoginCode(cid: string, memberId: string): Promis
   await restCommit([
     { delete: `circles/${cid}/secrets/${memberId}` },
     { delete: `circles/${cid}/phones/${codeMarker(memberId)}` },
+    { delete: `circles/${cid}/phones/${passwordFlag(memberId)}` },
     ...keys.map((id) => ({ delete: `circles/${cid}/phones/${id}` })),
   ]);
   const all = readPrefsSync().memberCodes ?? {};
@@ -623,6 +626,30 @@ export async function setMyPassword(cid: string, memberId: string, rawPhone: str
     ...(lookup ? [] : [{ set: `circles/${cid}/phones/${phone}`, data: { memberId } }]),
     { set: `circles/${cid}/secrets/${memberId}`, data: { proof: passwordProof(cid, phone, password) } },
   ]);
+  // "This member has a password now": the sign-in screen stops asking for the organizer's code.
+  await markPasswordSet(cid, memberId);
+}
+
+/** Member (signed in): record that I have a password, so I'm not asked for a sign-in code again. */
+export async function markPasswordSet(cid: string, memberId: string): Promise<void> {
+  if (await restGet(`circles/${cid}/phones/${passwordFlag(memberId)}`).catch(() => null)) return;
+  await restCommit([{ set: `circles/${cid}/phones/${passwordFlag(memberId)}`, data: { memberId } }]).catch(() => {});
+}
+
+/**
+ * Public flag doc (digits only, so a member may write it for themselves) saying the
+ * member chose a password after their sign-in code. Holds nothing secret.
+ */
+function passwordFlag(memberId: string): string {
+  const hex = sha256(`dory:pwset:v1:${memberId}`);
+  let digits = '';
+  for (let i = 0; digits.length < 13; i++) digits += String(parseInt(hex[i], 16) % 10);
+  return `99${digits}`;
+}
+
+/** Did this member already choose a password (after being given a sign-in code)? */
+export async function hasPasswordFlag(cid: string, memberId: string): Promise<boolean> {
+  return (await restGet(`circles/${cid}/phones/${passwordFlag(memberId)}`).catch(() => null)) !== null;
 }
 
 async function deleteInChunks(db: Firestore, refs: DocumentReference[]) {
@@ -1404,14 +1431,14 @@ export async function releaseMyMemberships(uid: string, refs: { id: string; memb
 export async function backfillPhones(circle: Circle): Promise<void> {
   const db = firestore();
   const existing = await getDocs(collection(db, 'circles', circle.id, 'phones'));
-  const numbers = existing.docs.filter((d) => /^\d+$/.test(d.id));
+  const numbers = existing.docs.filter((d) => /^\d+$/.test(d.id) && !(d.id.length === 15 && d.id.startsWith('99')));
   const taken = new Set(numbers.map((d) => d.id));
   const linked = new Set(numbers.map((d) => String(d.data().memberId)));
   const batch = writeBatch(db);
   let n = 0;
   // A sign-in code is done with once the member is in: drop its marker (and the copy kept on this phone).
   for (const d of existing.docs) {
-    if (/^\d+$/.test(d.id)) continue;
+    if (/^\d+$/.test(d.id)) continue; // numbers (and password flags) stay
     const mid = String(d.data().memberId);
     const m = circle.members.find((x) => x.id === mid);
     if (m && !m.uid) continue;

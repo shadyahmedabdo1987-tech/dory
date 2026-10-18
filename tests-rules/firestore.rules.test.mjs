@@ -810,6 +810,10 @@ describe('organizer sign-in codes', () => {
     // Joins (no password yet), then chooses one.
     await assertSucceeds(joinBatch(m, 'z2'));
     await assertSucceeds(setDoc(doc(m, 'circles', CID, 'secrets', 'm1'), { proof: 'c'.repeat(64) }));
+    // …and flags "I have a password now" (digits-only id, own member id only).
+    await assertSucceeds(setDoc(doc(m, 'circles', CID, 'phones', '991234567890123'), { memberId: 'm1' }));
+    await assertFails(setDoc(doc(m, 'circles', CID, 'phones', '992234567890123'), { memberId: 'm2' }));
+    await assertSucceeds(getDoc(doc(anon('z9'), 'circles', CID, 'phones', '991234567890123')));
     // The admin lists the member's code docs to clean them up.
     await assertSucceeds(getDocs(query(collection(adb, 'circles', CID, 'phones'), where('memberId', '==', 'm1'))));
     await assertSucceeds(deleteDoc(doc(adb, 'circles', CID, 'phones', 'code-m1')));
