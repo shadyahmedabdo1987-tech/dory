@@ -1256,7 +1256,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         <Text variant="caption">
           لو اتفقت مع الأعضاء تخلّصوا بدري. الأدوار اللي قبضت أو ميعادها جه ما بتتغيّرش. ولو عايزين يدفعوا مبلغ زيادة مرة واحدة استخدم "مبلغ إضافي".
         </Text>
-        <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: space.sm }}>
+        <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: space.sm }}>
           {speedOptions.map((o) => {
             const end = endWith(o.mode);
             return (
@@ -1311,7 +1311,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
             <Text variant="caption">
               الدور التاني بييجي بعد ما كل الأعضاء ياخدوا دورهم الأول، ومش قبل النهارده. اختار ميعاده، أو حطه في الآخر ووزّع الأدوار الجاية بعجلة القرعة.
             </Text>
-            <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ gap: space.xs }}>
+            <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: space.xs }}>
               {extraTurnSlots(circle.periods, turnFor.id, current).map((at) => {
                 const last = at >= entries.length;
                 const at_ = entries[at];
@@ -1346,7 +1346,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         ) : (
         <>
         <Text variant="caption">اختار العضو اللي هياخد دور قبض زيادة (سهم تاني، أو عمولة صاحب الجمعية).</Text>
-        <ScrollView style={{ maxHeight: 360 }}>
+        <ScrollView style={{ flexShrink: 1 }}>
           {circle.members.map((m) => (
             <Pressable
               key={m.id}

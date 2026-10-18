@@ -63,7 +63,8 @@ export function TurnsSheet({
 
   return (
     <Sheet visible title="الأدوار" onClose={onClose}>
-      <View style={{ gap: space.md }}>
+      {/* One scroll for everything, so the last turn is always reachable. */}
+      <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: space.md, paddingBottom: space.xl }} showsVerticalScrollIndicator={false}>
         {memberId ? <MyTurnBanner entries={entries} numbers={numbers} memberId={memberId} today={today} circle={circle} /> : null}
         <Row style={styles.summary}>
           <Summary label="كل الأدوار" value={formatNumber(turnNo)} />
@@ -78,7 +79,7 @@ export function TurnsSheet({
             { value: 'all', label: 'كل الأدوار' },
           ]}
         />
-        <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ gap: space.sm, paddingBottom: space.md }}>
+        <View style={{ gap: space.sm }}>
           {shown.length === 0 ? (
             <Text center variant="caption">
               كل الأدوار خلصت ✓
@@ -97,8 +98,8 @@ export function TurnsSheet({
               />
             ))
           )}
-        </ScrollView>
-      </View>
+        </View>
+      </ScrollView>
     </Sheet>
   );
 }
