@@ -26,6 +26,8 @@ export interface Period {
   /** Payout handed to the recipient. */
   paidOut?: boolean;
   note?: string;
+  /** Members allowed to pay this period's installment later: memberId → new due date (YYYY-MM-DD). */
+  deferrals?: Record<string, string>;
 }
 
 export interface Member {
@@ -109,7 +111,7 @@ export interface TimelineEntry {
 }
 
 /** `covered`: the member receives this period's payout, so their own installment is netted out (counts as paid). */
-export type MemberPaymentState = 'covered' | 'confirmed' | 'claimed' | 'overdue' | 'due' | 'upcoming' | 'none';
+export type MemberPaymentState = 'covered' | 'confirmed' | 'claimed' | 'overdue' | 'due' | 'upcoming' | 'deferred' | 'none';
 
 /** requested → approved/rejected → paid → received (or disputed by the recipient). */
 export type PayoutStatus = 'requested' | 'approved' | 'rejected' | 'paid' | 'received' | 'disputed';

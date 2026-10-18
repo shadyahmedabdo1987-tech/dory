@@ -23,8 +23,7 @@ import {
   type Circle,
   type MemberPaymentState,
   type Payment,
-  type TimelineEntry,
-} from '@/core';
+  type TimelineEntry, deferralOf } from '@/core';
 import { confirmPayoutReceived, disputePayout, hasMyPassword, loadPayoutReceipt, loadReceipt, removePayment, setMyPassword, usePayouts } from '@/data';
 import { readPrefsSync, writePrefs } from '@/ui/prefs';
 import { Badge, Button, Card, Field, ProgressBar, Row, Text, tap } from '@/ui/components';
@@ -45,6 +44,7 @@ const STATE_BADGE: Record<MemberPaymentState, { label: string; tone: 'success' |
   overdue: { label: 'متأخر', tone: 'danger' },
   due: { label: 'مستحق', tone: 'gold' },
   upcoming: { label: 'جاي', tone: 'neutral' },
+  deferred: { label: 'مؤجَّل', tone: 'neutral' },
   none: null,
 };
 
@@ -173,6 +173,11 @@ export function MemberView({
               <Text variant="caption">
                 {formatDate(next.entry.date)} • {relativeDays(daysBetween(today, next.entry.date))}
               </Text>
+              {deferralOf(next.entry.period, memberId) ? (
+                <Text variant="caption" weight="bold" color={colors.primary}>
+                  صاحب الجمعية أجّله لحد {formatDate(deferralOf(next.entry.period, memberId)!)}
+                </Text>
+              ) : null}
             </View>
             {next.entry.period.kind === 'extra' && <Badge label="قسط إضافي" tone="gold" />}
           </Row>
@@ -306,7 +311,7 @@ export function MemberView({
         {acc.lines.map((line) => {
           const badge = STATE_BADGE[line.state];
           // Collection opens on the installment's date — nothing is paid ahead of it.
-          const canClaim = (line.state === 'overdue' || line.state === 'due') && line.entry.date <= today;
+          const canClaim = (line.state === 'overdue' || line.state === 'due' || line.state === 'deferred') && line.entry.date <= today;
           return (
             <View key={line.entry.period.id} style={styles.line}>
               <View style={[styles.dot, line.isMyPayout && { backgroundColor: colors.gold }]}>

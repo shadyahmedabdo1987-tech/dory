@@ -159,6 +159,7 @@ const MEMBER_STATE: Record<string, { label: string; tone: Tone }> = {
   overdue: { label: 'قسطك متأخر', tone: 'danger' },
   due: { label: 'قسطك مستحق دلوقتي', tone: 'gold' },
   upcoming: { label: 'لسه ما جاش', tone: 'neutral' },
+  deferred: { label: 'قسطك مؤجَّل', tone: 'neutral' },
 };
 
 function TurnRow({

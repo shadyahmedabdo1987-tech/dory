@@ -654,11 +654,28 @@ export const EXACT: Record<string, string> = {
  "سجّل رقم أو عنوان إنستاباي في حسابي علشان الأعضاء يحوّلوا عليه.": "Add your InstaPay number or address in My account so members can transfer to it.",
  "سجّله": "Add it",
  " القرعة بتعيد ترتيب الأدوار اللي لسه ما جاش ميعادها بس — اللي قبض أو دوره جه بيفضل مكانه.": " The draw reorders only turns that haven't come yet — anyone already paid or whose turn arrived stays put.",
- "قرعة على الأدوار الجاية": "Draw for the upcoming turns"
+ "قرعة على الأدوار الجاية": "Draw for the upcoming turns",
+ "مؤجَّل": "Deferred",
+ "قسطك مؤجَّل": "Your installment is deferred",
+ "أجّل قسطه لميعاد تاني": "Give them a later date",
+ "أسبوعين": "Two weeks",
+ "٣ أسابيع": "3 weeks",
+ "شهرين": "Two months",
+ "أو عدد أيام معيّن": "Or a number of days",
+ "إلغاء التأجيل": "Cancel deferral"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
 export const PATTERNS: [string, string][] = [
+ ["صاحب الجمعية أجّله لحد {0}", "The organizer moved it to {0}"],
+ ["⏳ مؤجَّل لحد {0}", "⏳ Deferred to {0}"],
+ ["تأجيل قسط {0}", "Defer {0}'s installment"],
+ ["مؤجَّل دلوقتي لحد {0}", "Currently deferred to {0}"],
+ ["{0} — لحد {1}", "{0} — until {1}"],
+ ["{0} هيدفع {1} لحد {2}.", "{0} will pay {1} by {2}."],
+ ["اتلغى تأجيل {0}.", "{0}'s deferral was cancelled."],
+ ["تحصيل {0} بيفتح يوم {1}.", "Collection for {0} opens on {1}."],
+ ["{0} • ميعاده الأصلي {1}. {2} مش هيتحسب متأخر ولا هيوصله تذكير لحد الميعاد الجديد.", "{0} • originally due {1}. {2} won't count as late or get reminders until the new date."],
  ["مسح {0}؟", "Remove {0}?"],
  ["{0} اتمسح من الجمعية.", "{0} was removed from the circle."],
  ["{0} قبض دوره بالفعل، فلازم يكمّل أقساطه في الجمعية.", "{0} already received their payout, so they must keep paying."],

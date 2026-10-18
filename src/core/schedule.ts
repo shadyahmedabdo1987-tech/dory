@@ -164,6 +164,25 @@ export function moveItem<T>(items: readonly T[], from: number, to: number): T[] 
 // Payments
 // ---------------------------------------------------------------------------
 
+/** The later due date the organizer gave this member for this period, if any. */
+export function deferralOf(period: Period, memberId: string): string | undefined {
+  const d = period.deferrals?.[memberId];
+  return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined;
+}
+
+/** Give one member a later due date for one period (null removes it). */
+export function setDeferral(periods: Period[], periodId: string, memberId: string, date: string | null): Period[] {
+  return periods.map((p) => {
+    if (p.id !== periodId) return p;
+    const deferrals = { ...(p.deferrals ?? {}) };
+    if (date) deferrals[memberId] = date;
+    else delete deferrals[memberId];
+    const next: Period = { ...p, deferrals };
+    if (!Object.keys(deferrals).length) delete next.deferrals;
+    return next;
+  });
+}
+
 export function findPayment(payments: Payment[], periodId: string, memberId: string): Payment | undefined {
   return payments.find((p) => p.periodId === periodId && p.memberId === memberId);
 }
@@ -180,6 +199,12 @@ export function paymentState(
   if (payment?.status === 'confirmed') return 'confirmed';
   if (payment?.status === 'claimed') return 'claimed';
   if (entry.index > current) return 'upcoming';
+  // The organizer gave this member a later date for this installment.
+  const deferredTo = memberId ? deferralOf(entry.period, memberId) : undefined;
+  if (deferredTo) {
+    if (today < deferredTo) return 'deferred';
+    return daysBetween(deferredTo, today) < 7 ? 'due' : 'overdue';
+  }
   // Grace: the current period is "due" for its first 7 days, then "overdue".
   if (entry.index === current && daysBetween(entry.date, today) < 7) return 'due';
   return 'overdue';
@@ -191,6 +216,8 @@ export interface PeriodSummary {
   confirmed: Member[];
   claimed: Member[];
   unpaid: Member[];
+  /** Allowed to pay later (a date the organizer set) — not late yet. */
+  deferred: Member[];
   /** The turn's recipient — doesn't pay this period. */
   covered: Member[];
   /** Members who owe this period (everyone except the recipient). */
@@ -205,7 +232,9 @@ export function periodSummary(circle: Circle, payments: Payment[], index: number
   const confirmed: Member[] = [];
   const claimed: Member[] = [];
   const unpaid: Member[] = [];
+  const deferred: Member[] = [];
   const covered: Member[] = [];
+  const today = todayISO();
   const payers: Member[] = [];
   if (entry.due > 0) {
     for (const m of circle.members) {
@@ -215,7 +244,15 @@ export function periodSummary(circle: Circle, payments: Payment[], index: number
       }
       payers.push(m);
       const p = findPayment(payments, entry.period.id, m.id);
-      (p?.status === 'confirmed' ? confirmed : p?.status === 'claimed' ? claimed : unpaid).push(m);
+      const later = deferralOf(entry.period, m.id);
+      (p?.status === 'confirmed'
+        ? confirmed
+        : p?.status === 'claimed'
+          ? claimed
+          : later && today < later
+            ? deferred
+            : unpaid
+      ).push(m);
     }
   }
   return {
@@ -224,10 +261,11 @@ export function periodSummary(circle: Circle, payments: Payment[], index: number
     confirmed,
     claimed,
     unpaid,
+    deferred,
     covered,
     payers,
     collected: confirmed.length * entry.due,
-    isComplete: entry.due === 0 || unpaid.length + claimed.length === 0,
+    isComplete: entry.due === 0 || unpaid.length + claimed.length + deferred.length === 0,
   };
 }
 
@@ -314,7 +352,7 @@ export function memberAccount(
     remaining: totalCommitment - sum(paid),
     overdueAmount: sum(overdue),
     overdue,
-    nextDue: lines.find((l) => l.state === 'overdue' || l.state === 'due' || l.state === 'upcoming'),
+    nextDue: lines.find((l) => l.state === 'overdue' || l.state === 'due' || l.state === 'deferred' || l.state === 'upcoming'),
     myPayouts,
     nextPayout: upcomingPayout && {
       ...upcomingPayout,

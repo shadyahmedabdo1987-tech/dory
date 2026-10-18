@@ -92,6 +92,7 @@ function cleanPeriods(periods: Period[]): Period[] {
     if (p.amount != null) out.amount = p.amount;
     if (p.paidOut) out.paidOut = true;
     if (p.note) out.note = p.note.slice(0, 120);
+    if (p.deferrals && Object.keys(p.deferrals).length) out.deferrals = { ...p.deferrals };
     return out;
   });
 }

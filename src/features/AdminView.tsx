@@ -45,6 +45,10 @@ import {
   type PayoutRequest,
   type PaymentMethod,
   PAYOUT_STATUS_LABEL,
+  addDays,
+  deferralOf,
+  setDeferral,
+  todayISO,
 } from '@/core';
 import {
   saveCircle,
@@ -228,6 +232,7 @@ function CollectTab({
 
   const [review, setReview] = useState<{ payment: Payment; member: Member; entry: TimelineEntry } | null>(null);
   const [recording, setRecording] = useState<{ member: Member; entry: TimelineEntry; method: PaymentMethod } | null>(null);
+  const [deferFor, setDeferFor] = useState<Member | null>(null);
   const [payoutFor, setPayoutFor] = useState<TimelineEntry | null>(null);
   const [payoutReceipt, setPayoutReceipt] = useState<string | null>(null);
 
@@ -270,6 +275,7 @@ function CollectTab({
               ? run(() => confirmPayment(circle.id, entry.period.id, m.id, uid, 'cash'))
               : setRecording({ member: m, entry, method }),
         })),
+        { text: 'أجّل قسطه لميعاد تاني', icon: 'hourglass-outline' as const, color: colors.goldText, onPress: () => setDeferFor(m) },
         { text: 'إلغاء', style: 'cancel' as const },
       ],
       { icon: 'wallet', tone: 'info' },
@@ -279,6 +285,13 @@ function CollectTab({
     tap();
     const p = findPayment(payments, entry.period.id, m.id);
     if (entry.index > current && (!p || p.status === 'claimed')) {
+      if (!p) {
+        // Not open yet — but the organizer can already give this member a later date.
+        return alert('التحصيل لسه ما فتحش', `تحصيل ${periodTitle(entry)} بيفتح يوم ${formatDate(entry.date)}.`, [
+          { text: 'أجّل قسطه لميعاد تاني', icon: 'hourglass-outline', color: colors.goldText, onPress: () => setDeferFor(m) },
+          { text: 'تمام', style: 'cancel' },
+        ], { icon: 'lock-closed', tone: 'info' });
+      }
       // No collection before the installment's date.
       return alert('التحصيل لسه ما فتحش', `تحصيل ${periodTitle(entry)} بيفتح يوم ${formatDate(entry.date)}. لو عايز تبدأ بدري، غيّر تاريخ بداية الجمعية من الإعدادات.`, undefined, {
         icon: 'lock-closed',
@@ -508,18 +521,23 @@ function CollectTab({
                     {state === 'confirmed' && <Ionicons name="checkmark" size={20} color={colors.white} />}
                     {state === 'claimed' && <Ionicons name="time" size={18} color={colors.goldText} />}
                   </Pressable>
-                  <View style={{ flex: 1 }}>
+                  <Pressable style={{ flex: 1 }} onLongPress={() => !state && setDeferFor(m)} delayLongPress={350}>
                     <Text weight="semibold" numberOfLines={1}>
                       {m.name}
                     </Text>
-                    <Text variant="caption" color={state === 'confirmed' ? colors.success : colors.muted}>
+                    <Text
+                      variant="caption"
+                      color={state === 'confirmed' ? colors.success : !state && deferralOf(entry.period, m.id) ? colors.goldText : colors.muted}
+                    >
                       {state === 'confirmed'
                         ? `دفع • ${METHOD_LABEL[methodOf(p)]}`
                         : state === 'claimed'
                           ? `بيقول إنه دفع ${METHOD_LABEL[methodOf(p)]} — دوس للمراجعة`
-                          : 'لسه'}
+                          : deferralOf(entry.period, m.id)
+                            ? `⏳ مؤجَّل لحد ${formatDate(deferralOf(entry.period, m.id)!)}`
+                            : 'لسه'}
                     </Text>
-                  </View>
+                  </Pressable>
                 </View>
               );
             })}
@@ -552,6 +570,19 @@ function CollectTab({
           />
         </>
       )}
+      <DeferSheet
+        member={deferFor}
+        entry={entry}
+        onClose={() => setDeferFor(null)}
+        onPick={(date) => {
+          const m = deferFor;
+          setDeferFor(null);
+          if (!m) return;
+          run(() => mutatePeriods(circle.id, (ps) => setDeferral(ps, entry.period.id, m.id, date)), {
+            success: date ? `${m.name} هيدفع ${periodTitle(entry)} لحد ${formatDate(date)}.` : `اتلغى تأجيل ${m.name}.`,
+          });
+        }}
+      />
       <AdminRecordTransferSheet
         circle={circle}
         entry={recording?.entry ?? null}
@@ -794,6 +825,68 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         </ScrollView>
       </Sheet>
     </View>
+  );
+}
+
+/** Pick a later due date for one member's installment in one period. */
+function DeferSheet({
+  member,
+  entry,
+  onClose,
+  onPick,
+}: {
+  member: Member | null;
+  entry: TimelineEntry;
+  onClose: () => void;
+  onPick: (date: string | null) => void;
+}) {
+  const [days, setDays] = useState('');
+  const from = entry.date > todayISO() ? entry.date : todayISO();
+  const current = member ? deferralOf(entry.period, member.id) : undefined;
+  const options = [
+    { label: 'أسبوع', d: 7 },
+    { label: 'أسبوعين', d: 14 },
+    { label: '٣ أسابيع', d: 21 },
+    { label: 'شهر', d: 30 },
+    { label: 'شهرين', d: 60 },
+  ];
+  const customDays = Math.round(Number(days.replace(/[٠-٩]/g, (c) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c)))));
+  return (
+    <Sheet visible={!!member} title={member ? `تأجيل قسط ${member.name}` : ''} onClose={onClose}>
+      <Text variant="caption">
+        {periodTitle(entry)} • ميعاده الأصلي {formatDate(entry.date)}. {member?.name ?? ''} مش هيتحسب متأخر ولا هيوصله تذكير لحد الميعاد الجديد.
+      </Text>
+      {current ? (
+        <Text weight="semibold" color={colors.goldText}>
+          مؤجَّل دلوقتي لحد {formatDate(current)}
+        </Text>
+      ) : null}
+      <View style={{ gap: space.sm }}>
+        {options.map((o) => (
+          <Button
+            key={o.d}
+            label={`${o.label} — لحد ${formatDate(addDays(from, o.d))}`}
+            icon="hourglass-outline"
+            variant="secondary"
+            singleLine
+            onPress={() => onPick(addDays(from, o.d))}
+          />
+        ))}
+        <Row gap={space.sm}>
+          <View style={{ flex: 1 }}>
+            <Field label="أو عدد أيام معيّن" value={days} onChangeText={setDays} keyboardType="number-pad" maxLength={3} placeholder="45" />
+          </View>
+          <Button
+            label="أجّل"
+            icon="checkmark"
+            disabled={!(customDays >= 1 && customDays <= 365)}
+            onPress={() => onPick(addDays(from, customDays))}
+            style={{ alignSelf: 'flex-end' }}
+          />
+        </Row>
+        {current ? <Button label="إلغاء التأجيل" icon="close-circle-outline" variant="danger" onPress={() => onPick(null)} /> : null}
+      </View>
+    </Sheet>
   );
 }
 

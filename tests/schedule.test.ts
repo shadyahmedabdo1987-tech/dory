@@ -357,3 +357,16 @@ it('redraw only touches turns that have not come yet', async () => {
   assert.deepEqual(next.map((p: any) => p.recipientId), ['owner', 'a', 'c', 'b']);
   assert.throws(() => assignRecipients(periods, ['p3', 'p4'], ['a', 'b']));
 });
+
+it('a deferred member is not late until their new date', async () => {
+  const { paymentState, setDeferral, periodSummary } = await import('../src/core/schedule.ts');
+  const period = { id: 'p1', kind: 'payout', recipientId: 'a' } as any;
+  const [withLater] = setDeferral([period], 'p1', 'b', '2026-11-20');
+  const entry = { index: 0, period: withLater, date: '2026-10-01', due: 100 } as any;
+  assert.equal(paymentState(entry, undefined, 0, '2026-10-20', 'b'), 'deferred');
+  assert.equal(paymentState(entry, undefined, 0, '2026-11-22', 'b'), 'due');
+  assert.equal(paymentState(entry, undefined, 0, '2026-12-05', 'b'), 'overdue');
+  assert.equal(paymentState(entry, undefined, 0, '2026-10-20', 'c'), 'overdue');
+  const [cleared] = setDeferral([withLater], 'p1', 'b', null);
+  assert.equal(cleared.deferrals, undefined);
+});

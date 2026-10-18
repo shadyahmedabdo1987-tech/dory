@@ -1,6 +1,6 @@
 import { addDays, daysBetween, todayISO } from './dates.ts';
 import { formatDate, formatMoney, periodTitle } from './format.ts';
-import { findPayment, isOwnPayout, payoutNet, timeline } from './schedule.ts';
+import { findPayment, isOwnPayout, payoutNet, timeline, deferralOf } from './schedule.ts';
 import type { Circle, Payment } from './types';
 
 /** A local notification to schedule on this device. */
@@ -45,7 +45,9 @@ export function planReminders(
   };
 
   for (const entry of timeline(circle)) {
-    if (entry.date < today) continue;
+    // A member with a later date (set by the organizer) is reminded on that date instead.
+    const myDue = viewer.role === 'member' ? (deferralOf(entry.period, viewer.memberId) ?? entry.date) : entry.date;
+    if (myDue < today) continue;
     const pid = entry.period.id;
 
     if (viewer.role === 'member') {
@@ -53,8 +55,8 @@ export function planReminders(
       const ownTurn = isOwnPayout(entry.period, viewer.memberId);
       if (entry.due > 0 && !paid && !ownTurn) {
         const amount = formatMoney(entry.due, circle.currency);
-        push(pid, 'before', addDays(entry.date, -1), `قسط ${circle.name} بكرة`, `${amount} — ${formatDate(entry.date)}`);
-        push(pid, 'due', entry.date, `النهارده ميعاد قسط ${circle.name}`, `${amount}. ادخل دوري ودوس "دفعت" بعد ما تدفع.`);
+        push(pid, 'before', addDays(myDue, -1), `قسط ${circle.name} بكرة`, `${amount} — ${formatDate(myDue)}`);
+        push(pid, 'due', myDue, `النهارده ميعاد قسط ${circle.name}`, `${amount}. ادخل دوري ودوس "دفعت" بعد ما تدفع.`);
       }
       if (ownTurn && !entry.period.paidOut) {
         push(pid, 'payout', entry.date, `النهارده دورك تقبض 🎉`, `قبض ${circle.name}: ${formatMoney(payoutNet(circle), circle.currency)} (من غير ما تدفع قسط الدور ده)`);
