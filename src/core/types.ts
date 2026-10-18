@@ -16,6 +16,8 @@ export type Frequency = 'weekly' | 'monthly' | 'quarterly' | 'every4months';
 
 export type PeriodKind = 'payout' | 'extra' | 'skip';
 
+export type PeriodGap = 'same' | 'week' | '2weeks' | 'month';
+
 export interface Period {
   id: string;
   kind: PeriodKind;
@@ -26,6 +28,11 @@ export interface Period {
   /** Payout handed to the recipient. */
   paidOut?: boolean;
   note?: string;
+  /**
+   * Speed-up: time since the previous period instead of the circle's usual step
+   * ('same' = same date as the previous one — two turns at once).
+   */
+  gap?: PeriodGap;
   /** Members allowed to pay this period's installment later: memberId → new due date (YYYY-MM-DD). */
   deferrals?: Record<string, string>;
 }

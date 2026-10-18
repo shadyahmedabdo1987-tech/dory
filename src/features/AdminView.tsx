@@ -16,6 +16,10 @@ import {
   currentIndex,
   assignRecipients,
   openPayouts,
+  speedUp,
+  isSpedUp,
+  endDate,
+  type SpeedUp,
   drawablePayouts,
   FREQUENCY_LABEL,
   formatDate,
@@ -48,7 +52,6 @@ import {
   addDays,
   deferralOf,
   setDeferral,
-  todayISO,
 } from '@/core';
 import {
   saveCircle,
@@ -655,6 +658,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
   const [extraOpen, setExtraOpen] = useState(false);
   const [turnOpen, setTurnOpen] = useState(false);
   const [wheelOpen, setWheelOpen] = useState(false);
+  const [speedOpen, setSpeedOpen] = useState(false);
   const { fixed: ownerTurn } = drawablePayouts(circle);
   // Any turn that hasn't come yet can be (re)drawn — before or after the circle starts.
   const drawable = openPayouts(circle, current);
@@ -677,6 +681,38 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
       'أجّل',
     );
     if (ok) run(() => mutatePeriods(circle.id, (ps) => postpone(ps, at)), { success: 'تم التأجيل وكل المواعيد اتحدّثت.' });
+  };
+
+  // Speed-up: from the first turn that hasn't come yet.
+  const speedFrom = Math.max(0, current + 1);
+  const sped = isSpedUp(circle.periods);
+  const plannedEnd = endDate(circle);
+  const endWith = (mode: SpeedUp | 'normal') => endDate({ ...circle, periods: speedUp(circle.periods, speedFrom, mode) });
+  const speedOptions: { mode: SpeedUp; title: string; body: string }[] = [
+    {
+      mode: 'double',
+      title: 'دورين في كل ميعاد',
+      body: 'كل عضو يدفع قسطين في الميعاد، واتنين يقبضوا مع بعض — الجمعية تخلص في نص المدة الباقية.',
+    },
+    ...(circle.frequency === 'quarterly' || circle.frequency === 'every4months'
+      ? [{ mode: 'month' as const, title: 'كل شهر', body: 'الأقساط الجاية تبقى كل شهر بدل كل كام شهر.' }]
+      : []),
+    ...(circle.frequency !== 'weekly'
+      ? [
+          { mode: '2weeks' as const, title: 'كل أسبوعين', body: 'الأقساط الجاية تبقى كل أسبوعين.' },
+          { mode: 'week' as const, title: 'كل أسبوع', body: 'الأقساط الجاية تبقى كل أسبوع.' },
+        ]
+      : []),
+  ];
+  const applySpeed = async (mode: SpeedUp | 'normal', label: string) => {
+    setSpeedOpen(false);
+    const end = endWith(mode);
+    const ok = await confirm(
+      mode === 'normal' ? 'ترجع المواعيد العادية؟' : `تسريع الجمعية: ${label}`,
+      `ده بيغيّر مواعيد الأدوار اللي لسه ما جاش ميعادها بس. آخر دور هيبقى ${end ? formatDate(end) : '—'} بدل ${plannedEnd ? formatDate(plannedEnd) : '—'}. بلّغ الأعضاء من تبويب الرسائل.`,
+      'تمام',
+    );
+    if (ok) run(() => mutatePeriods(circle.id, (ps) => speedUp(ps, speedFrom, mode)), { success: 'المواعيد الجديدة اتسجّلت وظهرت عند كل الأعضاء.' });
   };
 
   const actions = (e: TimelineEntry) => {
@@ -720,6 +756,13 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
             onPress={() => setWheelOpen(true)}
           />
         </Row>
+        <Button
+          label={sped ? 'الجمعية متسرّعة — غيّر' : 'تسريع الجمعية'}
+          icon="flash-outline"
+          variant="secondary"
+          disabled={circle.periods.length - speedFrom < 2}
+          onPress={() => setSpeedOpen(true)}
+        />
         <Text variant="caption">
           دوس على أي فترة لتأجيلها، أو تحريكها، أو حذفها.
           {drawStarted ? ' القرعة بتعيد ترتيب الأدوار اللي لسه ما جاش ميعادها بس — اللي قبض أو دوره جه بيفضل مكانه.' : ''}
@@ -783,6 +826,32 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
             setNote('');
           }}
         />
+      </Sheet>
+
+      <Sheet visible={speedOpen} title="تسريع الجمعية" onClose={() => setSpeedOpen(false)}>
+        <Text variant="caption">
+          لو اتفقت مع الأعضاء تخلّصوا بدري. الأدوار اللي قبضت أو ميعادها جه ما بتتغيّرش. ولو عايزين يدفعوا مبلغ زيادة مرة واحدة استخدم "قسط إضافي".
+        </Text>
+        <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: space.sm }}>
+          {speedOptions.map((o) => {
+            const end = endWith(o.mode);
+            return (
+              <Pressable key={o.mode} onPress={() => applySpeed(o.mode, o.title)} style={({ pressed }) => [styles.speedRow, pressed && { opacity: 0.7 }]}>
+                <Ionicons name="flash" size={22} color={colors.gold} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text weight="bold">{o.title}</Text>
+                  <Text variant="caption">{o.body}</Text>
+                  <Text variant="caption" weight="bold" color={colors.success}>
+                    تخلص {end ? formatDate(end) : '—'} بدل {plannedEnd ? formatDate(plannedEnd) : '—'}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+          {sped ? (
+            <Button label="رجّع المواعيد العادية" icon="refresh" variant="secondary" onPress={() => applySpeed('normal', '')} />
+          ) : null}
+        </ScrollView>
       </Sheet>
 
       <DrawWheel
@@ -1342,6 +1411,16 @@ function PayInfoCard({ circle }: { circle: Circle }) {
 }
 
 const styles = StyleSheet.create({
+  speedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    padding: space.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
   swipeBehind: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.danger },
   // Physical left edge in both directions (RN swaps left/right under RTL).
   swipeDelete: { position: 'absolute', top: 0, bottom: 0, width: 88, alignItems: 'center', justifyContent: 'center', gap: 2, ...(I18nManager.isRTL ? { right: 0 } : { left: 0 }) },

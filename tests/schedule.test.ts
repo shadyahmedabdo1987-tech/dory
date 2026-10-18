@@ -370,3 +370,15 @@ it('a deferred member is not late until their new date', async () => {
   const [cleared] = setDeferral([withLater], 'p1', 'b', null);
   assert.equal(cleared.deferrals, undefined);
 });
+
+it('speeding up changes only the turns that have not come yet', async () => {
+  const { periodDates, speedUp } = await import('../src/core/schedule.ts');
+  const base = { startDate: '2026-10-18', frequency: 'monthly' as const };
+  const periods = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, kind: 'payout' as const, recipientId: id }));
+  assert.deepEqual(periodDates({ ...base, periods }), ['2026-10-18', '2026-11-18', '2026-12-18', '2027-01-18', '2027-02-18']);
+  const doubled = speedUp(periods, 1, 'double');
+  assert.deepEqual(periodDates({ ...base, periods: doubled }), ['2026-10-18', '2026-11-18', '2026-11-18', '2026-12-18', '2026-12-18']);
+  const biweekly = speedUp(periods, 1, '2weeks');
+  assert.deepEqual(periodDates({ ...base, periods: biweekly }), ['2026-10-18', '2026-11-18', '2026-12-02', '2026-12-16', '2026-12-30']);
+  assert.deepEqual(periodDates({ ...base, periods: speedUp(doubled, 1, 'normal') }), periodDates({ ...base, periods }));
+});

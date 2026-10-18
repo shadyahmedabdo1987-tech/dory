@@ -93,6 +93,7 @@ function cleanPeriods(periods: Period[]): Period[] {
     if (p.paidOut) out.paidOut = true;
     if (p.note) out.note = p.note.slice(0, 120);
     if (p.deferrals && Object.keys(p.deferrals).length) out.deferrals = { ...p.deferrals };
+    if (p.gap && ['same', 'week', '2weeks', 'month'].includes(p.gap)) out.gap = p.gap;
     return out;
   });
 }

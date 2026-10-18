@@ -1,4 +1,4 @@
-import { daysBetween, parseISODate, stepDate, todayISO } from './dates.ts';
+import { addDays, addMonths, daysBetween, parseISODate, stepDate, todayISO } from './dates.ts';
 import type {
   Circle,
   Frequency,
@@ -27,12 +27,56 @@ export function periodDue(circle: Pick<Circle, 'installment'>, period: Period): 
   return circle.installment;
 }
 
+/**
+ * Every period's date. Normally start + n steps; a sped-up period (`gap`) comes
+ * that long after the previous one, and the usual steps continue from it.
+ */
+export function periodDates(circle: Pick<Circle, 'periods' | 'startDate' | 'frequency'>): string[] {
+  const dates: string[] = [];
+  let anchor = circle.startDate;
+  let anchorIndex = 0;
+  circle.periods.forEach((p, i) => {
+    let d: string;
+    if (i > 0 && p.gap) {
+      const prev = dates[i - 1];
+      d = p.gap === 'same' ? prev : p.gap === 'week' ? addDays(prev, 7) : p.gap === '2weeks' ? addDays(prev, 14) : addMonths(prev, 1);
+      anchor = d;
+      anchorIndex = i;
+    } else {
+      d = stepDate(anchor, circle.frequency, i - anchorIndex);
+    }
+    dates.push(d);
+  });
+  return dates;
+}
+
+export type SpeedUp = 'double' | 'week' | '2weeks' | 'month';
+
+/**
+ * Speed up every period from `from` on: two turns per date ('double' — members
+ * pay two installments each time), or a shorter time between dates.
+ */
+export function speedUp(periods: Period[], from: number, mode: SpeedUp | 'normal'): Period[] {
+  return periods.map((p, i) => {
+    if (i < from) return p;
+    const { gap: _old, ...rest } = p;
+    if (mode === 'normal' || i === 0) return rest;
+    if (mode === 'double') return (i - from) % 2 === 1 ? { ...rest, gap: 'same' as const } : rest;
+    return i === from ? rest : { ...rest, gap: mode };
+  });
+}
+
+export function isSpedUp(periods: Period[]): boolean {
+  return periods.some((p) => !!p.gap);
+}
+
 export function timeline(circle: Circle): TimelineEntry[] {
   const byId = new Map(circle.members.map((m) => [m.id, m]));
+  const dates = periodDates(circle);
   return circle.periods.map((period, index) => ({
     index,
     period,
-    date: stepDate(circle.startDate, circle.frequency, index),
+    date: dates[index],
     due: periodDue(circle, period),
     recipient: period.recipientId ? byId.get(period.recipientId) : undefined,
   }));
@@ -66,15 +110,15 @@ export function isOwnPayout(period: Period, memberId: string): boolean {
  */
 export function currentIndex(circle: Circle, today: string = todayISO()): number {
   let current = -1;
-  circle.periods.forEach((_, i) => {
-    if (stepDate(circle.startDate, circle.frequency, i) <= today) current = i;
+  periodDates(circle).forEach((d, i) => {
+    if (d <= today) current = i;
   });
   return current;
 }
 
 export function endDate(circle: Circle): string | undefined {
   const n = circle.periods.length;
-  return n ? stepDate(circle.startDate, circle.frequency, n - 1) : undefined;
+  return n ? periodDates(circle)[n - 1] : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +250,8 @@ export function paymentState(
     return daysBetween(deferredTo, today) < 7 ? 'due' : 'overdue';
   }
   // Grace: the current period is "due" for its first 7 days, then "overdue".
-  if (entry.index === current && daysBetween(entry.date, today) < 7) return 'due';
+  // (By date, not position: two turns can share a date when the circle is sped up.)
+  if (entry.index <= current && daysBetween(entry.date, today) < 7) return 'due';
   return 'overdue';
 }
 

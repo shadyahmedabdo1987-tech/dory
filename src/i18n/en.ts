@@ -662,11 +662,26 @@ export const EXACT: Record<string, string> = {
  "٣ أسابيع": "3 weeks",
  "شهرين": "Two months",
  "أو عدد أيام معيّن": "Or a number of days",
- "إلغاء التأجيل": "Cancel deferral"
+ "إلغاء التأجيل": "Cancel deferral",
+ "تسريع الجمعية": "Speed up the circle",
+ "الجمعية متسرّعة — غيّر": "Circle sped up — change",
+ "دورين في كل ميعاد": "Two turns each date",
+ "كل عضو يدفع قسطين في الميعاد، واتنين يقبضوا مع بعض — الجمعية تخلص في نص المدة الباقية.": "Each member pays two installments per date and two people collect — the rest of the circle takes half the time.",
+ "الأقساط الجاية تبقى كل شهر بدل كل كام شهر.": "Upcoming installments become monthly.",
+ "كل أسبوعين": "Every 2 weeks",
+ "الأقساط الجاية تبقى كل أسبوعين.": "Upcoming installments every 2 weeks.",
+ "الأقساط الجاية تبقى كل أسبوع.": "Upcoming installments every week.",
+ "ترجع المواعيد العادية؟": "Back to the normal schedule?",
+ "المواعيد الجديدة اتسجّلت وظهرت عند كل الأعضاء.": "The new dates are saved and shown to every member.",
+ "لو اتفقت مع الأعضاء تخلّصوا بدري. الأدوار اللي قبضت أو ميعادها جه ما بتتغيّرش. ولو عايزين يدفعوا مبلغ زيادة مرة واحدة استخدم \"قسط إضافي\".": "If you agreed with members to finish early. Turns already paid or due don't change. For a one-off extra amount use \"Extra installment\".",
+ "رجّع المواعيد العادية": "Back to the normal schedule"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
 export const PATTERNS: [string, string][] = [
+ ["تسريع الجمعية: {0}", "Speed up: {0}"],
+ ["تخلص {0} بدل {1}", "Ends {0} instead of {1}"],
+ ["ده بيغيّر مواعيد الأدوار اللي لسه ما جاش ميعادها بس. آخر دور هيبقى {0} بدل {1}. بلّغ الأعضاء من تبويب الرسائل.", "This changes only turns that haven't come yet. The last turn will be {0} instead of {1}. Tell members from the Messages tab."],
  ["صاحب الجمعية أجّله لحد {0}", "The organizer moved it to {0}"],
  ["⏳ مؤجَّل لحد {0}", "⏳ Deferred to {0}"],
  ["تأجيل قسط {0}", "Defer {0}'s installment"],
