@@ -148,6 +148,10 @@ h3{font-size:56px;line-height:1.3;font-weight:800}
 @keyframes blink{50%{opacity:0}}
 .mono{font-family:ui-monospace,Menlo,monospace;letter-spacing:10px;direction:ltr}
 
+/* maker credit, on every scene */
+.credit{position:absolute;left:0;right:0;bottom:52px;text-align:center;direction:ltr;font-size:30px;font-weight:600;
+  color:rgba(243,250,247,.62);letter-spacing:1.5px;z-index:5;pointer-events:none}
+.credit b{color:var(--gold);font-weight:800}
 /* controls */
 #ui{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:12px;align-items:center;
   background:linear-gradient(transparent,rgba(0,0,0,.55));z-index:20;font-family:'Cairo',sans-serif}
@@ -402,6 +406,7 @@ body.rec #ui{display:none}
     <div class="cta a" style="--d:3.0s">ابدأ جمعيتك على دوري دلوقتي</div>
     <p class="sub a" style="--d:5.3s;font-size:38px">ابعتلنا رسالة ونجهّزلك جمعيتك 💬</p>
   </section>
+  <div class="credit">Powered by <b>Shady Ahmed</b></div>
 </div></div>
 
 <div id="ui" aria-label="التحكم">
