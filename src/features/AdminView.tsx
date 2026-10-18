@@ -871,6 +871,42 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
   const hasPayments = (periodId: string) => payments.some((p) => p.periodId === periodId);
   const unit = FREQUENCY_LABEL[circle.frequency].unit;
 
+  // Deferring chosen members' installment (only theirs — everyone else stays as is).
+  const deferrable = entries.filter((e) => e.due > 0 && e.index >= Math.max(0, current));
+  const [deferOpen, setDeferOpen] = useState(false);
+  const [deferPeriod, setDeferPeriod] = useState<string | null>(null);
+  const [deferWho, setDeferWho] = useState<string[]>([]);
+  const [deferDays, setDeferDays] = useState<number>(30);
+  const [deferCustom, setDeferCustom] = useState('');
+  const deferEntry = deferrable.find((e) => e.period.id === deferPeriod) ?? deferrable[0];
+  // Members who owe that installment and haven't paid it yet.
+  const deferCandidates = deferEntry
+    ? circle.members.filter(
+        (m) => !(deferEntry.period.kind === 'payout' && deferEntry.period.recipientId === m.id) && !payments.some((p) => p.periodId === deferEntry.period.id && p.memberId === m.id),
+      )
+    : [];
+  const customN = Math.round(Number(deferCustom.replace(/[٠-٩]/g, (c) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c)))));
+  const deferBy = deferCustom.trim() ? customN : deferDays;
+  const deferFrom = deferEntry ? (deferEntry.date > todayISO() ? deferEntry.date : todayISO()) : todayISO();
+  const deferUntil = deferBy >= 1 && deferBy <= 365 ? addDays(deferFrom, deferBy) : null;
+  const openDefer = () => {
+    setDeferPeriod(deferrable[0]?.period.id ?? null);
+    setDeferWho([]);
+    setDeferDays(30);
+    setDeferCustom('');
+    setDeferOpen(true);
+  };
+  const applyDefer = () => {
+    if (!deferEntry || !deferUntil || !deferWho.length) return;
+    const names = circle.members.filter((m) => deferWho.includes(m.id)).map((m) => m.name).join('، ');
+    const ids = [...deferWho];
+    const pid = deferEntry.period.id;
+    setDeferOpen(false);
+    run(() => mutatePeriods(circle.id, (ps) => ids.reduce((acc, id) => setDeferral(acc, pid, id, deferUntil), ps)), {
+      success: `${names} هيدفعوا ${periodTitle(deferEntry)} لحد ${formatDate(deferUntil)}.`,
+    });
+  };
+
   const doPostpone = async (at: number) => {
     const date = entries[at]?.date;
     const ok = await confirm(
@@ -968,7 +1004,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
       <Card>
         <Text variant="heading">تحكّم في الجدول</Text>
         <Row gap={space.sm}>
-          <ActionTile label="تأجيل قسط" icon="pause-circle-outline" tone="orange" onPress={() => doPostpone(nextIndex)} />
+          <ActionTile label="تأجيل قسط" icon="pause-circle-outline" tone="orange" disabled={!deferrable.length} onPress={openDefer} />
           <ActionTile label="مبلغ إضافي" icon="add-circle-outline" tone="success" onPress={() => setExtraOpen(true)} />
           <ActionTile label="دور إضافي" icon="person-add-outline" onPress={() => setTurnOpen(true)} />
         </Row>
@@ -1115,6 +1151,99 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         />
       </Sheet>
 
+      <Sheet visible={deferOpen} title="تأجيل قسط" onClose={() => setDeferOpen(false)}>
+        <ScrollView contentContainerStyle={{ gap: space.md }} keyboardShouldPersistTaps="handled">
+          <Text weight="semibold">أنهي قسط؟</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
+            {deferrable.slice(0, 24).map((e) => (
+              <Chip
+                key={e.period.id}
+                label={formatDate(e.date, false)}
+                sub={e.period.kind === 'payout' ? `دور ${nameOf(e.period.recipientId)}` : 'قسط إضافي'}
+                active={deferEntry?.period.id === e.period.id}
+                onPress={() => {
+                  setDeferPeriod(e.period.id);
+                  setDeferWho([]);
+                }}
+              />
+            ))}
+          </ScrollView>
+
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Text weight="semibold">مين يتأجل؟</Text>
+            {deferCandidates.length > 1 ? (
+              <Text
+                variant="caption"
+                weight="bold"
+                color={colors.primary}
+                onPress={() => setDeferWho(deferWho.length === deferCandidates.length ? [] : deferCandidates.map((m) => m.id))}
+              >
+                {deferWho.length === deferCandidates.length ? 'شيل الكل' : 'اختار الكل'}
+              </Text>
+            ) : null}
+          </Row>
+          {deferCandidates.length ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+              {deferCandidates.map((m) => {
+                const on = deferWho.includes(m.id);
+                const already = deferEntry ? deferralOf(deferEntry.period, m.id) : undefined;
+                return (
+                  <Chip
+                    key={m.id}
+                    label={m.name}
+                    sub={already ? `مؤجَّل لحد ${formatDate(already, false)}` : undefined}
+                    active={on}
+                    onPress={() => setDeferWho(on ? deferWho.filter((x) => x !== m.id) : [...deferWho, m.id])}
+                  />
+                );
+              })}
+            </View>
+          ) : (
+            <Text variant="caption">كل الأعضاء دفعوا القسط ده.</Text>
+          )}
+
+          <Text weight="semibold">يتأجل قد إيه؟</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+            {[
+              { label: 'أسبوع', d: 7 },
+              { label: 'أسبوعين', d: 14 },
+              { label: 'شهر', d: 30 },
+              { label: 'شهرين', d: 60 },
+              { label: '٣ شهور', d: 90 },
+            ].map((o) => (
+              <Chip
+                key={o.d}
+                label={o.label}
+                active={!deferCustom.trim() && deferDays === o.d}
+                onPress={() => {
+                  setDeferCustom('');
+                  setDeferDays(o.d);
+                }}
+              />
+            ))}
+          </View>
+          <Field label="أو عدد أيام معيّن" value={deferCustom} onChangeText={setDeferCustom} keyboardType="number-pad" maxLength={3} placeholder="مثلًا 45" />
+
+          {deferUntil && deferWho.length ? (
+            <View style={styles.deferSummary}>
+              <Ionicons name="hourglass-outline" size={18} color={colors.goldText} />
+              <Text weight="semibold" color={colors.goldText} style={{ flex: 1 }}>
+                {formatNumber(deferWho.length)} عضو هيدفعوا لحد {formatDate(deferUntil)}، والباقيين مواعيدهم زي ما هي.
+              </Text>
+            </View>
+          ) : null}
+          <Button label="أجّل" icon="checkmark-circle-outline" disabled={!deferUntil || !deferWho.length} onPress={applyDefer} />
+          <Button
+            label={`أجّل الجمعية كلها ${unit}`}
+            icon="calendar-outline"
+            variant="ghost"
+            onPress={() => {
+              setDeferOpen(false);
+              doPostpone(nextIndex);
+            }}
+          />
+        </ScrollView>
+      </Sheet>
       <Sheet visible={speedOpen} title="تسريع الجمعية" onClose={() => setSpeedOpen(false)}>
         <Text variant="caption">
           لو اتفقت مع الأعضاء تخلّصوا بدري. الأدوار اللي قبضت أو ميعادها جه ما بتتغيّرش. ولو عايزين يدفعوا مبلغ زيادة مرة واحدة استخدم "مبلغ إضافي".
@@ -1819,6 +1948,14 @@ function PayInfoCard({ circle }: { circle: Circle }) {
 }
 
 const styles = StyleSheet.create({
+  deferSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    padding: space.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.goldSoft,
+  },
   earlyBadge: {
     width: 36,
     height: 36,
