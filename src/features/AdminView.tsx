@@ -66,6 +66,7 @@ import {
 import {
   saveCircle,
   issueFirstLoginCode,
+  clearFirstLoginCode,
   firstLoginCodeOf,
   backfillPhones,
   syncDirectory,
@@ -1216,7 +1217,8 @@ function MembersTab({ circle, payments, requests }: { circle: Circle; payments: 
         const code = firstLoginCodeOf(circle.id, m.id);
         return code ? sendCode(m, code) : newCode(m);
       } }] : []),
-      ...(!m.uid && m.phone ? [{ text: 'كود دخول جديد', icon: 'refresh' as const, onPress: () => newCode(m) }] : []),
+      ...(!m.uid && m.phone ? [{ text: 'كود دخول جديد (حماية زيادة)', icon: 'refresh' as const, onPress: () => newCode(m) }] : []),
+      ...(!m.uid ? [{ text: 'يدخل برقمه ويختار باسورد علطول', icon: 'key-outline' as const, onPress: () => run(async () => { await clearFirstLoginCode(circle.id, m.id); bump((n) => n + 1); }, { success: `${m.name} يقدر يدخل دلوقتي بكود الجمعية ورقمه ويختار باسورد.` }) }] : []),
       ...(m.uid ? [{ text: 'فك الربط', icon: 'unlink-outline' as const, onPress: () => unlink(m) }] : []),
       { text: 'امسح العضو', style: 'destructive' as const, icon: 'trash-outline' as const, onPress: () => remove(m) },
       { text: 'إلغاء', style: 'cancel' as const },
@@ -1260,10 +1262,6 @@ function MembersTab({ circle, payments, requests }: { circle: Circle; payments: 
               {!m.uid && firstLoginCodeOf(circle.id, m.id) ? (
                 <Text variant="caption" weight="bold" color={colors.primary} onPress={() => sendCode(m, firstLoginCodeOf(circle.id, m.id)!)}>
                   كود الدخول: {firstLoginCodeOf(circle.id, m.id)} • ابعته واتساب
-                </Text>
-              ) : !m.uid && m.phone ? (
-                <Text variant="caption" weight="bold" color={colors.primary} onPress={() => newCode(m)}>
-                  🔑 اعمل كود دخول وابعته واتساب
                 </Text>
               ) : null}
             </View>

@@ -448,14 +448,11 @@ export async function saveCircle(
 
   await withTimeout(batch.commit());
 
-  // Members added (or renumbered) by the organizer get a first sign-in code.
+  // A renumbered member who hasn't signed in yet: drop any old sign-in code, so the
+  // right number simply signs in and chooses a password.
   for (const m of withIds) {
     const old = before.get(m.id);
-    const phone = phoneOf(m);
-    if (!isNumber(phone) || old?.uid || m.id === circle.ownerMemberId) continue;
-    if (!old || phoneOf(old) !== phone) {
-      await issueFirstLoginCode(cid, m.id, phone).catch(() => {});
-    }
+    if (old && !old.uid && phoneOf(old) !== phoneOf(m)) await clearFirstLoginCode(cid, m.id).catch(() => {});
   }
 }
 
@@ -526,6 +523,16 @@ export async function issueFirstLoginCode(cid: string, memberId: string, rawPhon
   const all = readPrefsSync().memberCodes ?? {};
   writePrefs({ memberCodes: { ...all, [cid]: { ...(all[cid] ?? {}), [memberId]: code } } });
   return code;
+}
+
+/** Remove a member's sign-in code (only for members who haven't signed in): they choose a password on entry. */
+export async function clearFirstLoginCode(cid: string, memberId: string): Promise<void> {
+  await restCommit([{ delete: `circles/${cid}/secrets/${memberId}` }]);
+  const all = readPrefsSync().memberCodes ?? {};
+  if (all[cid]?.[memberId]) {
+    const { [memberId]: _gone, ...rest } = all[cid];
+    writePrefs({ memberCodes: { ...all, [cid]: rest } });
+  }
 }
 
 export function firstLoginCodeOf(cid: string, memberId: string): string | undefined {
