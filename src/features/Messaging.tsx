@@ -178,7 +178,9 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
   const { busy, run } = useAction();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [audience, setAudience] = useState<TemplateAudience>('all');
+  const [audience, setAudience] = useState<TemplateAudience | 'pick'>('all');
+  // Private message: the members the organizer picked by name.
+  const [picked, setPicked] = useState<string[]>([]);
 
   const { templates, unpaid, recipient } = useMemo(() => {
     const entries = timeline(circle);
@@ -190,7 +192,16 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
     return { templates: groupTemplates(circle, entry, unpaid), unpaid, recipient };
   }, [circle, payments]);
 
-  const targets: Member[] | null = audience === 'unpaid' ? unpaid : audience === 'recipient' ? (recipient ? [recipient] : []) : null;
+  const targets: Member[] | null =
+    audience === 'unpaid'
+      ? unpaid
+      : audience === 'recipient'
+        ? recipient
+          ? [recipient]
+          : []
+        : audience === 'pick'
+          ? circle.members.filter((m) => picked.includes(m.id))
+          : null;
 
   const applyTemplate = (t: GroupTemplate) => {
     const [first, ...rest] = t.text.split('\n');
@@ -202,7 +213,10 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
   const send = async () => {
     if (!title.trim()) return alert('اكتب عنوان', 'الرسالة محتاجة عنوان قصير.');
     if (targets && targets.length === 0) {
-      return alert('مفيش حد يوصله', audience === 'unpaid' ? 'الكل دفع القسط ده ✓' : 'مفيش صاحب دور للفترة دي.');
+      return alert(
+        'مفيش حد يوصله',
+        audience === 'pick' ? 'اختار عضو أو أكتر الأول.' : audience === 'unpaid' ? 'الكل دفع القسط ده ✓' : 'مفيش صاحب دور للفترة دي.',
+      );
     }
     const sent = await run(async () => {
       await postAnnouncement(
@@ -218,6 +232,7 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
     setTitle('');
     setBody('');
     setAudience('all');
+    setPicked([]);
     alert(
       'اتبعت ✓',
       targets ? `وصلت لـ: ${targets.map((m) => m.name).join('، ')} بس.` : 'الرسالة ظهرت عند كل الأعضاء جوه التطبيق.',
@@ -228,6 +243,11 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
     { value: 'all', label: 'كل الأعضاء' },
     { value: 'unpaid', label: `اللي ما دفعوش (${formatNumber(unpaid.length)})` },
     ...(recipient ? [{ value: 'recipient' as const, label: `صاحب الدور: ${recipient.name}` }] : []),
+  ];
+  const quick = [
+    { label: 'أكّد استلام فلوسك', title: 'أكّد إنك استلمت فلوسك', body: 'لو القبض وصلك، افتح دوري ودوس "استلمت الفلوس ✓" علشان الجمعية تتقفل. شكرًا 🙏' },
+    { label: 'ادفع القسط', title: 'تذكير بقسطك', body: 'قسطك لسه ما وصلش. ادفعه ودوس "دفعت" في التطبيق. شكرًا 🙏' },
+    { label: 'افتح التطبيق', title: 'افتح دوري', body: 'في حاجة مستنياك في التطبيق، افتحه وشوفها. شكرًا 🙏' },
   ];
 
   return (
@@ -249,17 +269,67 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
           {audienceOptions.map((o) => (
             <Chip key={o.value} label={o.label} active={audience === o.value} onPress={() => setAudience(o.value)} />
           ))}
+          <Chip label="رسالة خاصة لعضو" active={audience === 'pick'} onPress={() => setAudience('pick')} />
         </View>
+        {audience === 'pick' ? (
+          <View style={{ gap: space.sm }}>
+            <Text variant="caption">اختار مين يوصله — محدش غيره هيشوفها.</Text>
+            <View style={styles.audience}>
+              {circle.members.filter((m) => m.id !== circle.ownerMemberId).map((m) => {
+                const on = picked.includes(m.id);
+                return (
+                  <Chip
+                    key={m.id}
+                    label={m.name}
+                    sub={m.uid ? undefined : 'لسه ما دخلش'}
+                    active={on}
+                    onPress={() => setPicked(on ? picked.filter((x) => x !== m.id) : [...picked, m.id])}
+                  />
+                );
+              })}
+            </View>
+            <Text variant="caption" weight="semibold">رسالة جاهزة:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
+              {quick.map((q) => (
+                <Chip
+                  key={q.label}
+                  label={q.label}
+                  active={false}
+                  onPress={() => {
+                    setTitle(q.title);
+                    setBody(q.body);
+                  }}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
         {targets ? (
           <Text variant="caption" color={targets.length ? colors.primary : colors.danger}>
-            {targets.length ? `هتوصل لـ: ${targets.map((m) => m.name).join('، ')}` : audience === 'unpaid' ? 'الكل دفع ✓ — مفيش حد تفكّره.' : 'مفيش صاحب دور.'}
+            {targets.length
+              ? `هتوصل لـ: ${targets.map((m) => m.name).join('، ')}`
+              : audience === 'pick'
+                ? 'اختار عضو أو أكتر.'
+                : audience === 'unpaid'
+                  ? 'الكل دفع ✓ — مفيش حد تفكّره.'
+                  : 'مفيش صاحب دور.'}
           </Text>
         ) : null}
 
         <Field label="العنوان" value={title} onChangeText={setTitle} maxLength={80} placeholder="مثلًا: تذكير بقسط الشهر" />
         <Field label="الرسالة" value={body} onChangeText={setBody} maxLength={1000} multiline style={{ minHeight: 110, textAlignVertical: 'top', paddingTop: space.sm }} />
         <Button
-          label={audience === 'all' ? 'ابعت لكل الأعضاء' : audience === 'unpaid' ? 'ابعت للي ما دفعوش' : 'ابعت لصاحب الدور'}
+          label={
+            audience === 'all'
+              ? 'ابعت لكل الأعضاء'
+              : audience === 'unpaid'
+                ? 'ابعت للي ما دفعوش'
+                : audience === 'pick'
+                  ? picked.length === 1
+                    ? `ابعت لـ ${circle.members.find((m) => m.id === picked[0])?.name ?? ''}`
+                    : 'ابعت رسالة خاصة'
+                  : 'ابعت لصاحب الدور'
+          }
           icon="send"
           loading={busy}
           onPress={send}
