@@ -1,0 +1,13 @@
+name: diag
+on:
+  push:
+    branches: [diag-code]
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: member
+        run: KEY=$(grep API_KEY config/production.env | cut -d= -f2) INVITE=ELR598 PHONE=01224999913 LOGIN=524957 node .diag/diag.mjs
