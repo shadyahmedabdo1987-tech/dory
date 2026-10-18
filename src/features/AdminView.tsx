@@ -86,7 +86,7 @@ import {
   unlinkMember,
   updatePayInfo,
 } from '@/data';
-import { Badge, Button, Card, Chip, Field, IconButton, ProgressBar, Row, Segmented, Text, tap } from "@/ui/components";
+import { ActionTile, Badge, Button, Card, Chip, Field, IconButton, ProgressBar, Row, Segmented, Text, tap } from "@/ui/components";
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { colors, radius, space } from '@/ui/theme';
@@ -802,27 +802,21 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
       <Card>
         <Text variant="heading">تحكّم في الجدول</Text>
         <Row gap={space.sm}>
-          <Button label="تأجيل قسط" icon="pause-circle-outline" variant="secondary" style={{ flex: 1 }} onPress={() => doPostpone(nextIndex)} />
-          <Button label="مبلغ إضافي" icon="add-circle-outline" variant="secondary" style={{ flex: 1 }} onPress={() => setExtraOpen(true)} />
+          <ActionTile label="تأجيل قسط" icon="pause-circle-outline" tone="orange" onPress={() => doPostpone(nextIndex)} />
+          <ActionTile label="مبلغ إضافي" icon="add-circle-outline" tone="success" onPress={() => setExtraOpen(true)} />
+          <ActionTile label="دور إضافي" icon="person-add-outline" onPress={() => setTurnOpen(true)} />
         </Row>
         <Row gap={space.sm}>
-          <Button label="دور إضافي" icon="person-add-outline" variant="secondary" style={{ flex: 1 }} onPress={() => setTurnOpen(true)} />
-          <Button
-            label="عجلة القرعة"
-            icon="sync-circle-outline"
-            variant="secondary"
-            style={{ flex: 1 }}
-            disabled={drawable.length < 2}
-            onPress={() => setWheelOpen(true)}
+          <ActionTile label="عجلة القرعة" icon="sync-circle-outline" tone="gold" disabled={drawable.length < 2} onPress={() => setWheelOpen(true)} />
+          <ActionTile
+            label={sped ? 'متسرّعة — غيّر' : 'تسريع الجمعية'}
+            icon="flash-outline"
+            tone="gold"
+            badge={sped}
+            disabled={circle.periods.length - speedFrom < 2}
+            onPress={() => setSpeedOpen(true)}
           />
         </Row>
-        <Button
-          label={sped ? 'الجمعية متسرّعة — غيّر' : 'تسريع الجمعية'}
-          icon="flash-outline"
-          variant="secondary"
-          disabled={circle.periods.length - speedFrom < 2}
-          onPress={() => setSpeedOpen(true)}
-        />
         <Text variant="caption">
           دوس على أي فترة لتأجيلها، أو تحريكها، أو حذفها.
           {drawStarted ? ' القرعة بتعيد ترتيب الأدوار اللي لسه ما جاش ميعادها بس — اللي قبض أو دوره جه بيفضل مكانه.' : ''}
@@ -911,12 +905,13 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         <Field label="المبلغ الزيادة على كل عضو" keyboardType="numeric" value={amount} onChangeText={setAmount} placeholder="مثلًا 200" />
         {extraMode === 'bonus' ? (
           upcomingTurns.length ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.xs }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
               <Chip label="كل الأدوار الجاية" active={bonusTarget === 'all'} onPress={() => setBonusTarget('all')} />
               {upcomingTurns.map((e) => (
                 <Chip
                   key={e.period.id}
-                  label={`${e.recipient?.name ?? ''} • ${formatDate(e.date)}`}
+                  label={e.recipient?.name ?? ''}
+                  sub={formatDate(e.date)}
                   active={bonusTarget === e.period.id}
                   onPress={() => setBonusTarget(e.period.id)}
                 />
@@ -1125,7 +1120,7 @@ function DeferSheet({
           />
         </Row>
         <Text weight="semibold">أو في شهر معيّن (نفس اليوم)</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.xs }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
           {[1, 2, 3, 4, 5, 6].map((k) => {
             const d = addMonths(entry.date, k);
             return <Chip key={k} label={formatDate(d)} active={current === d} onPress={() => onPick(d)} />;

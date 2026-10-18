@@ -151,7 +151,15 @@ export function Button({
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: v.bg, borderColor: v.border },
-        pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+        (variant === 'primary' || variant === 'whatsapp') && !disabled && !loading && {
+          shadowColor: v.bg,
+          shadowOpacity: 0.3,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 4,
+        },
+        variant === 'secondary' && { borderWidth: 1.5 },
+        pressed && { opacity: 0.88, transform: [{ scale: 0.97 }] },
         (disabled || loading) && { opacity: 0.5 },
         style,
       ]}
@@ -276,7 +284,7 @@ export function Segmented<T extends string>({
           >
             <Text
               weight={active ? 'bold' : 'semibold'}
-              color={active ? colors.white : colors.text}
+              color={active ? colors.white : colors.primaryDark}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.75}
@@ -299,18 +307,114 @@ export function Segmented<T extends string>({
   );
 }
 
-export function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+export function Chip({
+  label,
+  sub,
+  active,
+  onPress,
+}: {
+  label: string;
+  /** Optional second line, e.g. the year under a month or "١٢ دور". */
+  sub?: string;
+  active: boolean;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
+      accessibilityLabel={sub ? `${label} ${sub}` : label}
       onPress={() => {
         tap();
         onPress();
       }}
-      style={[styles.chip, active && styles.chipActive]}
+      style={({ pressed }) => [
+        styles.chip,
+        sub ? styles.chipTall : null,
+        active && styles.chipActive,
+        pressed && { transform: [{ scale: 0.96 }], opacity: 0.92 },
+      ]}
     >
-      <Text variant="caption" weight={active ? 'bold' : 'semibold'} color={active ? colors.white : colors.text}>
+      {active ? (
+        <View style={styles.chipCheck}>
+          <Ionicons name="checkmark" size={12} color={colors.primary} />
+        </View>
+      ) : null}
+      <View style={{ alignItems: 'center' }}>
+        <Text
+          weight="bold"
+          numberOfLines={1}
+          maxFontSizeMultiplier={1.2}
+          color={active ? colors.white : colors.text}
+          style={{ fontSize: 14, lineHeight: 22 }}
+        >
+          {label}
+        </Text>
+        {sub ? (
+          <Text
+            weight="semibold"
+            numberOfLines={1}
+            maxFontSizeMultiplier={1.2}
+            color={active ? 'rgba(255,255,255,0.85)' : colors.muted}
+            style={{ fontSize: 11, lineHeight: 16 }}
+          >
+            {sub}
+          </Text>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
+/** A square action button: tinted icon badge above a short label. */
+export function ActionTile({
+  icon,
+  label,
+  onPress,
+  disabled,
+  tone = 'primary',
+  badge,
+}: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  tone?: 'primary' | 'gold' | 'orange' | 'success';
+  badge?: boolean;
+}) {
+  const tint = {
+    primary: [colors.primary, colors.primarySoft],
+    gold: [colors.goldText, colors.goldSoft],
+    orange: [colors.orange, colors.orangeSoft],
+    success: [colors.success, colors.successSoft],
+  }[tone];
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={() => {
+        tap();
+        onPress();
+      }}
+      style={({ pressed }) => [
+        styles.tile,
+        disabled && { opacity: 0.45 },
+        pressed && { transform: [{ scale: 0.96 }], backgroundColor: tint[1] },
+      ]}
+    >
+      <View style={[styles.tileIcon, { backgroundColor: tint[1] }]}>
+        <Ionicons name={icon} size={22} color={tint[0]} />
+        {badge ? <View style={styles.tileDot} /> : null}
+      </View>
+      <Text
+        weight="bold"
+        center
+        numberOfLines={2}
+        maxFontSizeMultiplier={1.15}
+        style={{ fontSize: 13, lineHeight: 19 }}
+      >
         {label}
       </Text>
     </Pressable>
@@ -398,16 +502,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  segmentActive: { backgroundColor: colors.primary },
+  segmentActive: {
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
   chip: {
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: radius.pill,
+    minHeight: 44,
+    minWidth: 64,
+    paddingHorizontal: space.lg,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  chipTall: { minHeight: 56, minWidth: 76 },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  chipCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tile: {
+    flex: 1,
+    minHeight: 92,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 6,
+    paddingVertical: space.sm,
   },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  tileIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  tileDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.orange,
+    borderWidth: 2,
+    borderColor: colors.card,
+  },
   empty: { alignItems: 'center', gap: space.sm, paddingVertical: space.xxl, paddingHorizontal: space.xl },
   emptyIcon: {
     width: 88,

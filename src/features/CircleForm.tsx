@@ -215,7 +215,6 @@ export function CircleForm({
     : [];
   const size = mode === 'create' ? (slots ?? members.length) : Math.max(members.length, slots ?? 0);
   const pot = Number.isFinite(installment) ? installment * size : 0;
-  const thisYear = Number(today.slice(0, 4));
 
   return (
     <KeyboardScreen>
@@ -244,7 +243,7 @@ export function CircleForm({
           />
           <View style={{ gap: space.xs }}>
             <Text weight="semibold">ميعاد الدفع</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.xs }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
               {['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'weekly'].map((c) => (
                 <Chip
                   key={c}
@@ -259,11 +258,12 @@ export function CircleForm({
 
         <Card>
           <Text variant="heading">ميعاد أول قسط</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
             {months.map((mo) => (
               <Chip
                 key={mo.key}
-                label={mo.y === thisYear ? monthName(mo.m) : `${monthName(mo.m)} ${formatNumber(mo.y).replace(/[٬,]/g, '')}`}
+                label={monthName(mo.m)}
+                sub={formatNumber(mo.y).replace(/[٬,]/g, '')}
                 active={mo.key === monthKey}
                 onPress={() => setMonthKey(mo.key)}
               />
@@ -294,14 +294,15 @@ export function CircleForm({
           <Card>
             <Text variant="heading">الجمعية هتخلص إمتى؟</Text>
             <Text variant="caption">اختار آخر شهر، وعدد الأدوار بيتحسب لوحده ({cadenceText}).</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
               {endChoices.map((iso) => {
                 const p = parseISODate(iso);
                 const n = periodsBetween(startDate, iso, stepN);
                 return (
                   <Chip
                     key={iso}
-                    label={`${p.y === thisYear ? monthName(p.m) : `${monthName(p.m)} ${String(p.y)}`} • ${formatNumber(n)} دور`}
+                    label={`${monthName(p.m)} ${formatNumber(p.y).replace(/[٬,]/g, '')}`}
+                    sub={`${formatNumber(n)} دور`}
                     active={!!slots && slots === n}
                     onPress={() => setSlotsText(String(n))}
                   />
