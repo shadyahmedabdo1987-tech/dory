@@ -137,19 +137,37 @@ export function reminderMessage(circle: Circle, member: Member, entry: TimelineE
   ].join('\n');
 }
 
-/** Short and plain: just what the code is for, and the code. */
-export function inviteMessage(circle: Pick<Circle, 'name' | 'inviteCode'>, _member?: Member): string {
-  return `كود الدخول لجمعية "${circle.name}" على تطبيق دوري: \u2066${circle.inviteCode}\u2069`;
+/** Short and tidy: the circle in one line, then its code. */
+export function inviteMessage(
+  circle: Pick<Circle, 'name' | 'inviteCode'> & Partial<Pick<Circle, 'installment' | 'currency'>>,
+  _member?: Member,
+  cadence?: string,
+): string {
+  const ltr = (t: string) => `\u2066${t}\u2069`;
+  return [
+    `🤝 دعوة لجمعية "${circle.name}"`,
+    ...(circle.installment ? [`القسط ${formatMoney(circle.installment, circle.currency)}${cadence ? ` ${cadence}` : ''}`] : []),
+    `كود الجمعية: ${ltr(circle.inviteCode)}`,
+    `حمّل تطبيق دوري وادخل بالكود ورقم موبايلك.`,
+  ].join('\n');
 }
 
 /** The invitation the organizer sends by SMS / WhatsApp. */
-export function circleInviteMessage(circle: Pick<Circle, 'name' | 'inviteCode'>): string {
-  return inviteMessage(circle);
+export function circleInviteMessage(
+  circle: Pick<Circle, 'name' | 'inviteCode'> & Partial<Pick<Circle, 'installment' | 'currency'>>,
+  cadence?: string,
+): string {
+  return inviteMessage(circle, undefined, cadence);
 }
 
 /** The member's protection code (sign-in code), on its own. */
 export function protectionCodeMessage(circleName: string, code: string): string {
-  return `كود الحماية الخاص بيك في جمعية "${circleName}": \u2066${code.replace(/\D/g, '')}\u2069`;
+  return [
+    `🔒 كود الحماية الخاص بيك`,
+    `جمعية "${circleName}"`,
+    `الكود: \u2066${code.replace(/\D/g, '')}\u2069`,
+    `اكتبه أول مرة تدخل، وبعده اختار باسورد.`,
+  ].join('\n');
 }
 
 /** Opens the SMS app with the message ready for one or more numbers. */

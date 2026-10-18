@@ -79,7 +79,7 @@ describe('messages', () => {
   it('writes the invite with the code on its own monospace line', () => {
     const text = inviteMessage({ ...circle, inviteCode: 'K7QX2M' }, circle.members[0]);
     assert.match(text, /K7QX2M/);
-    assert.equal(text.split('\n').length, 1);
+    assert.ok(text.split('\n').length <= 4);
     assert.doesNotMatch(text, /dory:\/\//);
   });
 

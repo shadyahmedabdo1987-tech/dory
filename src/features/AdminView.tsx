@@ -1512,7 +1512,7 @@ function InviteCard({ circle, joined, others }: { circle: Circle; joined: number
   const [phone, setPhone] = useState('');
   const [sent, setSent] = useState<string[]>([]);
   const key = `dory/invited/${circle.id}`;
-  const message = circleInviteMessage(circle);
+  const message = circleInviteMessage(circle, cadenceLabel(circle));
   const open = isCircleOpen(circle);
 
   useEffect(() => {
