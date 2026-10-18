@@ -19,6 +19,8 @@ import {
   circleReport,
   circleCompletion,
   speedUpByAmount,
+  pullTurnsTo,
+  extraDateChoices,
   earlyPayable,
   postpone,
   removePeriod,
@@ -489,5 +491,20 @@ describe('speed up by paying more', () => {
   });
   it('the same amount changes nothing', () => {
     assert.equal(speedUpByAmount(six, 0, 1000).perDateDues.length, 6);
+  });
+});
+
+describe('extra payment date', () => {
+  it('pulls the next turn to the chosen date and the rest move up', () => {
+    const c = makeCircle({ startDate: '2026-10-18', frequency: 'quarterly' });
+    // Oct 18, Jan 18, Apr 18 → add a payment on Nov 18.
+    const ps = pullTurnsTo(c, '2026-11-18', 1, '2026-10-20')!;
+    const dates = timeline({ ...c, periods: ps }).map((e) => e.date);
+    assert.deepEqual(dates, ['2026-10-18', '2026-11-18', '2027-01-18']);
+  });
+  it('refuses dates in the past or after the next turn', () => {
+    const c = makeCircle({ startDate: '2026-10-18', frequency: 'quarterly' });
+    assert.equal(pullTurnsTo(c, '2026-10-19', 1, '2026-10-20'), null);
+    assert.ok(extraDateChoices(c, '2026-10-20').includes('2026-11-18'));
   });
 });

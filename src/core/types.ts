@@ -31,6 +31,11 @@ export interface Period {
   paidOut?: boolean;
   /** The recipient confirmed the money reached them. */
   received?: boolean;
+  /**
+   * An extra payment date the organizer set (ISO): this turn is collected and
+   * paid then, earlier than planned; the turns after it each move up one date.
+   */
+  at?: string;
   note?: string;
   /**
    * Speed-up: time since the previous period instead of the circle's usual step

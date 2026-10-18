@@ -76,16 +76,21 @@ export function periodDates(circle: Pick<Circle, 'periods' | 'startDate' | 'freq
   const step = (from: string, n: number) => (own ? addMonths(from, own * n) : stepDate(from, circle.frequency, n));
   const dates: string[] = [];
   let anchor = circle.startDate;
-  let anchorIndex = 0;
+  // Usual steps taken since the anchor. A period on an extra date (`at`) doesn't
+  // take a step, so the turns after it each move up one date.
+  let k = 0;
   circle.periods.forEach((p, i) => {
     let d: string;
-    if (i > 0 && p.gap) {
+    if (p.at && /^\d{4}-\d{2}-\d{2}$/.test(p.at)) {
+      d = p.at;
+    } else if (i > 0 && p.gap) {
       const prev = dates[i - 1];
       d = p.gap === 'same' ? prev : p.gap === 'week' ? addDays(prev, 7) : p.gap === '2weeks' ? addDays(prev, 14) : addMonths(prev, 1);
       anchor = d;
-      anchorIndex = i;
+      k = 1;
     } else {
-      d = step(anchor, i - anchorIndex);
+      d = step(anchor, k);
+      k++;
     }
     dates.push(d);
   });
@@ -147,6 +152,63 @@ export function speedUpByAmount(
     perDateDues.push(paid);
   }
   return { periods: out, perDateDues };
+}
+
+/**
+ * Extra payment date: `count` coming turns are collected and paid on `dateISO`
+ * (one installment per turn from every member), and the turns after them move
+ * up — the circle ends `count` dates sooner. Null if the date doesn't fit
+ * (not in the future, or not before the next turn's date).
+ */
+export function pullTurnsTo(
+  circle: Pick<Circle, 'periods' | 'startDate' | 'frequency'>,
+  dateISO: string,
+  count: number,
+  today: string = todayISO(),
+): Period[] | null {
+  if (dateISO <= today || count < 1) return null;
+  const dates = periodDates(circle);
+  const j = circle.periods.findIndex((p, i) => dates[i] > dateISO && p.kind !== 'skip' && !p.paidOut);
+  if (j < 0) return null;
+  if (j > 0 && dates[j - 1] >= dateISO) return null;
+  const take = circle.periods.slice(j).filter((p) => p.kind !== 'skip' && !p.paidOut).slice(0, count).map((p) => p.id);
+  if (take.length < count) return null;
+  return circle.periods.map((p) => (take.includes(p.id) ? { ...p, at: dateISO } : p));
+}
+
+/** Months (on the circle's day) where an extra payment date can go: after today, before the last turn. */
+export function extraDateChoices(circle: Pick<Circle, 'periods' | 'startDate' | 'frequency'>, today: string = todayISO()): string[] {
+  const dates = periodDates(circle);
+  const last = dates[dates.length - 1];
+  if (!last) return [];
+  const day = parseISODate(circle.startDate).d;
+  const t = parseISODate(today);
+  const out: string[] = [];
+  for (let k = 0; k < 60; k++) {
+    const base = addMonths(`${t.y}-${String(t.m).padStart(2, '0')}-01`, k);
+    const iso = addDays(base, Math.min(day, 28) - 1);
+    if (iso >= last) break;
+    if (iso <= today || dates.includes(iso)) continue;
+    if (pullTurnsTo(circle, iso, 1, today)) out.push(iso);
+  }
+  return out;
+}
+
+/** Extra payment dates already set on coming turns. */
+export function extraDates(circle: Pick<Circle, 'periods'>): { date: string; count: number }[] {
+  const by = new Map<string, number>();
+  circle.periods.forEach((p) => {
+    if (p.at && !p.paidOut) by.set(p.at, (by.get(p.at) ?? 0) + 1);
+  });
+  return [...by.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, count]) => ({ date, count }));
+}
+
+export function clearExtraDate(periods: Period[], dateISO: string): Period[] {
+  return periods.map((p) => {
+    if (p.at !== dateISO) return p;
+    const { at: _a, ...rest } = p;
+    return rest;
+  });
 }
 
 export function isSpedUp(periods: Period[]): boolean {
