@@ -687,7 +687,8 @@ export const EXACT: Record<string, string> = {
  "مفيش أدوار جاية لسه ما جاش ميعادها.": "No upcoming turns left.",
  "مثلًا: علشان نخلّص بدري": "e.g. to finish early",
  "ضيف المبلغ": "Add amount",
- "اتضاف على القسط، وظهر عند كل الأعضاء.": "Added to the installment and shown to every member."
+ "اتضاف على القسط، وظهر عند كل الأعضاء.": "Added to the installment and shown to every member.",
+ "أو في شهر معيّن (نفس اليوم)": "Or in a specific month (same day)"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */

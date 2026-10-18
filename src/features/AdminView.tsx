@@ -51,6 +51,7 @@ import {
   type PaymentMethod,
   PAYOUT_STATUS_LABEL,
   addDays,
+  addMonths,
   deferralOf,
   setDeferral,
 } from '@/core';
@@ -1003,6 +1004,13 @@ function DeferSheet({
             style={{ alignSelf: 'flex-end' }}
           />
         </Row>
+        <Text weight="semibold">أو في شهر معيّن (نفس اليوم)</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.xs }}>
+          {[1, 2, 3, 4, 5, 6].map((k) => {
+            const d = addMonths(entry.date, k);
+            return <Chip key={k} label={formatDate(d)} active={current === d} onPress={() => onPick(d)} />;
+          })}
+        </ScrollView>
         {current ? <Button label="إلغاء التأجيل" icon="close-circle-outline" variant="danger" onPress={() => onPick(null)} /> : null}
       </View>
     </Sheet>
