@@ -65,6 +65,7 @@ import {
   setDeferral,
   circleCompletion,
   earlyPayable,
+  speedUpByAmount,
 } from '@/core';
 import {
   saveCircle,
@@ -946,6 +947,29 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
   const speedFrom = Math.max(0, current + 1);
   const sped = isSpedUp(circle.periods);
   const plannedEnd = endDate(circle);
+  // Pay more per date → more turns per date → finished sooner.
+  const [perDateText, setPerDateText] = useState('');
+  const perDate = parseAmount(perDateText);
+  const amountPlan = perDate > circle.installment ? speedUpByAmount(circle, speedFrom, perDate) : null;
+  const amountEnd = amountPlan ? endDate({ ...circle, periods: amountPlan.periods }) : null;
+  const datesNow = speedUpByAmount(circle, speedFrom, circle.installment).perDateDues.length;
+  const applyAmount = async () => {
+    if (!amountPlan) return;
+    setSpeedOpen(false);
+    const dues = [...new Set(amountPlan.perDateDues)].map((d) => formatMoney(d)).join(' / ');
+    const ok = await confirm(
+      `الأعضاء يدفعوا ${formatMoney(perDate)} كل ميعاد`,
+      `الأدوار اللي جاية تخلص في ${formatNumber(amountPlan.perDateDues.length)} ميعاد بدل ${formatNumber(datesNow)}، وآخر دور ${amountEnd ? formatDate(amountEnd) : '—'} بدل ${plannedEnd ? formatDate(plannedEnd) : '—'}. ` +
+        `اللي بيتدفع في كل ميعاد: ${dues}${amountPlan.perDateDues.some((d) => d !== perDate) ? ' (في المتوسط ' + formatMoney(perDate) + ')' : ''}. وكل صاحب دور بياخد قبضه كامل. بلّغ الأعضاء من تبويب الرسائل.`,
+      'تمام',
+    );
+    if (ok) {
+      run(() => mutatePeriods(circle.id, (ps) => speedUpByAmount({ ...circle, periods: ps }, speedFrom, perDate).periods), {
+        success: 'المواعيد الجديدة اتسجّلت وظهرت عند كل الأعضاء.',
+      });
+      setPerDateText('');
+    }
+  };
   const endWith = (mode: SpeedUp | 'normal') => endDate({ ...circle, periods: speedUp(circle.periods, speedFrom, mode) });
   const speedOptions: { mode: SpeedUp; title: string; body: string }[] = [
     {
@@ -1287,6 +1311,43 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
               </Pressable>
             );
           })}
+          <View style={styles.amountBox}>
+            <Row gap={space.sm}>
+              <Ionicons name="cash-outline" size={22} color={colors.primary} />
+              <Text weight="bold" style={{ flex: 1 }}>ادفعوا أكتر… وخلّصوا أسرع</Text>
+            </Row>
+            <Text variant="caption">
+              القسط دلوقتي {formatMoney(circle.installment)}. حط المبلغ اللي اتفقتوا عليه لكل ميعاد، والتطبيق يحسب المدة الجديدة.
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+              {[500, 700, 1000].map((x) => (
+                <Chip
+                  key={x}
+                  label={`+${formatNumber(x)}`}
+                  sub={formatMoney(circle.installment + x)}
+                  active={perDate === circle.installment + x}
+                  onPress={() => setPerDateText(String(circle.installment + x))}
+                />
+              ))}
+              <Chip label="الضعف" sub={formatMoney(circle.installment * 2)} active={perDate === circle.installment * 2} onPress={() => setPerDateText(String(circle.installment * 2))} />
+            </View>
+            <Field label="أو اكتب المبلغ بنفسك" value={perDateText} onChangeText={setPerDateText} keyboardType="numeric" placeholder={`أكتر من ${circle.installment}`} />
+            {perDateText.trim() && !amountPlan ? (
+              <Text variant="caption" color={colors.danger}>المبلغ لازم يبقى أكبر من القسط الحالي.</Text>
+            ) : null}
+            {amountPlan ? (
+              <View style={{ gap: 2 }}>
+                <Text weight="bold" color={colors.success}>
+                  {formatNumber(amountPlan.perDateDues.length)} ميعاد بدل {formatNumber(datesNow)} • تخلص {amountEnd ? formatDate(amountEnd) : '—'}
+                </Text>
+                <Text variant="caption">
+                  بدل {plannedEnd ? formatDate(plannedEnd) : '—'}
+                  {amountPlan.perDateDues.some((d) => d !== perDate) ? ` • بيتدفع ${[...new Set(amountPlan.perDateDues)].map((d) => formatMoney(d)).join(' أو ')} في الميعاد (في المتوسط ${formatMoney(perDate)})` : ''}
+                </Text>
+              </View>
+            ) : null}
+            <Button label="طبّق المبلغ الجديد" icon="flash" disabled={!amountPlan} onPress={applyAmount} />
+          </View>
           {sped ? (
             <Button label="رجّع المواعيد العادية" icon="refresh" variant="secondary" onPress={() => applySpeed('normal', '')} />
           ) : null}
@@ -1971,6 +2032,14 @@ function PayInfoCard({ circle }: { circle: Circle }) {
 }
 
 const styles = StyleSheet.create({
+  amountBox: {
+    gap: space.sm,
+    padding: space.md,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
   deferSummary: {
     flexDirection: 'row',
     alignItems: 'center',

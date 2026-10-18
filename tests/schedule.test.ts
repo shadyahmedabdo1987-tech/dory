@@ -18,6 +18,7 @@ import {
   memberReport,
   circleReport,
   circleCompletion,
+  speedUpByAmount,
   earlyPayable,
   postpone,
   removePeriod,
@@ -468,5 +469,25 @@ describe('early payment and completion', () => {
     assert.equal(done.done, true);
     assert.equal(done.totalCollected, 6000);
     assert.equal(circleCompletion(paid, all.slice(1)).done, false);
+  });
+});
+
+describe('speed up by paying more', () => {
+  const six = makeCircle({
+    members: [...members, { id: 'd', name: 'د' }, { id: 'e', name: 'هـ' }, { id: 'f', name: 'و' }],
+    periods: ['a', 'b', 'c', 'd', 'e', 'f'].map((r, i) => ({ id: `p${i}`, kind: 'payout' as const, recipientId: r })),
+  });
+  it('doubling the amount pays two turns per date', () => {
+    const r = speedUpByAmount(six, 0, 2000);
+    assert.deepEqual(r.perDateDues, [2000, 2000, 2000]);
+    assert.equal(timeline({ ...six, periods: r.periods }).filter((e, i, a) => i === 0 || e.date !== a[i - 1].date).length, 3);
+  });
+  it('a bit more shortens it and averages out', () => {
+    const r = speedUpByAmount(six, 0, 1250);
+    assert.equal(r.perDateDues.length, 5);
+    assert.equal(r.perDateDues.reduce((a, b) => a + b, 0), 6000);
+  });
+  it('the same amount changes nothing', () => {
+    assert.equal(speedUpByAmount(six, 0, 1000).perDateDues.length, 6);
   });
 });

@@ -108,6 +108,47 @@ export function speedUp(periods: Period[], from: number, mode: SpeedUp | 'normal
   });
 }
 
+/**
+ * Speed up by paying more each time: from `from` on, members pay about `perDate`
+ * per date instead of one installment, so more turns fit on each date and the
+ * circle ends sooner. Turns are grouped on a date while the money put aside
+ * covers them (what's left over carries to the next date), so over time every
+ * member pays `perDate` per date on average and every recipient still gets a
+ * full turn. Returns the new periods and what each member pays on each date.
+ */
+export function speedUpByAmount(
+  circle: Pick<Circle, 'installment' | 'periods'>,
+  from: number,
+  perDate: number,
+): { periods: Period[]; perDateDues: number[] } {
+  const reset = speedUp(circle.periods, from, 'normal');
+  const out = reset.slice(0, from);
+  const perDateDues: number[] = [];
+  let credit = 0;
+  let i = from;
+  while (i < reset.length) {
+    const first = reset[i];
+    credit += perDate;
+    let paid = periodDue(circle, first);
+    credit -= paid;
+    out.push(first);
+    i++;
+    // A skipped period keeps a date of its own.
+    if (first.kind !== 'skip') {
+      while (i < reset.length && reset[i].kind !== 'skip' && periodDue(circle, reset[i]) <= credit + 0.001) {
+        const due = periodDue(circle, reset[i]);
+        credit -= due;
+        paid += due;
+        out.push({ ...reset[i], gap: 'same' });
+        i++;
+      }
+    }
+    if (credit < 0) credit = 0;
+    perDateDues.push(paid);
+  }
+  return { periods: out, perDateDues };
+}
+
 export function isSpedUp(periods: Period[]): boolean {
   return periods.some((p) => !!p.gap);
 }
