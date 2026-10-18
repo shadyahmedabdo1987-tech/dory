@@ -29,6 +29,8 @@ export interface Period {
   bonus?: number;
   /** Payout handed to the recipient. */
   paidOut?: boolean;
+  /** The recipient confirmed the money reached them. */
+  received?: boolean;
   note?: string;
   /**
    * Speed-up: time since the previous period instead of the circle's usual step

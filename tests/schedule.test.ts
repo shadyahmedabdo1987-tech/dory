@@ -459,7 +459,11 @@ describe('early payment and completion', () => {
     const all = [pay('p0', 'b'), pay('p0', 'c'), pay('p1', 'a'), pay('p1', 'c'), pay('p2', 'a'), pay('p2', 'b')];
     assert.equal(circleCompletion(base, all).allCollected, true);
     assert.equal(circleCompletion(base, all).done, false);
-    const paid = makeCircle({ periods: base.periods.map((p) => ({ ...p, paidOut: true })) });
+    const handed = makeCircle({ periods: base.periods.map((p) => ({ ...p, paidOut: true })) });
+    // Handed over but not confirmed by the recipients yet: not over.
+    assert.equal(circleCompletion(handed, all).done, false);
+    assert.equal(circleCompletion(handed, all).awaitingReceipt.length, 3);
+    const paid = makeCircle({ periods: base.periods.map((p) => ({ ...p, paidOut: true, received: true })) });
     const done = circleCompletion(paid, all);
     assert.equal(done.done, true);
     assert.equal(done.totalCollected, 6000);

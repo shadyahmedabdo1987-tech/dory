@@ -459,12 +459,16 @@ export interface CircleCompletion {
   allCollected: boolean;
   /** Every turn has been handed its payout. */
   allPaidOut: boolean;
-  /** Both: the circle is over. */
+  /** All collected and every payout confirmed received: the circle is over. */
   done: boolean;
   /** Everything collected over the whole circle. */
   totalCollected: number;
   /** Turns still to hand over. */
   payoutsLeft: TimelineEntry[];
+  /** Every recipient confirmed receiving their payout. */
+  allReceived: boolean;
+  /** Handed over, but the recipient hasn't confirmed yet. */
+  awaitingReceipt: TimelineEntry[];
 }
 
 /** Where the circle stands overall — used for the "circle finished" state. */
@@ -481,7 +485,12 @@ export function circleCompletion(circle: Circle, payments: Payment[]): CircleCom
   const payouts = entries.filter((e) => e.period.kind === 'payout');
   const payoutsLeft = payouts.filter((e) => !e.period.paidOut);
   const allPaidOut = payouts.length > 0 && payoutsLeft.length === 0;
-  return { allCollected, allPaidOut, done: allCollected && allPaidOut, totalCollected, payoutsLeft };
+  // Over only once every recipient confirmed their money arrived (the organizer's own turn needs no confirmation).
+  const awaitingReceipt = payouts.filter(
+    (e) => e.period.paidOut && !e.period.received && !(circle.ownerMemberId && e.period.recipientId === circle.ownerMemberId),
+  );
+  const allReceived = allPaidOut && awaitingReceipt.length === 0;
+  return { allCollected, allPaidOut, allReceived, done: allCollected && allReceived, totalCollected, payoutsLeft, awaitingReceipt };
 }
 
 /** The member's coming installments that can still be paid ahead of time, in date order. */

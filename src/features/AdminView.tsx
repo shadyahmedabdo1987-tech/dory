@@ -147,6 +147,19 @@ export function AdminView({
   const payouts = usePayouts(circle.id, 'admin', undefined);
   const o = overview(circle, payments);
   const completion = circleCompletion(circle, payments);
+  // Mirror each recipient's "I got my money" onto the schedule, so everyone can see when the circle is truly over.
+  const receivedKey = payouts.map((r) => `${r.periodId}:${r.status}`).sort().join('|');
+  useEffect(() => {
+    const got = new Set(payouts.filter((r) => r.status === 'received').map((r) => r.periodId));
+    const stale = circle.periods.some(
+      (p) => p.kind === 'payout' && p.paidOut && !!p.received !== got.has(p.id),
+    );
+    if (!stale) return;
+    mutatePeriods(circle.id, (ps) =>
+      ps.map((p) => (p.kind === 'payout' && p.paidOut ? { ...p, received: got.has(p.id) } : p)),
+    ).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [circle.id, receivedKey, circle.periods.map((p) => `${p.id}:${p.paidOut ? 1 : 0}:${p.received ? 1 : 0}`).join('|')]);
   const phonesKey = circle.members.map((m) => `${m.id}:${m.phone ?? ''}:${m.uid ? 1 : 0}`).join('|');
   useEffect(() => {
     backfillPhones(circle).catch(() => {});
@@ -205,7 +218,9 @@ export function AdminView({
           <Row gap={6} style={styles.heroHint}>
             <Ionicons name="checkmark-circle" size={16} color={colors.gold} />
             <Text variant="caption" weight="bold" color={colors.white}>
-              كل الأقساط اتسددت — فاضل تسليم {formatNumber(completion.payoutsLeft.length)} قبض
+              {completion.payoutsLeft.length
+                ? `كل الأقساط اتسددت — فاضل تسليم ${formatNumber(completion.payoutsLeft.length)} قبض`
+                : `فاضل ${formatNumber(completion.awaitingReceipt.length)} يأكدوا إنهم استلموا فلوسهم`}
             </Text>
           </Row>
         ) : null}
