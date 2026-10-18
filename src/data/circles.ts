@@ -580,7 +580,10 @@ export async function joinWithLoginCode(rawCode: string, rawPhone: string, uid: 
   const cid = String(invite.circleId);
   const memberId = await memberIdForPhone(cid, rawPhone);
   if (!memberId) throw new AppError('dory/phone-not-found', arabicError({ code: 'dory/phone-not-found' }));
-  const found = await restGet(`circles/${cid}/phones/${codeKey(cid, memberId, loginCode)}`);
+  // Right-to-left screens can show 510-718 as 718-510, and people type what they see: accept both.
+  const swapped = `${digits.slice(3)}-${digits.slice(0, 3)}`;
+  let found = await restGet(`circles/${cid}/phones/${codeKey(cid, memberId, loginCode)}`);
+  if (!found) found = await restGet(`circles/${cid}/phones/${codeKey(cid, memberId, swapped)}`);
   if (!found || String(found.memberId) !== memberId) throw new AppError('dory/code-wrong', CODE_WRONG);
   try {
     return await joinCircle(rawCode, rawPhone, uid);

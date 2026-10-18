@@ -540,11 +540,12 @@ function JoinSheet({
                   value={password}
                   onChangeText={(t) => {
                     const d = t.replace(/[^0-9٠-٩]/g, '').replace(/[٠-٩]/g, (c) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c))).slice(0, 6);
-                    setPassword(d.length > 3 ? `${d.slice(0, 3)}-${d.slice(3)}` : d);
+                    setPassword(d);
                   }}
                   keyboardType="number-pad"
-                  maxLength={7}
-                  placeholder="123-456"
+                  maxLength={6}
+                  placeholder="123456"
+                  style={{ writingDirection: 'ltr', textAlign: 'center', letterSpacing: 6, fontSize: 22 }}
                 />
               ) : (
                 <Field label="الباسورد" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
@@ -553,7 +554,7 @@ function JoinSheet({
                 label="دخول"
                 icon="log-in-outline"
                 loading={busy}
-                disabled={withCode ? !/^\d{3}-\d{3}$/.test(password) : !password}
+                disabled={withCode ? !/^\d{6}$/.test(password) : !password}
                 onPress={login}
               />
               <Pressable

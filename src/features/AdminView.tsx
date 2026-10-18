@@ -68,6 +68,7 @@ import {
 import {
   saveCircle,
   issueFirstLoginCode,
+  hasLoginCode,
   clearFirstLoginCode,
   firstLoginCodeOf,
   backfillPhones,
@@ -1356,13 +1357,17 @@ function MembersTab({ circle, payments, requests }: { circle: Circle; payments: 
   const sendCode = (m: Member, code: string) => {
     const msg =
       `أهلًا ${m.name} 👋\nصاحب "${circle.name}" ضافك في الجمعية على تطبيق دوري.\n` +
-      `كود الجمعية: ${circle.inviteCode}\nرقمك: ${m.phone ?? ''}\nكود الدخول (لأول مرة بس): ${code}\n` +
-      'ادخل بكود الجمعية ورقمك، واكتب كود الدخول مكان الباسورد، وبعدها اختار باسورد خاص بيك.';
+      `كود الجمعية: ${circle.inviteCode}\nرقمك: ${m.phone ?? ''}\nكود الدخول (لأول مرة بس): \u2066${code.replace('-', '')}\u2069\n` +
+      'ادخل بكود الجمعية ورقمك، واكتب كود الدخول (٦ أرقام)، وبعدها اختار باسورد خاص بيك.';
     RNLinking.openURL(whatsappUrl(normalizePhone(m.phone ?? '') ?? '', msg)).catch(() => Share.share({ message: msg }));
   };
   const newCode = async (m: Member) => {
     if (!m.phone) return alert('ضيف رقم موبايل العضو الأول');
     run(async () => {
+      // A code that's still waiting to be used is sent again as it is — a new one would
+      // cancel the one the member may already have.
+      const existing = firstLoginCodeOf(circle.id, m.id);
+      if (existing && (await hasLoginCode(circle.id, m.id))) return sendCode(m, existing);
       const code = await issueFirstLoginCode(circle.id, m.id, m.phone!);
       bump((n) => n + 1);
       sendCode(m, code);
@@ -1417,7 +1422,7 @@ function MembersTab({ circle, payments, requests }: { circle: Circle; payments: 
               </Text>
               {!m.uid && firstLoginCodeOf(circle.id, m.id) ? (
                 <Text variant="caption" weight="bold" color={colors.primary} onPress={() => sendCode(m, firstLoginCodeOf(circle.id, m.id)!)}>
-                  كود الدخول: {firstLoginCodeOf(circle.id, m.id)} • ابعته واتساب
+                  كود الدخول: {'\u2066'}{firstLoginCodeOf(circle.id, m.id)!.replace('-', '')}{'\u2069'} • ابعته واتساب
                 </Text>
               ) : null}
             </View>
