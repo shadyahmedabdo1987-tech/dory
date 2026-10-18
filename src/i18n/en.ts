@@ -717,7 +717,16 @@ export const EXACT: Record<string, string> = {
  "الدور التاني لأي عضو بييجي بعد ما كل الأعضاء ياخدوا دورهم الأول.": "A member's second turn comes after everyone's first turn.",
  "الدور التاني بييجي بعد ما كل الأعضاء ياخدوا دورهم الأول، ومش قبل النهارده. اختار ميعاده، أو حطه في الآخر ووزّع الأدوار الجاية بعجلة القرعة.": "A second turn comes after everyone's first, and never before today. Pick its date, or put it at the end and spread the upcoming turns with the draw wheel.",
  "في آخر الجدول": "At the end",
- "اختار العضو اللي هياخد دور قبض زيادة (سهم تاني، أو عمولة صاحب الجمعية).": "Pick who gets an extra payout turn (a second share, or the organizer's fee)."
+ "اختار العضو اللي هياخد دور قبض زيادة (سهم تاني، أو عمولة صاحب الجمعية).": "Pick who gets an extra payout turn (a second share, or the organizer's fee).",
+ "أول مرة أدخل — عندي كود دخول": "First time — I have a sign-in code",
+ "كود الدخول": "Sign-in code",
+ "الباسورد الجديد": "New password",
+ "عندي باسورد بالفعل": "I already have a password",
+ "أول مرة تدخل: اكتب كود الدخول اللي وصلك من صاحب الجمعية على الواتساب، واختار باسورد جديد واكتبه مرتين.": "First time: enter the sign-in code the organizer sent you on WhatsApp, then choose a new password (twice).",
+ "كود الدخول مش صح. اتأكد من الكود اللي وصلك من صاحب الجمعية، أو اطلب منه كود جديد.": "That sign-in code is wrong. Check the code the organizer sent, or ask for a new one.",
+ "أهلًا بيك ✓": "Welcome ✓",
+ "دخلت الجمعية باسمك ودورك. المرة الجاية تدخل بالكود ورقمك والباسورد اللي اخترته.": "You're in with your name and turn. Next time use the code, your number and your new password.",
+ "الرقم ده مسجّل في الجمعية. لو دي أول مرة تدخل، دوس \"أول مرة أدخل\" واكتب كود الدخول اللي وصلك. لو عندك باسورد، اكتبه تحت.": "This number is registered. First time? Tap \"First time\" and enter the sign-in code you got. If you have a password, enter it below."
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */

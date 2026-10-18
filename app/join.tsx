@@ -289,11 +289,12 @@ function JoinSheet({
   onSent: (s: { cid: string; circleName: string; name: string }) => void;
 }) {
   const { user } = useAppSession();
-  const [step, setStep] = useState<'phone' | 'login' | 'setpw' | 'details'>('phone');
+  const [step, setStep] = useState<'phone' | 'login' | 'setpw' | 'details' | 'firstcode'>('phone');
   const [phone, setPhone] = useState(() => readPrefsSync().myPhone ?? '');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [fromCode, setFromCode] = useState(false);
+  const [loginCode, setLoginCode] = useState('');
   const [name, setName] = useState(user?.displayName ?? '');
   const { busy, run } = useAction();
   const phoneOk = !!normalizePhone(phone);
@@ -365,6 +366,28 @@ function JoinSheet({
         return setStep('setpw');
       }
       alert('أهلًا بيك تاني ✓', 'دخلت باسمك ودورك المسجّلين في الجمعية.');
+      open(circle.id);
+    });
+
+  // New member the organizer added: their one-time code + a password of their own, in one go.
+  const firstSignIn = () =>
+    circle &&
+    run(async () => {
+      if (password.length < MIN_PASSWORD || password !== password2) throw new AppError('auth/weak-password', arabicError({ code: 'auth/weak-password' }));
+      await ensurePushToken().catch(() => null);
+      const me = (await ensureSignedIn()).uid;
+      try {
+        await joinCircle(code, phone, me, loginCode.trim());
+      } catch (e) {
+        if (errorCode(e) === 'dory/signin-failed') {
+          throw new AppError('dory/code-wrong', 'كود الدخول مش صح. اتأكد من الكود اللي وصلك من صاحب الجمعية، أو اطلب منه كود جديد.');
+        }
+        throw e;
+      }
+      const memberId = await memberIdForPhone(circle.id, phone);
+      if (memberId) await setMyPassword(circle.id, memberId, phone, password);
+      writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
+      alert('أهلًا بيك ✓', 'دخلت الجمعية باسمك ودورك. المرة الجاية تدخل بالكود ورقمك والباسورد اللي اخترته.');
       open(circle.id);
     });
 
@@ -451,14 +474,61 @@ function JoinSheet({
                 onPress={choosePassword}
               />
             </>
+          ) : step === 'firstcode' ? (
+            <>
+              <View style={styles.firstTime}>
+                <Ionicons name="key-outline" size={18} color={colors.primary} />
+                <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
+                  أول مرة تدخل: اكتب كود الدخول اللي وصلك من صاحب الجمعية على الواتساب، واختار باسورد جديد واكتبه مرتين.
+                </Text>
+              </View>
+              <Field label="كود الدخول" value={loginCode} onChangeText={setLoginCode} keyboardType="number-pad" maxLength={6} />
+              <Field
+                label="الباسورد الجديد"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                error={passwordShort ? '٦ حروف أو أكتر' : undefined}
+              />
+              <Field
+                label="اكتب الباسورد تاني"
+                value={password2}
+                onChangeText={setPassword2}
+                secureTextEntry
+                autoCapitalize="none"
+                error={mismatch ? 'الباسورد مش زي اللي فوق' : undefined}
+              />
+              <Button
+                label="حفظ ودخول"
+                icon="checkmark-circle-outline"
+                loading={busy}
+                disabled={loginCode.trim().length !== 6 || password.length < MIN_PASSWORD || password !== password2}
+                onPress={firstSignIn}
+              />
+              <Text variant="caption" center color={colors.primary} weight="bold" onPress={() => setStep('login')}>
+                عندي باسورد بالفعل
+              </Text>
+            </>
           ) : step === 'login' ? (
             <>
               <View style={styles.firstTime}>
                 <Ionicons name="lock-closed-outline" size={18} color={colors.primary} />
                 <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
-                  الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك. ولو دي أول مرة تدخل، اكتب كود الدخول اللي وصلك من صاحب الجمعية على الواتساب.
+                  الرقم ده مسجّل في الجمعية. لو دي أول مرة تدخل، دوس "أول مرة أدخل" واكتب كود الدخول اللي وصلك. لو عندك باسورد، اكتبه تحت.
                 </Text>
               </View>
+              <Button
+                label="أول مرة أدخل — عندي كود دخول"
+                icon="key-outline"
+                variant="secondary"
+                onPress={() => {
+                  setPassword('');
+                  setPassword2('');
+                  setLoginCode('');
+                  setStep('firstcode');
+                }}
+              />
               <Field label="الباسورد" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
               <Button label="دخول" icon="log-in-outline" loading={busy} disabled={!password} onPress={login} />
               <Text variant="caption" center>
