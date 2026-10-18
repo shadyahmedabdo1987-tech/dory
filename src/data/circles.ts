@@ -513,13 +513,25 @@ export async function hasMyPassword(cid: string, memberId: string): Promise<bool
  * Only for members who haven't signed in yet (their row has no device).
  */
 export async function issueFirstLoginCode(cid: string, memberId: string, rawPhone: string): Promise<string> {
-  const phone = normalizePhone(rawPhone);
-  if (!phone) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
+  const given = normalizePhone(rawPhone);
+  if (!given) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
   const bytes = new Uint32Array(1);
   globalThis.crypto?.getRandomValues?.(bytes);
   const n = String(100000 + ((bytes[0] || Math.floor(Math.random() * 2 ** 32)) % 900000));
   // 123-456: a shape nobody picks as a password, so signing in with it always asks for a new one.
   const code = `${n.slice(0, 3)}-${n.slice(3)}`;
+  // The number the member signs in with is the one in the lookup — use exactly that
+  // (the number saved on the row can be written differently, and then the code never matched).
+  const signInPhone = await withTimeout(
+    getDocs(query(collection(firestore(), 'circles', cid, 'phones'), where('memberId', '==', memberId))),
+    8_000,
+  )
+    .then((snap) => {
+      const ids = snap.docs.map((d) => d.id).filter((id) => !id.startsWith('code-'));
+      return ids.includes(given) ? given : (ids[0] ?? given);
+    })
+    .catch(() => given);
+  const phone = signInPhone;
   await restCommit([{ delete: `circles/${cid}/secrets/${memberId}` }]).catch(() => {});
   await restCommit([
     { set: `circles/${cid}/secrets/${memberId}`, data: { proof: passwordProof(cid, phone, code) } },
