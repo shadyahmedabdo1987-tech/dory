@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { extractInviteCode, FREQUENCY_LABEL, formatDate, formatMoney, formatNumber, normalizePayAccount, normalizePhone, MIN_PASSWORD } from '@/core';
 import {
@@ -11,6 +11,7 @@ import {
   isPhoneRegistered,
   memberIdForPhone,
   hasMyPassword,
+  hasLoginCode,
   setMyPassword,
   joinCircle,
   cancelJoinRequest,
@@ -289,6 +290,7 @@ function JoinSheet({
   onSent: (s: { cid: string; circleName: string; name: string }) => void;
 }) {
   const { user } = useAppSession();
+  const [withCode, setWithCode] = useState(false);
   const [step, setStep] = useState<'phone' | 'login' | 'setpw' | 'details' | 'firstcode'>('phone');
   const [phone, setPhone] = useState(() => readPrefsSync().myPhone ?? '');
   const [password, setPassword] = useState('');
@@ -327,6 +329,9 @@ function JoinSheet({
         } catch (e) {
           if (errorCode(e) !== 'dory/signin-failed') throw e;
           setPassword('');
+          // The organizer gave this number a sign-in code: ask for the code, not a password.
+          const mid = await memberIdForPhone(circle.id, phone).catch(() => null);
+          setWithCode(mid ? await hasLoginCode(circle.id, mid) : false);
           return setStep('login');
         }
         setPassword('');
@@ -344,23 +349,41 @@ function JoinSheet({
       await ensurePushToken().catch(() => null);
       // Always the account signed in right now (it changes after signing out).
       const me = (await ensureSignedIn()).uid;
+      // The organizer's code is 123-456; typed without the dash it still works.
+      const typed = password.trim();
+      const asCode = /^\d{6}$/.test(typed) ? `${typed.slice(0, 3)}-${typed.slice(3)}` : null;
+      let used = password;
       try {
         await joinCircle(code, phone, me, password);
       } catch (e) {
         if (errorCode(e) !== 'dory/signin-failed') throw e;
-        // A sign-out from another phone may still be landing — try once more.
-        await new Promise((r) => setTimeout(r, 1500));
-        await joinCircle(code, phone, me, password);
+        try {
+          if (!asCode) throw e;
+          await joinCircle(code, phone, me, asCode);
+          used = asCode;
+        } catch (e2) {
+          if (errorCode(e2) !== 'dory/signin-failed') throw e2;
+          // A sign-out from another phone may still be landing — try once more.
+          await new Promise((r) => setTimeout(r, 1500));
+          try {
+            await joinCircle(code, phone, me, password);
+          } catch (e3) {
+            if (withCode && errorCode(e3) === 'dory/signin-failed') {
+              throw new AppError('dory/code-wrong', 'كود الدخول مش صح. اتأكد من الكود اللي وصلك من صاحب الجمعية، أو اطلب منه كود جديد.');
+            }
+            throw e3;
+          }
+        }
       }
       // First sign-in for a member who never chose a password: this one becomes theirs.
       const memberId = await memberIdForPhone(circle.id, phone).catch(() => null);
       if (memberId && !(await hasMyPassword(circle.id, memberId))) {
-        await setMyPassword(circle.id, memberId, phone, password).catch(() => {});
+        await setMyPassword(circle.id, memberId, phone, used).catch(() => {});
       }
       writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
       // Came in with the one-time code from the organizer: now choose a password of their own.
       // Only the organizer's codes look like this (123-456) — a normal password never triggers it.
-      if (/^\d{3}-\d{3}$/.test(password.trim())) {
+      if (/^\d{3}-\d{3}$/.test(used.trim())) {
         setFromCode(true);
         setPassword('');
         setPassword2('');
@@ -516,11 +539,45 @@ function JoinSheet({
               <View style={styles.firstTime}>
                 <Ionicons name="lock-closed-outline" size={18} color={colors.primary} />
                 <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
-                  الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك وهتدخل على طول.
+                  {withCode
+                    ? 'اكتب كود الدخول اللي صاحب الجمعية بعتهولك (٦ أرقام). بعده هتختار باسورد بتاعك.'
+                    : 'الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك وهتدخل على طول.'}
                 </Text>
               </View>
-              <Field label="الباسورد" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
-              <Button label="دخول" icon="log-in-outline" loading={busy} disabled={!password} onPress={login} />
+              {withCode ? (
+                <Field
+                  label="كود الدخول"
+                  value={password}
+                  onChangeText={(t) => {
+                    const d = t.replace(/[^0-9٠-٩]/g, '').replace(/[٠-٩]/g, (c) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c))).slice(0, 6);
+                    setPassword(d.length > 3 ? `${d.slice(0, 3)}-${d.slice(3)}` : d);
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={7}
+                  placeholder="123-456"
+                />
+              ) : (
+                <Field label="الباسورد" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
+              )}
+              <Button
+                label="دخول"
+                icon="log-in-outline"
+                loading={busy}
+                disabled={withCode ? !/^\d{3}-\d{3}$/.test(password) : !password}
+                onPress={login}
+              />
+              <Pressable
+                onPress={() => {
+                  setPassword('');
+                  setWithCode((v) => !v);
+                }}
+                style={styles.codeSwitch}
+              >
+                <Ionicons name={withCode ? 'lock-closed-outline' : 'keypad-outline'} size={18} color={colors.primary} />
+                <Text weight="bold" color={colors.primary}>
+                  {withCode ? 'معايا باسورد — أدخل بيه' : 'معايا كود دخول من صاحب الجمعية'}
+                </Text>
+              </Pressable>
               <Text variant="caption" center>
                 نسيت الباسورد؟ اطلب من صاحب الجمعية يفك الربط، وبعدها تدخل بالكود ورقمك وتختار باسورد جديد.
               </Text>
@@ -632,6 +689,7 @@ function WaitingForApproval({ cid, uid, circleName, name }: { cid: string; uid: 
 }
 
 const styles = StyleSheet.create({
+  codeSwitch: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, paddingVertical: space.sm },
   firstTime: { flexDirection: 'row', gap: space.sm, alignItems: 'flex-start', backgroundColor: colors.primarySoft, borderRadius: radius.md, padding: space.md },
   loadingRoot: {
     flex: 1,

@@ -143,7 +143,7 @@ export function AdminView({
   const payouts = usePayouts(circle.id, 'admin', undefined);
   const o = overview(circle, payments);
   const completion = circleCompletion(circle, payments);
-  const phonesKey = circle.members.map((m) => `${m.id}:${m.phone ?? ''}`).join('|');
+  const phonesKey = circle.members.map((m) => `${m.id}:${m.phone ?? ''}:${m.uid ? 1 : 0}`).join('|');
   useEffect(() => {
     backfillPhones(circle).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -521,7 +521,11 @@ export async function issueFirstLoginCode(cid: string, memberId: string, rawPhon
   // 123-456: a shape nobody picks as a password, so signing in with it always asks for a new one.
   const code = `${n.slice(0, 3)}-${n.slice(3)}`;
   await restCommit([{ delete: `circles/${cid}/secrets/${memberId}` }]).catch(() => {});
-  await restCommit([{ set: `circles/${cid}/secrets/${memberId}`, data: { proof: passwordProof(cid, phone, code) } }]);
+  await restCommit([
+    { set: `circles/${cid}/secrets/${memberId}`, data: { proof: passwordProof(cid, phone, code) } },
+    // A public marker (no secret in it) so the sign-in screen asks for the code instead of a password.
+    { set: `circles/${cid}/phones/${codeMarker(memberId)}`, data: { memberId } },
+  ]);
   const all = readPrefsSync().memberCodes ?? {};
   writePrefs({ memberCodes: { ...all, [cid]: { ...(all[cid] ?? {}), [memberId]: code } } });
   return code;
@@ -529,12 +533,23 @@ export async function issueFirstLoginCode(cid: string, memberId: string, rawPhon
 
 /** Remove a member's sign-in code (only for members who haven't signed in): they choose a password on entry. */
 export async function clearFirstLoginCode(cid: string, memberId: string): Promise<void> {
-  await restCommit([{ delete: `circles/${cid}/secrets/${memberId}` }]);
+  await restCommit([
+    { delete: `circles/${cid}/secrets/${memberId}` },
+    { delete: `circles/${cid}/phones/${codeMarker(memberId)}` },
+  ]);
   const all = readPrefsSync().memberCodes ?? {};
   if (all[cid]?.[memberId]) {
     const { [memberId]: _gone, ...rest } = all[cid];
     writePrefs({ memberCodes: { ...all, [cid]: rest } });
   }
+}
+
+/** Marker doc id: this member was given a sign-in code by the organizer. */
+const codeMarker = (memberId: string) => `code-${memberId}`;
+
+/** Did the organizer give this member a sign-in code (123-456) to enter with? */
+export async function hasLoginCode(cid: string, memberId: string): Promise<boolean> {
+  return (await restGet(`circles/${cid}/phones/${codeMarker(memberId)}`).catch(() => null)) !== null;
 }
 
 export function firstLoginCodeOf(cid: string, memberId: string): string | undefined {
@@ -1335,10 +1350,25 @@ export async function releaseMyMemberships(uid: string, refs: { id: string; memb
 export async function backfillPhones(circle: Circle): Promise<void> {
   const db = firestore();
   const existing = await getDocs(collection(db, 'circles', circle.id, 'phones'));
-  const taken = new Set(existing.docs.map((d) => d.id));
-  const linked = new Set(existing.docs.map((d) => String(d.data().memberId)));
+  const numbers = existing.docs.filter((d) => !d.id.startsWith('code-'));
+  const taken = new Set(numbers.map((d) => d.id));
+  const linked = new Set(numbers.map((d) => String(d.data().memberId)));
   const batch = writeBatch(db);
   let n = 0;
+  // A sign-in code is done with once the member is in: drop its marker (and the copy kept on this phone).
+  for (const d of existing.docs) {
+    if (!d.id.startsWith('code-')) continue;
+    const mid = String(d.data().memberId);
+    const m = circle.members.find((x) => x.id === mid);
+    if (m && !m.uid) continue;
+    batch.delete(d.ref);
+    n++;
+    const all = readPrefsSync().memberCodes ?? {};
+    if (all[circle.id]?.[mid]) {
+      const { [mid]: _gone, ...rest } = all[circle.id];
+      writePrefs({ memberCodes: { ...all, [circle.id]: rest } });
+    }
+  }
   for (const m of circle.members) {
     if (linked.has(m.id) || !m.phone || m.phone.includes('@')) continue;
     const phone = normalizePhone(m.phone);
