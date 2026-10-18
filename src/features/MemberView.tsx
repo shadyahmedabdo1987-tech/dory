@@ -23,10 +23,10 @@ import {
   type Circle,
   type MemberPaymentState,
   type Payment,
-  type TimelineEntry, deferralOf, upcomingExtras, currentIndex, cadenceLabel } from "@/core";
+  type TimelineEntry, deferralOf, upcomingExtras, currentIndex, cadenceLabel, circleCompletion, earlyPayable, periodSummary } from "@/core";
 import { confirmPayoutReceived, disputePayout, hasMyPassword, loadPayoutReceipt, loadReceipt, removePayment, setMyPassword, usePayouts } from '@/data';
 import { readPrefsSync, writePrefs } from '@/ui/prefs';
-import { Badge, Button, Card, Field, ProgressBar, Row, Text, tap } from '@/ui/components';
+import { Badge, Button, Card, Chip, Field, ProgressBar, Row, Text, tap } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { colors, radius, space } from '@/ui/theme';
@@ -66,6 +66,11 @@ export function MemberView({
   const { busy, run } = useAction();
 
   const [paying, setPaying] = useState<TimelineEntry | null>(null);
+  const [bundle, setBundle] = useState<TimelineEntry[] | undefined>(undefined);
+  const [earlyOpen, setEarlyOpen] = useState(false);
+  const [earlyCount, setEarlyCount] = useState(1);
+  const early = earlyPayable(circle, payments, memberId, today);
+  const completion = circleCompletion(circle, payments);
   const [viewing, setViewing] = useState<AccountLine | null>(null);
 
   const [requesting, setRequesting] = useState<TimelineEntry | null>(null);
@@ -87,7 +92,16 @@ export function MemberView({
     }
   };
 
-  const claim = (line: AccountLine) => setPaying(line.entry);
+  const claim = (line: AccountLine) => {
+    setBundle(undefined);
+    setPaying(line.entry);
+  };
+  const payEarly = () => {
+    const chosen = early.slice(0, Math.max(1, Math.min(earlyCount, early.length)));
+    setEarlyOpen(false);
+    setBundle(chosen);
+    setPaying(chosen[0]);
+  };
 
   const undo = async (line: AccountLine) => {
     if (await confirm('تراجع؟', 'هنشيل البلاغ بتاعك إنك دفعت القسط ده.', 'تراجع', true)) {
@@ -140,6 +154,26 @@ export function MemberView({
             ))}
           </View>
         ) : null}
+        {completion.done ? (
+          <View style={styles.donePill}>
+            <Ionicons name="trophy" size={22} color={colors.gold} />
+            <View style={{ flex: 1 }}>
+              <Text weight="bold" color={colors.white}>
+                الجمعية انتهت 🎉
+              </Text>
+              <Text variant="caption" color="rgba(255,255,255,0.85)">
+                كل الأقساط اتسددت وكل الأعضاء قبضوا أدوارهم.
+              </Text>
+            </View>
+          </View>
+        ) : acc.remaining <= 0 && acc.totalCommitment > 0 ? (
+          <View style={styles.donePill}>
+            <Ionicons name="shield-checkmark" size={22} color={colors.gold} />
+            <Text weight="bold" color={colors.white} style={{ flex: 1 }}>
+              سددت كل أقساطك ✓ مفيش عليك حاجة تاني
+            </Text>
+          </View>
+        ) : null}
         {acc.myPayouts.length ? (() => {
           const t = acc.myPayouts.find((p) => !p.received) ?? acc.myPayouts[acc.myPayouts.length - 1];
           const d = daysBetween(today, t.entry.date);
@@ -173,6 +207,30 @@ export function MemberView({
           </Text>
         </Row>
       )}
+
+      {early.length > 0 && !completion.done ? (
+        <Card style={{ borderColor: colors.primary }}>
+          <Row gap={space.sm}>
+            <View style={styles.earlyIcon}>
+              <Ionicons name="flash" size={20} color={colors.white} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text variant="heading">سداد معجّل</Text>
+              <Text variant="caption">
+                عايز تخلّص بدري؟ ادفع قسط أو أكتر — أو الجمعية كلها — مرة واحدة. أول ما صاحب الجمعية يوافق، يتعلّموا مدفوعين.
+              </Text>
+            </View>
+          </Row>
+          <Button
+            label="سدّد أقساط مقدّمًا"
+            icon="flash-outline"
+            onPress={() => {
+              setEarlyCount(1);
+              setEarlyOpen(true);
+            }}
+          />
+        </Card>
+      ) : null}
 
       {/* Next installment */}
       {next && (
@@ -301,7 +359,7 @@ export function MemberView({
                 </Row>
               ) : p.received && request?.hasReceipt ? (
                 <Button label="عرض إيصال تحويل القبض" icon="image-outline" variant="secondary" onPress={() => setPayoutReceipt(p.entry.period.id)} />
-              ) : editable && p.entry.date <= today ? (
+              ) : editable && (p.entry.date <= today || periodSummary(circle, payments, p.entry.index).isComplete) ? (
                 <Button
                   label={request ? 'تعديل طريقة القبض' : 'حدد طريقة القبض'}
                   icon="wallet-outline"
@@ -378,7 +436,47 @@ export function MemberView({
           );
         })}
       </Card>
-      <PaySheet circle={circle} entry={paying} memberId={memberId} uid={uid} onClose={() => setPaying(null)} />
+      <PaySheet
+        circle={circle}
+        entry={paying}
+        bundle={bundle}
+        memberId={memberId}
+        uid={uid}
+        onClose={() => {
+          setPaying(null);
+          setBundle(undefined);
+        }}
+      />
+      <Sheet visible={earlyOpen} title="سداد معجّل" onClose={() => setEarlyOpen(false)}>
+        <Text variant="caption">هتدفع كام قسط؟ بيتحسبوا بالترتيب من أقرب قسط جاي.</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
+          {early.map((e, k) => {
+            const n = k + 1;
+            const sum = early.slice(0, n).reduce((t, x) => t + x.due, 0);
+            return (
+              <Chip
+                key={e.period.id}
+                label={n === early.length && n > 1 ? 'كل اللي عليّ' : `${formatNumber(n)} قسط`}
+                sub={formatMoney(sum)}
+                active={earlyCount === n}
+                onPress={() => setEarlyCount(n)}
+              />
+            );
+          })}
+        </ScrollView>
+        {early.length ? (
+          <View style={styles.earlySummary}>
+            <Text variant="caption">الإجمالي</Text>
+            <Text variant="number" color={colors.primary}>
+              {formatMoney(early.slice(0, earlyCount).reduce((t, x) => t + x.due, 0))}
+            </Text>
+            <Text variant="caption">
+              {formatNumber(Math.min(earlyCount, early.length))} قسط • لحد {formatDate(early[Math.min(earlyCount, early.length) - 1].date)}
+            </Text>
+          </View>
+        ) : null}
+        <Button label="كمّل للدفع" icon="arrow-back" onPress={payEarly} />
+      </Sheet>
       <PayoutRequestSheet
         circle={circle}
         entry={requesting}
@@ -491,6 +589,32 @@ function PasswordCard({ cid, memberId }: { cid: string; memberId: string }) {
 }
 
 const styles = StyleSheet.create({
+  donePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    marginTop: space.sm,
+    padding: space.md,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  earlyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  earlySummary: {
+    alignItems: 'center',
+    gap: 2,
+    padding: space.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+  },
   balance: { backgroundColor: colors.primary, borderRadius: radius.lg, padding: space.xl, gap: space.xs },
   myTurnPill: { marginTop: space.sm, alignSelf: 'stretch', justifyContent: 'center', backgroundColor: colors.orange, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm },
   heroHint: { marginTop: space.sm, alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 4 },

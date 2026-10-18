@@ -11,6 +11,7 @@ import {
   payoutNeedsReceipt,
   payoutNet,
   validatePayoutRequest,
+  todayISO,
   type Circle,
   type PaymentMethod,
   type PayoutRequest,
@@ -185,7 +186,7 @@ export function AdminPayoutSheet({
   }, [entry?.period.id, request?.status]);
 
   // The admin's receipt must show exactly the payout, sent to the recipient's account.
-  const rc = useReceiptVerification(receipt, entry ? payoutNet(circle, entry.period) : payoutNet(circle), [account], { due: entry?.date });
+  const rc = useReceiptVerification(receipt, entry ? payoutNet(circle, entry.period) : payoutNet(circle), [account], { due: entry && entry.date > todayISO() ? todayISO() : entry?.date });
 
   if (!entry) return null;
   const recipient = entry.recipient;

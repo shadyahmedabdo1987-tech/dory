@@ -17,6 +17,8 @@ import {
   periodSummary,
   memberReport,
   circleReport,
+  circleCompletion,
+  earlyPayable,
   postpone,
   removePeriod,
   setPaidOut,
@@ -442,4 +444,25 @@ it('a second turn goes after everyone first turn, and draws keep rounds in order
   assert.deepEqual(extraTurnSlots([...periods, { id: 'p4', kind: 'payout', recipientId: 'a' }], 'b', 0), [3, 4]);
   const all = [...periods, { id: 'p4', kind: 'payout', recipientId: 'a' }];
   assert.deepEqual(orderByRounds(all, ['p2', 'p3', 'p4'], ['a', 'c', 'b']), ['c', 'b', 'a']);
+});
+
+describe('early payment and completion', () => {
+  it('lists only coming, unpaid, non-own installments', () => {
+    const c = makeCircle({ startDate: '2030-01-10' });
+    const ids = earlyPayable(c, [pay('p1', 'a', 'claimed')], 'a', '2029-12-01').map((e) => e.period.id);
+    // p0 is a's own turn, p1 is already claimed.
+    assert.deepEqual(ids, ['p2']);
+  });
+
+  it('is done only when every installment is in and every turn paid out', () => {
+    const base = makeCircle();
+    const all = [pay('p0', 'b'), pay('p0', 'c'), pay('p1', 'a'), pay('p1', 'c'), pay('p2', 'a'), pay('p2', 'b')];
+    assert.equal(circleCompletion(base, all).allCollected, true);
+    assert.equal(circleCompletion(base, all).done, false);
+    const paid = makeCircle({ periods: base.periods.map((p) => ({ ...p, paidOut: true })) });
+    const done = circleCompletion(paid, all);
+    assert.equal(done.done, true);
+    assert.equal(done.totalCollected, 6000);
+    assert.equal(circleCompletion(paid, all.slice(1)).done, false);
+  });
 });

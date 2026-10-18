@@ -62,6 +62,8 @@ import {
   addMonths,
   deferralOf,
   setDeferral,
+  circleCompletion,
+  earlyPayable,
 } from '@/core';
 import {
   saveCircle,
@@ -77,6 +79,7 @@ import {
   postAnnouncement,
   confirmMany,
   confirmPayment,
+  confirmMemberPeriods,
   loadPayoutReceipt,
   loadReceipt,
   usePayouts,
@@ -139,6 +142,7 @@ export function AdminView({
   }, [listingKey]);
   const payouts = usePayouts(circle.id, 'admin', undefined);
   const o = overview(circle, payments);
+  const completion = circleCompletion(circle, payments);
   const phonesKey = circle.members.map((m) => `${m.id}:${m.phone ?? ''}`).join('|');
   useEffect(() => {
     backfillPhones(circle).catch(() => {});
@@ -158,7 +162,51 @@ export function AdminView({
   return (
     <KeyboardScreen>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}>
+      {completion.done ? (
       <Pressable onPress={() => { tap(); setShowTurns(true); }} style={({ pressed }) => [styles.hero, pressed && { opacity: 0.9 }]}>
+        <View style={styles.doneIcon}>
+          <Ionicons name="trophy" size={38} color={colors.gold} />
+        </View>
+        <Text variant="title" color={colors.white} center>
+          الجمعية انتهت 🎉
+        </Text>
+        <Text variant="caption" color="rgba(255,255,255,0.85)" center>
+          كل الأقساط اتسددت وكل الأعضاء قبضوا أدوارهم.
+        </Text>
+        <Text variant="number" color={colors.gold}>
+          {formatMoney(completion.totalCollected)}
+        </Text>
+        <Text variant="caption" color="rgba(255,255,255,0.75)" center>
+          اتجمعوا على {formatNumber(o.payoutsTotal)} دور • {formatNumber(circle.members.length)} عضو
+        </Text>
+        <View style={{ alignSelf: 'stretch', gap: space.xs, marginTop: space.sm }}>
+          <ProgressBar value={1} />
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Text variant="caption" color={colors.white}>
+              قبض {formatNumber(o.payoutsDone)} من {formatNumber(o.payoutsTotal)} ✓
+            </Text>
+            <Text variant="caption" weight="bold" color={colors.white}>
+              تم السداد بالكامل ✓
+            </Text>
+          </Row>
+        </View>
+        <Row gap={4} style={styles.heroHint}>
+          <Text variant="caption" weight="semibold" color={colors.white}>
+            اضغط تشوف الأدوار والسداد
+          </Text>
+          <Ionicons name="chevron-back" size={14} color={colors.white} />
+        </Row>
+      </Pressable>
+      ) : (
+      <Pressable onPress={() => { tap(); setShowTurns(true); }} style={({ pressed }) => [styles.hero, pressed && { opacity: 0.9 }]}>
+        {completion.allCollected ? (
+          <Row gap={6} style={styles.heroHint}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.gold} />
+            <Text variant="caption" weight="bold" color={colors.white}>
+              كل الأقساط اتسددت — فاضل تسليم {formatNumber(completion.payoutsLeft.length)} قبض
+            </Text>
+          </Row>
+        ) : null}
         <Text variant="caption" color="rgba(255,255,255,0.75)">
           {heroPeriod ? `القبض في دور ${heroEntry?.recipient?.name ?? ''} (${formatDate(heroEntry!.date)})` : 'القبض في كل دور'}
         </Text>
@@ -201,6 +249,7 @@ export function AdminView({
           <Ionicons name="chevron-back" size={14} color={colors.white} />
         </Row>
       </Pressable>
+      )}
       <TurnsSheet visible={showTurns} onClose={() => setShowTurns(false)} circle={circle} payments={payments} />
 
       <Segmented
@@ -243,6 +292,47 @@ function CollectTab({
   const [index, setIndex] = useState(() => Math.max(0, Math.min(current, entries.length - 1)));
   const { run } = useAction();
   const pending = pendingApprovals(circle, payments);
+  const [review, setReview] = useState<{ payment: Payment; member: Member; entry: TimelineEntry } | null>(null);
+  const [recording, setRecording] = useState<{ member: Member; entry: TimelineEntry; method: PaymentMethod } | null>(null);
+  const [deferFor, setDeferFor] = useState<Member | null>(null);
+  const [payoutFor, setPayoutFor] = useState<TimelineEntry | null>(null);
+  const [payoutReceipt, setPayoutReceipt] = useState<string | null>(null);
+  const [earlyFor, setEarlyFor] = useState<Member | null>(null);
+  const [earlyCount, setEarlyCount] = useState(1);
+  // Early payments a member asked for together (two or more coming installments): approved in one go.
+  const today = todayISO();
+  const earlyGroups = Object.values(
+    pending
+      .filter((x) => x.entry.date > today)
+      .reduce<Record<string, { member: Member; items: typeof pending }>>((acc, x) => {
+        (acc[x.member.id] ??= { member: x.member, items: [] }).items.push(x);
+        return acc;
+      }, {}),
+  ).filter((g) => g.items.length > 1);
+  const grouped = new Set(earlyGroups.flatMap((g) => g.items.map((x) => x.payment.id)));
+  const pendingSingles = pending.filter((x) => !grouped.has(x.payment.id));
+  const approveEarly = async (g: { member: Member; items: typeof pending }) => {
+    const total = g.items.reduce((t, x) => t + x.entry.due, 0);
+    const transfer = g.items.some((x) => x.payment.hasReceipt);
+    const ok = await confirm(
+      `توافق على سداد ${g.member.name} المعجّل؟`,
+      `${formatNumber(g.items.length)} قسط بإجمالي ${formatMoney(total)}. بعد الموافقة كلهم يتعلّموا مدفوعين.` +
+        (transfer ? ` اتأكد الأول إن ${formatMoney(total)} وصلوا حسابك فعلًا.` : ''),
+      transfer ? `أيوه، ${formatMoney(total)} وصلوا` : 'وافق واستلمت',
+    );
+    if (ok) {
+      run(() => confirmMemberPeriods(circle.id, g.member.id, g.items.map((x) => x.entry.period.id), uid), {
+        success: `اتوافق على سداد ${g.member.name} المعجّل ✓`,
+      });
+    }
+  };
+  const rejectEarly = async (g: { member: Member; items: typeof pending }) => {
+    if (await confirm('رفض السداد المعجّل؟', `هتتشال كل طلبات ${g.member.name} (${formatNumber(g.items.length)} قسط).`, 'رفض', true)) {
+      run(async () => {
+        for (const x of g.items) await removePayment(circle.id, x.payment);
+      });
+    }
+  };
 
   if (entries.length === 0) return <Text center>مفيش أدوار في الجدول.</Text>;
   const i = Math.min(index, entries.length - 1);
@@ -266,11 +356,6 @@ function CollectTab({
     );
   };
 
-  const [review, setReview] = useState<{ payment: Payment; member: Member; entry: TimelineEntry } | null>(null);
-  const [recording, setRecording] = useState<{ member: Member; entry: TimelineEntry; method: PaymentMethod } | null>(null);
-  const [deferFor, setDeferFor] = useState<Member | null>(null);
-  const [payoutFor, setPayoutFor] = useState<TimelineEntry | null>(null);
-  const [payoutReceipt, setPayoutReceipt] = useState<string | null>(null);
 
   /**
    * A transfer whose receipt the app couldn't verify is only confirmed after the
@@ -324,6 +409,9 @@ function CollectTab({
       // Not open yet — the one exception is an early payment the organizer accepts for this member.
       return alert('التحصيل لسه ما فتحش', `تحصيل ${periodTitle(entry)} بيفتح يوم ${formatDate(entry.date)}.`, [
         { text: `سجّل سداد مبكر لـ ${m.name}`, icon: 'flash-outline', color: colors.success, onPress: () => record(m) },
+        ...(earlyPayable(circle, payments, m.id).length > 1
+          ? [{ text: 'سداد معجّل لأكتر من قسط (كاش)', icon: 'albums-outline' as const, color: colors.primary, onPress: () => { setEarlyCount(earlyPayable(circle, payments, m.id).length); setEarlyFor(m); } }]
+          : []),
         { text: 'أجّل قسطه لميعاد تاني', icon: 'hourglass-outline', color: colors.goldText, onPress: () => setDeferFor(m) },
         { text: 'تمام', style: 'cancel' },
       ], { icon: 'lock-closed', tone: 'info' });
@@ -385,13 +473,49 @@ function CollectTab({
         </Card>
       )}
 
-      {pending.length > 0 && (
+      {earlyGroups.map((g) => {
+        const total = g.items.reduce((t, x) => t + x.entry.due, 0);
+        const first = g.items[0].payment;
+        return (
+          <Card key={g.member.id} style={{ borderColor: colors.success }}>
+            <Row gap={space.sm}>
+              <View style={[styles.earlyBadge]}>
+                <Ionicons name="flash" size={18} color={colors.white} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text variant="heading">طلب سداد معجّل</Text>
+                <Text variant="caption">
+                  {g.member.name} • {METHOD_LABEL[methodOf(first)]}
+                </Text>
+              </View>
+              <Text weight="bold" color={colors.success}>
+                {formatMoney(total)}
+              </Text>
+            </Row>
+            <Text variant="caption">
+              {formatNumber(g.items.length)} قسط: من {formatDate(g.items[0].entry.date, false)} لحد{' '}
+              {formatDate(g.items[g.items.length - 1].entry.date, false)}
+            </Text>
+            {first.hasReceipt ? (
+              <Text variant="caption" weight="bold" color={colors.primary} onPress={() => setReview({ payment: first, member: g.member, entry: g.items[0].entry })}>
+                🧾 عرض صورة التحويل
+              </Text>
+            ) : null}
+            <Row gap={space.sm}>
+              <Button label="رفض" icon="close" variant="danger" style={{ flex: 1 }} onPress={() => rejectEarly(g)} />
+              <Button label="وافق على الكل" icon="checkmark-done" style={{ flex: 2 }} onPress={() => approveEarly(g)} />
+            </Row>
+          </Card>
+        );
+      })}
+
+      {pendingSingles.length > 0 && (
         <Card style={{ borderColor: colors.gold }}>
           <Row gap={space.sm}>
             <Ionicons name="notifications" size={20} color={colors.gold} />
             <Text variant="heading">مستني تأكيدك</Text>
           </Row>
-          {pending.map(({ payment, entry: e, member }) => (
+          {pendingSingles.map(({ payment, entry: e, member }) => (
             <Row key={payment.id} style={styles.pendingRow}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Row gap={space.xs}>
@@ -478,8 +602,8 @@ function CollectTab({
                     لسه في أقساط ما اتأكدتش للفترة دي.
                   </Text>
                 ) : null}
-                {entry.index > current && !entry.period.paidOut ? (
-                  // The payout opens on its date; before that only the date shows.
+                {entry.index > current && !entry.period.paidOut && !s.isComplete ? (
+                  // The payout opens on its date — or as soon as every installment is in (early payments).
                   <Row gap={space.xs}>
                     <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
                     <Text variant="caption">
@@ -512,7 +636,7 @@ function CollectTab({
             )}
           </Card>
 
-          {entry.index > current && (
+          {entry.index > current && !s.isComplete && (
             <Row gap={space.xs} style={{ paddingHorizontal: space.sm }}>
               <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
               <Text variant="caption" style={{ flex: 1 }}>
@@ -615,6 +739,46 @@ function CollectTab({
           });
         }}
       />
+      <Sheet visible={!!earlyFor} title={`سداد معجّل — ${earlyFor?.name ?? ''}`} onClose={() => setEarlyFor(null)}>
+        {earlyFor ? (() => {
+          const list = earlyPayable(circle, payments, earlyFor.id);
+          const n = Math.max(1, Math.min(earlyCount, list.length));
+          const total = list.slice(0, n).reduce((t, x) => t + x.due, 0);
+          return (
+            <>
+              <Text variant="caption">استلمت منه كام قسط كاش؟ بيتعلّموا مدفوعين بالترتيب من أقرب قسط جاي.</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
+                {list.map((e, k) => (
+                  <Chip
+                    key={e.period.id}
+                    label={k + 1 === list.length && k > 0 ? 'كل اللي عليه' : `${formatNumber(k + 1)} قسط`}
+                    sub={formatMoney(list.slice(0, k + 1).reduce((t, x) => t + x.due, 0))}
+                    active={n === k + 1}
+                    onPress={() => setEarlyCount(k + 1)}
+                  />
+                ))}
+              </ScrollView>
+              {list.length ? (
+                <Text variant="caption" weight="bold" color={colors.primary}>
+                  {formatMoney(total)} • {formatNumber(n)} قسط لحد {formatDate(list[n - 1].date)}
+                </Text>
+              ) : null}
+              <Button
+                label={`استلمت ${formatMoney(total)} كاش`}
+                icon="checkmark-done"
+                disabled={!list.length}
+                onPress={() => {
+                  const ids = list.slice(0, n).map((e) => e.period.id);
+                  const who = earlyFor;
+                  setEarlyFor(null);
+                  run(() => confirmMemberPeriods(circle.id, who.id, ids, uid, 'cash'), { success: `${who.name} سدّد ${formatNumber(n)} قسط معجّل ✓` });
+                }}
+              />
+              <Text variant="caption">لو حوّل InstaPay أو فودافون كاش، خليه يبعت طلب السداد المعجّل من التطبيق بصورة التحويل.</Text>
+            </>
+          );
+        })() : null}
+      </Sheet>
       <AdminRecordTransferSheet
         circle={circle}
         entry={recording?.entry ?? null}
@@ -1655,6 +1819,25 @@ function PayInfoCard({ circle }: { circle: Circle }) {
 }
 
 const styles = StyleSheet.create({
+  earlyBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doneIcon: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: 'rgba(201,162,63,0.2)',
+    borderWidth: 2,
+    borderColor: colors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: space.xs,
+  },
   speedRow: {
     flexDirection: 'row',
     alignItems: 'center',

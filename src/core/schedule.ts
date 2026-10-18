@@ -454,6 +454,48 @@ export function periodSummary(circle: Circle, payments: Payment[], index: number
   };
 }
 
+export interface CircleCompletion {
+  /** Every installment of every period is confirmed (early payments included). */
+  allCollected: boolean;
+  /** Every turn has been handed its payout. */
+  allPaidOut: boolean;
+  /** Both: the circle is over. */
+  done: boolean;
+  /** Everything collected over the whole circle. */
+  totalCollected: number;
+  /** Turns still to hand over. */
+  payoutsLeft: TimelineEntry[];
+}
+
+/** Where the circle stands overall — used for the "circle finished" state. */
+export function circleCompletion(circle: Circle, payments: Payment[]): CircleCompletion {
+  const entries = timeline(circle);
+  let allCollected = entries.length > 0;
+  let totalCollected = 0;
+  entries.forEach((e, i) => {
+    if (e.period.kind === 'skip' || e.due === 0) return;
+    const s = periodSummary(circle, payments, i);
+    totalCollected += s.collected;
+    if (!s.isComplete) allCollected = false;
+  });
+  const payouts = entries.filter((e) => e.period.kind === 'payout');
+  const payoutsLeft = payouts.filter((e) => !e.period.paidOut);
+  const allPaidOut = payouts.length > 0 && payoutsLeft.length === 0;
+  return { allCollected, allPaidOut, done: allCollected && allPaidOut, totalCollected, payoutsLeft };
+}
+
+/** The member's coming installments that can still be paid ahead of time, in date order. */
+export function earlyPayable(circle: Circle, payments: Payment[], memberId: string, today: string = todayISO()): TimelineEntry[] {
+  return timeline(circle).filter(
+    (e) =>
+      e.period.kind !== 'skip' &&
+      e.due > 0 &&
+      e.date > today &&
+      !isOwnPayout(e.period, memberId) &&
+      !findPayment(payments, e.period.id, memberId),
+  );
+}
+
 /** Payments members marked as paid that wait for the admin. */
 export function pendingApprovals(circle: Circle, payments: Payment[]) {
   const entries = new Map(timeline(circle).map((e) => [e.period.id, e]));

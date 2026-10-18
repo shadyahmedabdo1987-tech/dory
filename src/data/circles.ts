@@ -682,6 +682,92 @@ export async function claimPayment(
   })();
 }
 
+/**
+ * Member pays several coming installments at once (early payment). One request
+ * to the organizer: every installment becomes a claim in the same batch, and a
+ * transfer's single screenshot is attached to each of them.
+ */
+export async function claimPayments(
+  cid: string,
+  periodIds: string[],
+  memberId: string,
+  uid: string,
+  input: { method: PaymentMethod; receiptBase64?: string; note?: string; receiptCheck?: 'auto' | 'manual'; receiptRef?: string },
+) {
+  if (periodIds.length === 1) return claimPayment(cid, periodIds[0], memberId, uid, input);
+  const problem = validateClaim(input);
+  if (problem) throw new AppError(`dory/${problem}`, arabicError({ code: `dory/${problem}` }));
+  const withReceipt = requiresReceipt(input.method);
+  if (withReceipt && !input.receiptRef) throw new AppError('dory/receipt-required', arabicError({ code: 'dory/receipt-required' }));
+  const db = firestore();
+  const note = (input.note?.trim() ? `${input.note.trim()} — ` : '') + `سداد معجّل لـ ${periodIds.length} قسط مع بعض`;
+  const base = (input.receiptRef ?? '').slice(0, 74);
+  // Small batches keep each request well under Firestore's size limit (screenshots are copied).
+  const CHUNK = withReceipt ? 3 : 200;
+  for (let i = 0; i < periodIds.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    periodIds.slice(i, i + CHUNK).forEach((periodId, j) => {
+      const k = i + j;
+      const pid = paymentId(periodId, memberId);
+      const ref = k === 0 ? input.receiptRef! : `${base}-${k + 1}`;
+      if (withReceipt) {
+        batch.set(receiptRef(cid, pid), { image: input.receiptBase64, memberId, periodId, uploadedBy: uid, createdAt: serverTimestamp() });
+        batch.set(receiptPrintRef(cid, ref), { memberId, periodId, createdAt: serverTimestamp() });
+      }
+      batch.set(paymentRef(cid, periodId, memberId), {
+        periodId,
+        memberId,
+        status: 'claimed',
+        method: input.method,
+        hasReceipt: withReceipt,
+        ...(withReceipt ? { receiptCheck: input.receiptCheck ?? 'manual', receiptRef: ref } : {}),
+        claimedAt: new Date().toISOString(),
+        claimedBy: uid,
+        note: note.slice(0, 200),
+      });
+    });
+    try {
+      await withTimeout(batch.commit(), 30_000);
+    } catch (e) {
+      if (i === 0 && withReceipt && errorCode(e) === 'permission-denied' && (await isReceiptUsed(cid, input.receiptRef!))) {
+        throw new AppError('dory/receipt-used', arabicError({ code: 'dory/receipt-used' }));
+      }
+      throw e;
+    }
+  }
+  void (async () => {
+    const [circleName, who] = await Promise.all([circleNameOf(cid), memberNameOf(cid, memberId)]);
+    await pushToAdmin(cid, {
+      title: `⚡ ${who} طالب سداد معجّل`,
+      body: `${circleName}: ${periodIds.length} قسط مع بعض (${METHOD_LABEL[input.method]}). ادخل وافق عليهم.`,
+    });
+  })();
+}
+
+/** Admin: confirm several of a member's installments together (an early payment, approved or received in cash). */
+export async function confirmMemberPeriods(cid: string, memberId: string, periodIds: string[], adminUid: string, method?: PaymentMethod) {
+  const db = firestore();
+  const now = new Date().toISOString();
+  for (let i = 0; i < periodIds.length; i += BATCH_LIMIT) {
+    const batch = writeBatch(db);
+    periodIds.slice(i, i + BATCH_LIMIT).forEach((periodId) =>
+      batch.set(
+        paymentRef(cid, periodId, memberId),
+        { periodId, memberId, status: 'confirmed', confirmedAt: now, confirmedBy: adminUid, ...(method ? { method } : {}) },
+        { merge: true },
+      ),
+    );
+    await withTimeout(batch.commit());
+  }
+  void (async () => {
+    const [circleName, uid] = await Promise.all([circleNameOf(cid), uidOfMember(cid, memberId)]);
+    await pushToUids(cid, [uid], {
+      title: '✅ اتوافق على السداد المعجّل',
+      body: `صاحب جمعية "${circleName}" أكّد ${periodIds.length} قسط — اتحسبوا مدفوعين.`,
+    });
+  })();
+}
+
 /** Member withdraws a claim, or admin rejects one / removes a recorded payment (with its screenshot). */
 export async function removePayment(cid: string, payment: Pick<Payment, 'periodId' | 'memberId' | 'hasReceipt' | 'receiptRef'>) {
   const db = firestore();

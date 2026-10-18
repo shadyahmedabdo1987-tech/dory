@@ -7,6 +7,7 @@ import {
   checkReceiptText,
   formatDate,
   formatMoney,
+  formatNumber,
   parseAmount,
   type ReceiptCheck,
   METHOD_LABEL,
@@ -22,7 +23,7 @@ import {
   type PaymentMethod,
   type TimelineEntry,
 } from '@/core';
-import { claimPayment, isReceiptUsed, recordTransferPayment } from '@/data';
+import { claimPayments, isReceiptUsed, recordTransferPayment } from '@/data';
 import { Button, Field, Row, Text, tap } from '@/ui/components';
 import { Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
@@ -181,13 +182,18 @@ export function PaySheet({
   memberId,
   uid,
   onClose,
+  bundle,
 }: {
   circle: Circle;
   entry: TimelineEntry | null;
   memberId: string;
   uid: string;
   onClose: () => void;
+  /** Several coming installments paid together (early payment); `entry` is the first. */
+  bundle?: TimelineEntry[];
 }) {
+  const many = bundle && bundle.length > 1 ? bundle : null;
+  const total = many ? many.reduce((sum, e) => sum + e.due, 0) : (entry?.due ?? 0);
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [receipt, setReceipt] = useState<PickedReceipt | null>(null);
   const [note, setNote] = useState('');
@@ -198,12 +204,12 @@ export function PaySheet({
     setMethod('cash');
     setReceipt(null);
     setNote('');
-  }, [entry?.period.id]);
+  }, [entry?.period.id, many?.length]);
 
   const target = payTarget(method, circle.payInfo);
   const accounts = payAccounts(method, circle.payInfo);
   // One installment, to the admin's InstaPay (number or address) / wallet, recent, never used before.
-  const rc = useReceiptVerification(receipt, entry?.due ?? 0, accounts, { cid: circle.id, due: entry && entry.date > todayISO() ? todayISO() : entry?.date });
+  const rc = useReceiptVerification(receipt, total, accounts, { cid: circle.id, due: entry && entry.date > todayISO() ? todayISO() : entry?.date });
 
   if (!entry) return null;
   const needsReceipt = requiresReceipt(method);
@@ -213,7 +219,7 @@ export function PaySheet({
   const submit = () =>
     run(
       async () => {
-        await claimPayment(circle.id, entry.period.id, memberId, uid, {
+        await claimPayments(circle.id, many ? many.map((e) => e.period.id) : [entry.period.id], memberId, uid, {
           method,
           receiptBase64: needsReceipt ? receipt?.base64 : undefined,
           receiptCheck: needsReceipt ? (autoOk ? 'auto' : 'manual') : undefined,
@@ -231,12 +237,29 @@ export function PaySheet({
     );
 
   return (
-    <Sheet visible title={entry.date > todayISO() ? 'سداد مبكر' : 'دفعت القسط'} onClose={onClose}>
+    <Sheet visible title={many ? 'سداد معجّل' : entry.date > todayISO() ? 'سداد مبكر' : 'دفعت القسط'} onClose={onClose}>
       <ScrollView contentContainerStyle={{ gap: space.md }} keyboardShouldPersistTaps="handled">
+        {many ? (
+          <View style={styles.bundle}>
+            <Text variant="caption" color={colors.primary} weight="bold">
+              {formatNumber(many.length)} قسط مع بعض
+            </Text>
+            <Text variant="number" color={colors.primary}>
+              {formatMoney(total, circle.currency)}
+            </Text>
+            <Text variant="caption">
+              من {formatDate(many[0].date)} لحد {formatDate(many[many.length - 1].date)}
+            </Text>
+            <Text variant="caption" weight="bold" color={colors.text}>
+              هيوصل لصاحب الجمعية كطلب سداد معجّل. أول ما يوافق، كل الأقساط دي تتعلّم مدفوعة مرة واحدة.
+            </Text>
+          </View>
+        ) : (
         <Text variant="caption">
           {formatMoney(entry.due, circle.currency)} • {formatDate(entry.date)}
         </Text>
-        {entry.date > todayISO() ? (
+        )}
+        {!many && entry.date > todayISO() ? (
           <Text variant="caption" weight="bold" color={colors.primary}>
             القسط ده لسه ميعاده ما جاش. هيوصل لصاحب الجمعية كطلب سداد مبكر، وأول ما يوافق يتحسب إنك دفعته.
           </Text>
@@ -269,7 +292,7 @@ export function PaySheet({
             <Text weight="semibold">صورة التحويل (مطلوبة)</Text>
             <ReceiptPicker value={receipt} onChange={setReceipt} />
             {receipt ? (
-              <ReceiptChecks rc={rc} amount={entry.due} target={target} />
+              <ReceiptChecks rc={rc} amount={total} target={target} />
             ) : null}
           </View>
         )}
@@ -609,6 +632,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  bundle: {
+    gap: 2,
+    padding: space.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
   },
   target: {
     flexDirection: 'row',
