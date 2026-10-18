@@ -1198,7 +1198,7 @@ function MembersTab({ circle, payments, requests }: { circle: Circle; payments: 
     const msg =
       `أهلًا ${m.name} 👋\nصاحب "${circle.name}" ضافك في الجمعية على تطبيق دوري.\n` +
       `كود الجمعية: ${circle.inviteCode}\nرقمك: ${m.phone ?? ''}\nكود الدخول (لأول مرة بس): ${code}\n` +
-      'ادخل بالكود ورقمك، واكتب كود الدخول، وبعدها اختار باسورد خاص بيك.';
+      'ادخل بكود الجمعية ورقمك، واكتب كود الدخول مكان الباسورد، وبعدها اختار باسورد خاص بيك.';
     RNLinking.openURL(whatsappUrl(normalizePhone(m.phone ?? '') ?? '', msg)).catch(() => Share.share({ message: msg }));
   };
   const newCode = async (m: Member) => {

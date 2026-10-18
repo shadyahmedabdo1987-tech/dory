@@ -359,7 +359,8 @@ function JoinSheet({
       }
       writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
       // Came in with the one-time code from the organizer: now choose a password of their own.
-      if (/^\d{6}$/.test(password.trim())) {
+      // Only the organizer's codes look like this (123-456) — a normal password never triggers it.
+      if (/^\d{3}-\d{3}$/.test(password.trim())) {
         setFromCode(true);
         setPassword('');
         setPassword2('');
@@ -515,20 +516,9 @@ function JoinSheet({
               <View style={styles.firstTime}>
                 <Ionicons name="lock-closed-outline" size={18} color={colors.primary} />
                 <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
-                  الرقم ده مسجّل في الجمعية. لو دي أول مرة تدخل، دوس "أول مرة أدخل" واكتب كود الدخول اللي وصلك. لو عندك باسورد، اكتبه تحت.
+                  الرقم ده مسجّل في الجمعية. اكتب الباسورد بتاعك وهتدخل على طول.
                 </Text>
               </View>
-              <Button
-                label="أول مرة أدخل — عندي كود دخول"
-                icon="key-outline"
-                variant="secondary"
-                onPress={() => {
-                  setPassword('');
-                  setPassword2('');
-                  setLoginCode('');
-                  setStep('firstcode');
-                }}
-              />
               <Field label="الباسورد" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
               <Button label="دخول" icon="log-in-outline" loading={busy} disabled={!password} onPress={login} />
               <Text variant="caption" center>

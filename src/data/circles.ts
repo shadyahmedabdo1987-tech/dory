@@ -517,7 +517,9 @@ export async function issueFirstLoginCode(cid: string, memberId: string, rawPhon
   if (!phone) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
   const bytes = new Uint32Array(1);
   globalThis.crypto?.getRandomValues?.(bytes);
-  const code = String(100000 + ((bytes[0] || Math.floor(Math.random() * 2 ** 32)) % 900000));
+  const n = String(100000 + ((bytes[0] || Math.floor(Math.random() * 2 ** 32)) % 900000));
+  // 123-456: a shape nobody picks as a password, so signing in with it always asks for a new one.
+  const code = `${n.slice(0, 3)}-${n.slice(3)}`;
   await restCommit([{ delete: `circles/${cid}/secrets/${memberId}` }]).catch(() => {});
   await restCommit([{ set: `circles/${cid}/secrets/${memberId}`, data: { proof: passwordProof(cid, phone, code) } }]);
   const all = readPrefsSync().memberCodes ?? {};
