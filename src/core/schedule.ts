@@ -88,8 +88,8 @@ export function potFor(circle: Circle, period: Period): number {
 }
 
 /** Full value of a turn (every member's installment, including the recipient's own). */
-export function payoutPot(circle: Pick<Circle, 'installment' | 'members'>): number {
-  return circle.installment * circle.members.length;
+export function payoutPot(circle: Pick<Circle, 'installment' | 'members'>, period?: Period): number {
+  return (period ? periodDue(circle, period) : circle.installment) * circle.members.length;
 }
 
 /**
@@ -144,6 +144,16 @@ export function addExtraTurn(periods: Period[], recipientId: string): Period[] {
 
 /** Extra installment everyone pays at `index` without anyone receiving it. */
 /** Every member adds `amount` to these turns' installments — the recipients collect it. */
+/** Extra money each member still pays on top of the plain installments (raised turns + separate extras). */
+export function upcomingExtrasPerMember(circle: Circle, current: number): number {
+  return circle.periods.reduce((sum, p, i) => {
+    if (current >= 0 && i < current) return sum;
+    if (p.kind === 'payout' && p.bonus && !p.paidOut) return sum + p.bonus;
+    if (p.kind === 'extra') return sum + (p.amount ?? circle.installment);
+    return sum;
+  }, 0);
+}
+
 export function addBonus(periods: Period[], periodIds: string[], amount: number, note?: string): Period[] {
   return periods.map((p) =>
     periodIds.includes(p.id) && p.kind === 'payout'

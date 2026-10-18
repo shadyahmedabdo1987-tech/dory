@@ -38,6 +38,8 @@ import {
   postpone,
   removePeriod,
   timeline,
+  periodDue,
+  upcomingExtrasPerMember,
   todayISO,
   findPayment,
   METHOD_LABEL,
@@ -135,23 +137,33 @@ export function AdminView({
   }, [circle.id, phonesKey]);
   const openPayoutRequests = payouts.filter((r) => r.status === 'requested' || r.status === 'disputed').length;
   const [showTurns, setShowTurns] = useState(false);
+  // The amounts shown up top follow the turn being collected now (or the next one), extras included.
+  const heroEntry = timeline(circle).find((e) => e.period.kind === 'payout' && !e.period.paidOut && e.index >= Math.max(0, o.current));
+  const heroPeriod = heroEntry?.period;
+  const extrasLeft = upcomingExtrasPerMember(circle, o.current);
 
   return (
     <KeyboardScreen>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}>
       <Pressable onPress={() => { tap(); setShowTurns(true); }} style={({ pressed }) => [styles.hero, pressed && { opacity: 0.9 }]}>
         <Text variant="caption" color="rgba(255,255,255,0.75)">
-          القبض في كل دور
+          {heroPeriod ? `القبض في دور ${heroEntry?.recipient?.name ?? ''} (${formatDate(heroEntry!.date)})` : 'القبض في كل دور'}
         </Text>
         <Text variant="number" color={colors.gold}>
-          {formatMoney(payoutPot(circle))}
+          {formatMoney(payoutPot(circle, heroPeriod))}
         </Text>
         <Text variant="caption" color="rgba(255,255,255,0.85)">
-          {formatNumber(circle.members.length)} عضو × {formatMoney(circle.installment)} {FREQUENCY_LABEL[circle.frequency].every}
+          {formatNumber(circle.members.length)} عضو × {formatMoney(heroPeriod ? periodDue(circle, heroPeriod) : circle.installment)}{' '}
+          {heroPeriod?.bonus ? `(القسط ${formatMoney(circle.installment)} + زيادة ${formatMoney(heroPeriod.bonus)})` : FREQUENCY_LABEL[circle.frequency].every}
         </Text>
         <Text variant="caption" color="rgba(255,255,255,0.75)">
-          صاحب الدور ما بيدفعش قسطه وبيستلم {formatMoney(payoutNet(circle))}
+          صاحب الدور ما بيدفعش قسطه وبيستلم {formatMoney(payoutNet(circle, heroPeriod))}
         </Text>
+        {extrasLeft > 0 ? (
+          <Text variant="caption" weight="bold" color="#FFD6A5">
+            مبالغ إضافية جاية: {formatMoney(extrasLeft)} على كل عضو
+          </Text>
+        ) : null}
         <View style={{ alignSelf: 'stretch', gap: space.xs, marginTop: space.sm }}>
           <ProgressBar value={o.ratio} />
           <Row style={{ justifyContent: 'space-between' }}>

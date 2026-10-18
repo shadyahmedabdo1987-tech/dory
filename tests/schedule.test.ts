@@ -392,3 +392,16 @@ it('an extra amount on a turn raises that installment and the payout', async () 
   assert.equal(periodDue(circle, next[1]), 700);
   assert.equal(payoutNet(circle, next[1]), 2100);
 });
+
+it('the top card counts upcoming extras per member', async () => {
+  const { upcomingExtrasPerMember } = await import('../src/core/schedule.ts');
+  const circle = {
+    installment: 500,
+    periods: [
+      { id: 'a', kind: 'payout', paidOut: true },
+      { id: 'b', kind: 'payout', bonus: 200 },
+      { id: 'x', kind: 'extra', amount: 300 },
+    ],
+  } as any;
+  assert.equal(upcomingExtrasPerMember(circle, 0), 500);
+});

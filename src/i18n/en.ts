@@ -693,6 +693,9 @@ export const EXACT: Record<string, string> = {
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
 export const PATTERNS: [string, string][] = [
+ ["القبض في دور {0} ({1})", "Payout for {0}'s turn ({1})"],
+ ["(القسط {0} + زيادة {1})", "(installment {0} + extra {1})"],
+ ["مبالغ إضافية جاية: {0} على كل عضو", "Upcoming extras: {0} per member"],
  ["القسط يبقى {0} وصاحب الدور يقبض {1}", "Installment becomes {0}, the recipient collects {1}"],
  [" • القسط {0} (+{1})", " • installment {0} (+{1})"],
  ["تسريع الجمعية: {0}", "Speed up: {0}"],
