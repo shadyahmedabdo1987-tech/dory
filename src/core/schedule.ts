@@ -390,6 +390,8 @@ export interface CircleDraft {
   slots?: number;
   /** The organizer's InstaPay (number or address): saved as the circle's transfer details. */
   payInstapay?: string;
+  /** The organizer's InstaPay address (name@instapay). */
+  payInstapayAddress?: string;
 }
 
 export type DraftError = 'name' | 'installment' | 'startDate' | 'members' | 'memberName' | 'duplicatePhone' | 'slots';

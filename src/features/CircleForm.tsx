@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,6 +32,10 @@ import { colors, fonts, radius, space } from '@/ui/theme';
 import { DrawWheel } from './DrawWheel';
 import { alert } from '@/ui/dialog';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
+import { readPrefsSync, writePrefs } from '@/ui/prefs';
+import { myAdminInstapay } from '@/data';
+import { firebaseAuth } from '@/data/firebase';
+import { router } from 'expo-router';
 
 const ERRORS: Record<DraftError, string> = {
   name: 'اكتب اسم للجمعية',
@@ -85,6 +89,23 @@ export function CircleForm({
   const creating: boolean = mode === 'create';
   const locked = (i: number) => creating && ownerFirst && i === 0;
   const [showErrors, setShowErrors] = useState(false);
+  // The organizer's InstaPay from "my account": used as-is, no need to type it again.
+  const [savedPay, setSavedPay] = useState(() => readPrefsSync().adminInstapay ?? { number: '', address: '' });
+  const hasSavedPay = creating && !!(savedPay.number || savedPay.address);
+  useEffect(() => {
+    if (!creating || hasSavedPay) return;
+    const uid = firebaseAuth().currentUser?.uid;
+    if (!uid) return;
+    myAdminInstapay(uid)
+      .then((v) => {
+        if (v.number || v.address) {
+          setSavedPay(v);
+          writePrefs({ adminInstapay: v });
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [wheelOpen, setWheelOpen] = useState(false);
 
   const months = useMemo(() => {
@@ -114,7 +135,18 @@ export function CircleForm({
     ...(slots !== undefined ? { slots } : {}),
     // The organizer's InstaPay is where members transfer — it becomes the circle's
     // transfer details, entered once.
-    ...(mode === 'create' && members[0]?.phone ? { payInstapay: members[0].phone } : {}),
+    ...(mode === 'create'
+      ? hasSavedPay
+        ? {
+            ...(savedPay.number ? { payInstapay: savedPay.number } : {}),
+            ...(savedPay.address ? { payInstapayAddress: savedPay.address } : {}),
+          }
+        : members[0]?.phone
+          ? members[0].phone.includes('@')
+            ? { payInstapayAddress: members[0].phone }
+            : { payInstapay: members[0].phone }
+          : {}
+      : {}),
   };
   const errors = validateDraft(draft, normalizePayAccount);
   const has = (e: DraftError) => showErrors && errors.includes(e);
@@ -138,7 +170,20 @@ export function CircleForm({
       alert('ناقص شوية بيانات', errors.map((e) => `• ${ERRORS[e]}`).join('\n'));
       return;
     }
-    onSubmit({ ...draft, members: members.map((m) => ({ ...m, name: m.name.trim() })) });
+    // Typed here for the first time: keep it on the account for the next circles.
+    if (creating && !hasSavedPay && members[0]?.phone?.trim()) {
+      const v = members[0].phone.trim();
+      writePrefs({ adminInstapay: v.includes('@') ? { number: '', address: v.toLowerCase() } : { number: v, address: '' } });
+    }
+    onSubmit({
+      ...draft,
+      members: members.map((m, i) => ({
+        ...m,
+        name: m.name.trim(),
+        // The organizer's own row carries the saved number (their contact in the circle).
+        ...(creating && i === 0 && hasSavedPay && !m.phone && savedPay.number ? { phone: savedPay.number } : {}),
+      })),
+    });
   };
 
   const size = mode === 'create' ? (slots ?? members.length) : Math.max(members.length, slots ?? 0);
@@ -256,6 +301,27 @@ export function CircleForm({
             <Text variant="caption" weight="bold">
               حساب إنستاباي اللي الأعضاء هيحوّلوا عليه
             </Text>
+            {hasSavedPay ? (
+              <View style={styles.savedPay}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <View style={{ flex: 1 }}>
+                  {savedPay.number ? (
+                    <Text weight="semibold" style={{ writingDirection: 'ltr', textAlign: 'right' }}>
+                      {savedPay.number}
+                    </Text>
+                  ) : null}
+                  {savedPay.address ? (
+                    <Text weight="semibold" style={{ writingDirection: 'ltr', textAlign: 'right' }}>
+                      {savedPay.address}
+                    </Text>
+                  ) : null}
+                  <Text variant="caption">متسجّل في حسابك وهيتحط في الجمعية لوحده.</Text>
+                </View>
+                <Text variant="caption" weight="bold" color={colors.primary} onPress={() => router.push('/account')}>
+                  تغيير
+                </Text>
+              </View>
+            ) : (
             <TextInput
               placeholder={tr("رقم الموبايل أو name@instapay (اختياري)")}
               placeholderTextColor={colors.muted}
@@ -266,6 +332,7 @@ export function CircleForm({
               onChangeText={(t) => members[0] && update(members[0].id, { phone: t })}
               style={[styles.input, !!members[0]?.phone && !normalizePayAccount(members[0].phone) && { borderColor: colors.danger }]}
             />
+            )}
           </Card>
         )}
 
@@ -425,6 +492,14 @@ export function CircleForm({
 }
 
 const styles = StyleSheet.create({
+  savedPay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    padding: space.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+  },
   member: {
     gap: space.sm,
     padding: space.md,

@@ -16,6 +16,8 @@ export interface Prefs {
   myInstapay?: string;
   /** My mobile number (the key for signing back in to circles). */
   myPhone?: string;
+  /** Organizer: my InstaPay number / address, filled into every new circle. */
+  adminInstapay?: { number: string; address: string };
 }
 
 function prefsFile() {

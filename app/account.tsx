@@ -93,10 +93,12 @@ export default function Account() {
       async () => {
         if (!ipNumber.trim() && !ipAddress.trim()) throw new Error('اكتب رقم إنستاباي أو عنوان إنستاباي على الأقل.');
         if (ipNumberBad || ipAddressBad) throw new Error('راجع رقم أو عنوان إنستاباي.');
+        // Kept on the account too, so every new circle gets it without typing it again.
+        writePrefs({ adminInstapay: { number: ipNumber.trim(), address: ipAddress.trim().toLowerCase() } });
         await setInstapayForMyCircles(user.uid, { number: ipNumber, address: ipAddress });
         setSavedIp({ number: ipNumber, address: ipAddress });
       },
-      { success: 'اتحفظ ✓ — في كل جمعياتك. الإيصال بيتقبل لو فيه الرقم أو العنوان.' },
+      { success: 'اتحفظ ✓ — في كل جمعياتك، وأي جمعية جديدة هتاخده لوحدها.' },
     );
 
   const emailBad = !!newEmail.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(newEmail.trim());

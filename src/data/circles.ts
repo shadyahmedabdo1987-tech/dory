@@ -51,6 +51,7 @@ import {
   setPaidOut,
   cleanGroupLink,
 } from '@/core';
+import { readPrefsSync } from '@/ui/prefs';
 
 import { AppError, arabicError, errorCode, retry, withTimeout } from './errors';
 import { firestore } from './firebase';
@@ -318,9 +319,13 @@ export async function createCircle(draft: CircleDraft, adminUid: string): Promis
     schemaVersion: SCHEMA_VERSION,
     ...(draft.ownerFirst && members[0] ? { ownerMemberId: members[0].id } : {}),
     ...(draft.slots ? { slots: draft.slots } : {}),
-    ...(draft.payInstapay && normalizePayAccount(draft.payInstapay)
-      ? { payInfo: { instapay: normalizePayAccount(draft.payInstapay) } }
-      : {}),
+    ...(() => {
+      const instapay = draft.payInstapay ? normalizePayAccount(draft.payInstapay) : null;
+      const instapayAddress = draft.payInstapayAddress?.trim().toLowerCase().slice(0, 60) || null;
+      return instapay || instapayAddress
+        ? { payInfo: { ...(instapay ? { instapay } : {}), ...(instapayAddress ? { instapayAddress } : {}) } }
+        : {};
+    })(),
   });
   members.forEach((m, i) => {
     const phone = phoneOf(m);
@@ -788,7 +793,8 @@ export async function myAdminInstapay(uid: string): Promise<{ number: string; ad
   } catch {
     // offline
   }
-  return { number: '', address: '' };
+  // No circle yet: what was saved in "my account" on this phone.
+  return readPrefsSync().adminInstapay ?? { number: '', address: '' };
 }
 
 // ---------------------------------------------------------------------------
