@@ -426,6 +426,7 @@ function CollectTab({
               ? run(() => confirmPayment(circle.id, entry.period.id, m.id, uid, 'cash'))
               : setRecording({ member: m, entry, method }),
         })),
+        { text: 'أجّل قسطه لميعاد تاني', icon: 'hourglass-outline' as const, color: colors.goldText, onPress: () => setDeferFor(m) },
         { text: 'إلغاء', style: 'cancel' as const },
       ],
       { icon: 'wallet', tone: 'info' },
@@ -441,6 +442,7 @@ function CollectTab({
         ...(earlyPayable(circle, payments, m.id).length > 1
           ? [{ text: 'سداد معجّل لأكتر من قسط (كاش)', icon: 'albums-outline' as const, color: colors.primary, onPress: () => { setEarlyCount(earlyPayable(circle, payments, m.id).length); setEarlyFor(m); } }]
           : []),
+        { text: 'أجّل قسطه لميعاد تاني', icon: 'hourglass-outline', color: colors.goldText, onPress: () => setDeferFor(m) },
         { text: 'تمام', style: 'cancel' },
       ], { icon: 'lock-closed', tone: 'info' });
     }
@@ -705,7 +707,7 @@ function CollectTab({
                     {state === 'confirmed' && <Ionicons name="checkmark" size={20} color={colors.white} />}
                     {state === 'claimed' && <Ionicons name="time" size={18} color={colors.goldText} />}
                   </Pressable>
-                  <Pressable style={{ flex: 1 }} >
+                  <Pressable style={{ flex: 1 }} onLongPress={() => !state && setDeferFor(m)} delayLongPress={350}>
                     <Text weight="semibold" numberOfLines={1}>
                       {m.name}
                     </Text>
@@ -1050,6 +1052,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
   const actions = (e: TimelineEntry) => {
     const started = e.index <= current;
     const buttons: DialogButton[] = [];
+    if (!started) buttons.push({ text: `أجّل الفترة دي ${unit}`, icon: 'time', color: colors.goldText, onPress: () => doPostpone(e.index) });
     // A second turn can't jump ahead of someone's first one (and the reverse).
     const swapOk = (a: number, b: number) => {
       const ra = roundOf(circle.periods, a);
@@ -1080,6 +1083,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
       <Card>
         <Text variant="heading">تحكّم في الجدول</Text>
         <Row gap={space.sm}>
+          <ActionTile label="تأجيل قسط" icon="pause-circle-outline" tone="orange" disabled={!deferrable.length} onPress={openDefer} />
           <ActionTile label="مبلغ إضافي" icon="add-circle-outline" tone="success" onPress={() => setExtraOpen(true)} />
           <ActionTile label="دور إضافي" icon="person-add-outline" onPress={() => setTurnOpen(true)} />
         </Row>
@@ -1095,7 +1099,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
           />
         </Row>
         <Text variant="caption">
-          دوس على أي فترة لتحريكها أو حذفها.
+          دوس على أي فترة لتأجيلها، أو تحريكها، أو حذفها.
           {drawStarted ? ' القرعة بتعيد ترتيب الأدوار اللي لسه ما جاش ميعادها بس — اللي قبض أو دوره جه بيفضل مكانه.' : ''}
         </Text>
       </Card>
