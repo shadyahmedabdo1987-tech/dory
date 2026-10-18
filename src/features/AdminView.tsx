@@ -40,6 +40,7 @@ import {
   timeline,
   periodDue,
   upcomingExtras,
+  cadenceLabel,
   clearBonus,
   todayISO,
   findPayment,
@@ -164,7 +165,7 @@ export function AdminView({
         ) : null}
         <Text variant="caption" color="rgba(255,255,255,0.85)">
           {formatNumber(circle.members.length)} عضو × {formatMoney(heroPeriod ? periodDue(circle, heroPeriod) : circle.installment)}{' '}
-          {heroPeriod?.bonus ? `(القسط ${formatMoney(circle.installment)} + زيادة ${formatMoney(heroPeriod.bonus)})` : FREQUENCY_LABEL[circle.frequency].every}
+          {heroPeriod?.bonus ? `(القسط ${formatMoney(circle.installment)} + زيادة ${formatMoney(heroPeriod.bonus)})` : cadenceLabel(circle)}
         </Text>
         <Text variant="caption" color="rgba(255,255,255,0.75)">
           صاحب الدور ما بيدفعش قسطه وبيستلم {formatMoney(payoutNet(circle, heroPeriod))}
@@ -312,20 +313,15 @@ function CollectTab({
   const toggle = (m: Member) => {
     tap();
     const p = findPayment(payments, entry.period.id, m.id);
-    if (entry.index > current && (!p || p.status === 'claimed')) {
-      if (!p) {
-        // Not open yet — but the organizer can already give this member a later date.
-        return alert('التحصيل لسه ما فتحش', `تحصيل ${periodTitle(entry)} بيفتح يوم ${formatDate(entry.date)}.`, [
-          { text: 'أجّل قسطه لميعاد تاني', icon: 'hourglass-outline', color: colors.goldText, onPress: () => setDeferFor(m) },
-          { text: 'تمام', style: 'cancel' },
-        ], { icon: 'lock-closed', tone: 'info' });
-      }
-      // No collection before the installment's date.
-      return alert('التحصيل لسه ما فتحش', `تحصيل ${periodTitle(entry)} بيفتح يوم ${formatDate(entry.date)}. لو عايز تبدأ بدري، غيّر تاريخ بداية الجمعية من الإعدادات.`, undefined, {
-        icon: 'lock-closed',
-        tone: 'info',
-      });
+    if (entry.index > current && !p) {
+      // Not open yet — the one exception is an early payment the organizer accepts for this member.
+      return alert('التحصيل لسه ما فتحش', `تحصيل ${periodTitle(entry)} بيفتح يوم ${formatDate(entry.date)}.`, [
+        { text: `سجّل سداد مبكر لـ ${m.name}`, icon: 'flash-outline', color: colors.success, onPress: () => record(m) },
+        { text: 'أجّل قسطه لميعاد تاني', icon: 'hourglass-outline', color: colors.goldText, onPress: () => setDeferFor(m) },
+        { text: 'تمام', style: 'cancel' },
+      ], { icon: 'lock-closed', tone: 'info' });
     }
+    // A member's early-payment request (paid before the date) is reviewed like any other.
     if (!p) return record(m);
     if (p.status === 'claimed') {
       if (p.hasReceipt) return setReview({ payment: p, member: m, entry });
@@ -394,6 +390,7 @@ function CollectTab({
                 <Row gap={space.xs}>
                   <Text weight="semibold">{member.name}</Text>
                   <Badge label={METHOD_LABEL[methodOf(payment)]} tone={methodOf(payment) === 'cash' ? 'neutral' : 'gold'} />
+                  {e.date > todayISO() ? <Badge label="سداد مبكر" tone="success" /> : null}
                 </Row>
                 <Text variant="caption">
                   {formatMoney(e.due)} • {periodTitle(e)} • {formatDate(e.date, false)}

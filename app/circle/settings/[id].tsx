@@ -4,6 +4,7 @@ import { saveCircle, setInstapayForMyCircles, useCircleData } from '@/data';
 import { useAppSession } from '@/data/session';
 import { CircleForm } from '@/features/CircleForm';
 import { readPrefsSync } from '@/ui/prefs';
+import { stepMonthsOf } from '@/core';
 import { EmptyState } from '@/ui/components';
 import { ErrorScreen, LoadingScreen, useAction } from '@/ui/feedback';
 
@@ -30,6 +31,7 @@ export default function CircleSettingsScreen() {
         startDate: circle.startDate,
         members: circle.members,
         slots: circle.slots,
+        ...(stepMonthsOf(circle) ? { stepMonths: stepMonthsOf(circle)! } : {}),
       }}
       ownerMemberId={circle.ownerMemberId}
       ownerPay={{ number: circle.payInfo?.instapay ?? '', address: circle.payInfo?.instapayAddress ?? '' }}

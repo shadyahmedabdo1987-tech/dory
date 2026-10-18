@@ -13,6 +13,7 @@ import {
   memberAccount,
   overview,
   payoutPot,
+  cadenceLabel,
   relativeDays,
 } from '@/core';
 import {
@@ -204,7 +205,7 @@ function AdminCard({ id, uid }: { id: string; uid: string }) {
         )}
       </Row>
       <Text variant="caption">
-        {formatNumber(circle.members.length)} عضو • {formatMoney(circle.installment)} {FREQUENCY_LABEL[circle.frequency].every} • القبض{' '}
+        {formatNumber(circle.members.length)} عضو • {formatMoney(circle.installment)} {cadenceLabel(circle)} • القبض{' '}
         {formatMoney(payoutPot(circle))}
       </Text>
       {o.nextPayoutEntry && (

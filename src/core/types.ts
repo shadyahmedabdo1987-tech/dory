@@ -35,6 +35,13 @@ export interface Period {
    * ('same' = same date as the previous one — two turns at once).
    */
   gap?: PeriodGap;
+  /**
+   * The circle's own step when it isn't one of the standard frequencies:
+   * 'm2' = every 2 months … 'm12' = every year. Kept on every period.
+   */
+  step?: string;
+  /** Members whose payment for this period the organizer accepted early (before its date). */
+  early?: string[];
   /** Members allowed to pay this period's installment later: memberId → new due date (YYYY-MM-DD). */
   deferrals?: Record<string, string>;
 }

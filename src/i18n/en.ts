@@ -695,11 +695,21 @@ export const EXACT: Record<string, string> = {
  "إلغاء المبلغ الإضافي؟": "Cancel the extra amount?",
  "إلغاء المبلغ": "Cancel amount",
  "اتلغى، وظهر التعديل عند كل الأعضاء.": "Cancelled — every member sees the change.",
- "زيادة على القسط": "Added to installment"
+ "زيادة على القسط": "Added to installment",
+ "سداد مبكر": "Early payment",
+ "القسط ده لسه ميعاده ما جاش. هيوصل لصاحب الجمعية كطلب سداد مبكر، وأول ما يوافق يتحسب إنك دفعته.": "This installment isn't due yet. It goes to the organizer as an early-payment request; once approved it counts as paid.",
+ "الجمعية هتخلص إمتى؟": "When does the circle end?",
+ "كل شهرين": "Every 2 months",
+ "كل سنة": "Every year"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
 export const PATTERNS: [string, string][] = [
+ ["كل {0} شهور", "Every {0} months"],
+ ["سجّل سداد مبكر لـ {0}", "Record early payment for {0}"],
+ ["اختار آخر شهر، وعدد الأدوار بيتحسب لوحده ({0}).", "Pick the last month; the number of turns is worked out ({0})."],
+ ["{0} • {1} دور", "{0} • {1} turns"],
+ ["{0} دور • من {1} لحد {2}", "{0} turns • from {1} to {2}"],
  ["القبض {0} + مبالغ إضافية {1}", "Payout {0} + extras {1}"],
  ["زيادة على قسط دور {0}", "Extra on {0}'s turn"],
  ["{0} • الإجمالي {1}", "{0} • total {1}"],

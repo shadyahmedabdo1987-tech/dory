@@ -1,3 +1,4 @@
+import { formatNumber } from './format.ts';
 import { addDays, addMonths, daysBetween, parseISODate, stepDate, todayISO } from './dates.ts';
 import type {
   Circle,
@@ -31,7 +32,48 @@ export function periodDue(circle: Pick<Circle, 'installment'>, period: Period): 
  * Every period's date. Normally start + n steps; a sped-up period (`gap`) comes
  * that long after the previous one, and the usual steps continue from it.
  */
+/** Months between installments when the circle uses its own step (every 2, 5, 6… months). */
+export function stepMonthsOf(circle: Pick<Circle, 'periods'>): number | null {
+  for (const p of circle.periods) {
+    const m = /^m(\d{1,2})$/.exec(p.step ?? '');
+    if (m && +m[1] >= 1 && +m[1] <= 12) return +m[1];
+  }
+  return null;
+}
+
+/** "كل شهر" / "كل شهرين" / "كل ٦ شهور" / "كل سنة"… */
+export function cadenceLabel(circle: Pick<Circle, 'periods' | 'frequency'>): string {
+  const n = stepMonthsOf(circle);
+  if (!n) return { weekly: 'كل أسبوع', monthly: 'كل شهر', quarterly: 'كل ٣ شهور', every4months: 'كل ٤ شهور' }[circle.frequency];
+  return monthsLabel(n);
+}
+
+export function monthsLabel(n: number): string {
+  if (n === 1) return 'كل شهر';
+  if (n === 2) return 'كل شهرين';
+  if (n === 12) return 'كل سنة';
+  return `كل ${formatNumber(n)} شهور`;
+}
+
+/** Stamp the circle's own step on every period (or clear it). */
+export function withStep(periods: Period[], months: number | null): Period[] {
+  return periods.map((p) => {
+    const { step: _s, ...rest } = p;
+    return months && ![1, 3, 4].includes(months) ? { ...rest, step: `m${months}` } : rest;
+  });
+}
+
+/** How many installments fit between two months (inclusive) at this step. */
+export function periodsBetween(startISO: string, endISO: string, stepMonths: number): number {
+  const a = parseISODate(startISO);
+  const b = parseISODate(endISO);
+  const diff = (b.y - a.y) * 12 + (b.m - a.m);
+  return diff < 0 ? 0 : Math.floor(diff / stepMonths) + 1;
+}
+
 export function periodDates(circle: Pick<Circle, 'periods' | 'startDate' | 'frequency'>): string[] {
+  const own = stepMonthsOf(circle);
+  const step = (from: string, n: number) => (own ? addMonths(from, own * n) : stepDate(from, circle.frequency, n));
   const dates: string[] = [];
   let anchor = circle.startDate;
   let anchorIndex = 0;
@@ -43,7 +85,7 @@ export function periodDates(circle: Pick<Circle, 'periods' | 'startDate' | 'freq
       anchor = d;
       anchorIndex = i;
     } else {
-      d = stepDate(anchor, circle.frequency, i - anchorIndex);
+      d = step(anchor, i - anchorIndex);
     }
     dates.push(d);
   });
@@ -527,6 +569,8 @@ export interface CircleDraft {
   payInstapay?: string;
   /** The organizer's InstaPay address (name@instapay). */
   payInstapayAddress?: string;
+  /** Every N months when N isn't 1, 3 or 4 (those use `frequency`). */
+  stepMonths?: number;
 }
 
 export type DraftError = 'name' | 'installment' | 'startDate' | 'members' | 'memberName' | 'duplicatePhone' | 'slots';

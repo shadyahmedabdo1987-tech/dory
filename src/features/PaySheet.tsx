@@ -138,7 +138,7 @@ export function AdminRecordTransferSheet({
   const [receipt, setReceipt] = useState<PickedReceipt | null>(null);
   const { busy, run } = useAction();
   const target = payTarget(method, circle.payInfo);
-  const rc = useReceiptVerification(receipt, entry?.due ?? 0, payAccounts(method, circle.payInfo), { cid: circle.id, due: entry?.date });
+  const rc = useReceiptVerification(receipt, entry?.due ?? 0, payAccounts(method, circle.payInfo), { cid: circle.id, due: entry && entry.date > todayISO() ? todayISO() : entry?.date });
 
   useEffect(() => setReceipt(null), [entry?.period.id, member?.id, method]);
 
@@ -203,7 +203,7 @@ export function PaySheet({
   const target = payTarget(method, circle.payInfo);
   const accounts = payAccounts(method, circle.payInfo);
   // One installment, to the admin's InstaPay (number or address) / wallet, recent, never used before.
-  const rc = useReceiptVerification(receipt, entry?.due ?? 0, accounts, { cid: circle.id, due: entry?.date });
+  const rc = useReceiptVerification(receipt, entry?.due ?? 0, accounts, { cid: circle.id, due: entry && entry.date > todayISO() ? todayISO() : entry?.date });
 
   if (!entry) return null;
   const needsReceipt = requiresReceipt(method);
@@ -231,11 +231,16 @@ export function PaySheet({
     );
 
   return (
-    <Sheet visible title="دفعت القسط" onClose={onClose}>
+    <Sheet visible title={entry.date > todayISO() ? 'سداد مبكر' : 'دفعت القسط'} onClose={onClose}>
       <ScrollView contentContainerStyle={{ gap: space.md }} keyboardShouldPersistTaps="handled">
         <Text variant="caption">
           {formatMoney(entry.due, circle.currency)} • {formatDate(entry.date)}
         </Text>
+        {entry.date > todayISO() ? (
+          <Text variant="caption" weight="bold" color={colors.primary}>
+            القسط ده لسه ميعاده ما جاش. هيوصل لصاحب الجمعية كطلب سداد مبكر، وأول ما يوافق يتحسب إنك دفعته.
+          </Text>
+        ) : null}
 
         <Text weight="semibold">دفعت إزاي؟</Text>
         <MethodPicker value={method} onChange={setMethod} />

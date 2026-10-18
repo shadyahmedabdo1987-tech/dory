@@ -236,7 +236,8 @@ export function Field({
         maxFontSizeMultiplier={1.15}
         placeholderTextColor={colors.muted}
         {...input}
-        placeholder={tr(input.placeholder)}
+        // Fields start empty — the label above says what goes in them.
+        placeholder={undefined}
         style={[styles.input, error ? { borderColor: colors.danger } : null, style]}
       />
       {error ? (

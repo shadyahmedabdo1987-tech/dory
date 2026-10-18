@@ -23,7 +23,7 @@ import {
   type Circle,
   type MemberPaymentState,
   type Payment,
-  type TimelineEntry, deferralOf, upcomingExtras, currentIndex } from "@/core";
+  type TimelineEntry, deferralOf, upcomingExtras, currentIndex, cadenceLabel } from "@/core";
 import { confirmPayoutReceived, disputePayout, hasMyPassword, loadPayoutReceipt, loadReceipt, removePayment, setMyPassword, usePayouts } from '@/data';
 import { readPrefsSync, writePrefs } from '@/ui/prefs';
 import { Badge, Button, Card, Field, ProgressBar, Row, Text, tap } from '@/ui/components';
@@ -112,7 +112,7 @@ export function MemberView({
             أهلًا يا {acc.member.name}
           </Text>
           <Text variant="caption" color="rgba(255,255,255,0.75)">
-            {FREQUENCY_LABEL[circle.frequency].every}
+            {cadenceLabel(circle)}
           </Text>
         </Row>
         <Text variant="caption" color="rgba(255,255,255,0.75)" style={{ marginTop: space.sm }}>
@@ -200,6 +200,9 @@ export function MemberView({
               <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
               <Text variant="caption" style={{ flex: 1 }}>
                 الدفع بيفتح يوم {formatDate(next.entry.date)}
+              </Text>
+              <Text variant="caption" weight="bold" color={colors.primary} onPress={() => claim(next)}>
+                سداد مبكر
               </Text>
             </Row>
           ) : (
@@ -326,6 +329,8 @@ export function MemberView({
           const badge = STATE_BADGE[line.state];
           // Collection opens on the installment's date — nothing is paid ahead of it.
           const canClaim = (line.state === 'overdue' || line.state === 'due' || line.state === 'deferred') && line.entry.date <= today;
+          // Paying a coming installment ahead of time: goes to the organizer as an early-payment request.
+          const earlyOk = line.state === 'upcoming' && line.entry.due > 0 && !line.isMyPayout && line.entry.date > today;
           return (
             <View key={line.entry.period.id} style={styles.line}>
               <View style={[styles.dot, line.isMyPayout && { backgroundColor: colors.gold }]}>
@@ -356,6 +361,11 @@ export function MemberView({
                 {canClaim && (
                   <Text variant="caption" color={colors.primary} weight="bold" onPress={() => claim(line)}>
                     دفعت؟
+                  </Text>
+                )}
+                {earlyOk && (
+                  <Text variant="caption" color={colors.primary} weight="bold" onPress={() => claim(line)}>
+                    سداد مبكر
                   </Text>
                 )}
                 {line.state === 'claimed' && (

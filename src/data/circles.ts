@@ -32,6 +32,7 @@ import {
   normalizePhone,
   paymentId,
   syncPeriodsWithMembers,
+  withStep,
   type Circle,
   type CircleDraft,
   type Frequency,
@@ -51,7 +52,7 @@ import {
   setPaidOut,
   cleanGroupLink,
 } from '@/core';
-import { readPrefsSync } from '@/ui/prefs';
+import { readPrefsSync, writePrefs } from '@/ui/prefs';
 
 import { AppError, arabicError, errorCode, retry, withTimeout } from './errors';
 import { firestore } from './firebase';
@@ -86,6 +87,8 @@ type CircleDoc = Omit<Circle, 'id' | 'members' | 'createdAt'> & {
 
 /** Firestore rejects `undefined`; strip optional fields from periods before writing. */
 function cleanPeriods(periods: Period[]): Period[] {
+  // The circle's own step lives on every period, so new / moved periods keep it.
+  const step = periods.find((p) => /^m(\d{1,2})$/.test(p.step ?? ''))?.step;
   return periods.map((p) => {
     const out: Period = { id: p.id, kind: p.kind };
     if (p.recipientId) out.recipientId = p.recipientId;
@@ -95,6 +98,8 @@ function cleanPeriods(periods: Period[]): Period[] {
     if (p.note) out.note = p.note.slice(0, 120);
     if (p.deferrals && Object.keys(p.deferrals).length) out.deferrals = { ...p.deferrals };
     if (p.gap && ['same', 'week', '2weeks', 'month'].includes(p.gap)) out.gap = p.gap;
+    if (step) out.step = step;
+    if (p.early?.length) out.early = [...new Set(p.early)].slice(0, 120);
     return out;
   });
 }
@@ -304,7 +309,7 @@ export async function createCircle(draft: CircleDraft, adminUid: string): Promis
 
   // Give members Firestore ids up front so periods can reference them.
   const members = draft.members.map((m) => ({ ...m, id: doc(membersCol(db, ref.id)).id }));
-  const periods = initialPeriods(members);
+  const periods = withStep(initialPeriods(members), draft.stepMonths ?? null);
 
   const batch = writeBatch(db);
   batch.set(ref, {
@@ -380,7 +385,7 @@ export async function mutatePeriods(cid: string, change: (periods: Period[]) => 
 export async function saveCircle(
   circle: Circle,
   next: Member[],
-  settings?: { name: string; installment: number; frequency: Frequency; startDate: string; slots?: number },
+  settings?: { name: string; installment: number; frequency: Frequency; startDate: string; slots?: number; stepMonths?: number },
 ): Promise<void> {
   const db = firestore();
   const cid = circle.id;
@@ -432,7 +437,11 @@ export async function saveCircle(
       startDate: settings.startDate,
       ...(settings.slots ? { slots: settings.slots } : {}),
     }),
-    periods: cleanPeriods(syncPeriodsWithMembers(circle.periods, withIds)),
+    periods: cleanPeriods(
+      settings
+        ? withStep(syncPeriodsWithMembers(circle.periods, withIds), settings.stepMonths ?? null)
+        : syncPeriodsWithMembers(circle.periods, withIds),
+    ),
     memberCount: withIds.length,
     updatedAt: serverTimestamp(),
   });
@@ -515,6 +524,11 @@ async function deleteInChunks(db: Firestore, refs: DocumentReference[]) {
 
 /** Deletes children first and the circle last, so a failure can simply be retried. */
 export async function deleteCircle(circle: Circle): Promise<void> {
+  // The organizer's InstaPay belongs to their account, not to this circle: keep it.
+  const saved = readPrefsSync().adminInstapay;
+  if (!(saved && (saved.number || saved.address)) && (circle.payInfo?.instapay || circle.payInfo?.instapayAddress)) {
+    writePrefs({ adminInstapay: { number: circle.payInfo?.instapay ?? '', address: circle.payInfo?.instapayAddress ?? '' } });
+  }
   // Unlist it first so nobody asks to join a circle that's going away.
   await withTimeout(deleteDoc(directoryRef(firestore(), circle.id))).catch(() => {});
   const db = firestore();
@@ -782,6 +796,9 @@ export async function setInstapayForMyCircles(uid: string, instapay: { number: s
 
 /** The InstaPay number and address saved on the admin's circles (first circle that has them). */
 export async function myAdminInstapay(uid: string): Promise<{ number: string; address: string }> {
+  // Saved on the account (this phone) first: it stays even when circles are deleted.
+  const saved = readPrefsSync().adminInstapay;
+  if (saved && (saved.number || saved.address)) return saved;
   try {
     const snap = await getDocs(query(collection(firestore(), 'circles'), where('adminUid', '==', uid)));
     for (const d of snap.docs) {
@@ -790,7 +807,9 @@ export async function myAdminInstapay(uid: string): Promise<{ number: string; ad
       const b = typeof p.instapayAddress === 'string' ? p.instapayAddress : '';
       if (a || b) {
         // Older circles kept an address in the number field.
-        return a.includes('@') ? { number: '', address: b || a } : { number: a, address: b };
+        const found = a.includes('@') ? { number: '', address: b || a } : { number: a, address: b };
+        writePrefs({ adminInstapay: found });
+        return found;
       }
     }
   } catch {

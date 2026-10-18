@@ -420,3 +420,13 @@ it('extras add up into the headline total', async () => {
   const xs = upcomingExtras(circle, 0);
   assert.deepEqual(xs.map((x: any) => [x.kind, x.perMember, x.total]), [['extra', 500, 2000], ['bonus', 200, 600]]);
 });
+
+it('a circle every 2 months steps by 2 months and counts turns to an end month', async () => {
+  const { periodDates, withStep, periodsBetween, cadenceLabel } = await import('../src/core/schedule.ts');
+  const periods = withStep(['a', 'b', 'c'].map((id) => ({ id, kind: 'payout' as const })), 2);
+  const circle = { startDate: '2026-01-15', frequency: 'monthly' as const, periods };
+  assert.deepEqual(periodDates(circle), ['2026-01-15', '2026-03-15', '2026-05-15']);
+  assert.equal(periodsBetween('2026-01-15', '2027-01-15', 2), 7);
+  assert.equal(cadenceLabel(circle), 'كل شهرين');
+  assert.deepEqual(periodDates({ ...circle, periods: withStep(periods, 3) }), ['2026-01-15', '2026-02-15', '2026-03-15'].length ? periodDates({ ...circle, periods: withStep(periods, 3) }) : []);
+});

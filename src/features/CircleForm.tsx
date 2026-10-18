@@ -24,8 +24,10 @@ import {
   type DraftError,
   type Frequency,
   type Member,
+  monthsLabel,
+  periodsBetween,
 } from '@/core';
-import { Button, Card, Chip, Field, IconButton, Row, Segmented, Text } from '@/ui/components';
+import { Button, Card, Chip, Field, IconButton, Row, Text } from '@/ui/components';
 import { isEn, tr } from '@/i18n';
 import { colors, fonts, radius, space } from '@/ui/theme';
 
@@ -80,7 +82,16 @@ export function CircleForm({
 
   const [name, setName] = useState(initial?.name ?? '');
   const [amount, setAmount] = useState(initial ? String(initial.installment) : '');
-  const [frequency, setFrequency] = useState<Frequency>(initial?.frequency ?? 'monthly');
+  // How often: every week, or every 1…12 months.
+  const [cadence, setCadence] = useState<string>(() =>
+    initial?.stepMonths
+      ? String(initial.stepMonths)
+      : ({ weekly: 'weekly', monthly: '1', quarterly: '3', every4months: '4' } as const)[initial?.frequency ?? 'monthly'],
+  );
+  const stepN = cadence === 'weekly' ? null : Number(cadence);
+  const frequency: Frequency =
+    cadence === 'weekly' ? 'weekly' : stepN === 3 ? 'quarterly' : stepN === 4 ? 'every4months' : 'monthly';
+  const stepMonths = stepN && ![1, 3, 4].includes(stepN) ? stepN : undefined;
   const [monthKey, setMonthKey] = useState(`${start.y}-${start.m}`);
   const [day, setDay] = useState(String(start.d));
   const [members, setMembers] = useState<Member[]>(
@@ -119,7 +130,7 @@ export function CircleForm({
   const months = useMemo(() => {
     const list: { key: string; y: number; m: number }[] = [];
     const base = `${today.slice(0, 8)}01`;
-    for (let i = -1; i < 12; i++) {
+    for (let i = -12; i < 36; i++) {
       const { y, m } = parseISODate(addMonths(base, i));
       list.push({ key: `${y}-${m}`, y, m });
     }
@@ -137,6 +148,7 @@ export function CircleForm({
     name,
     installment,
     frequency,
+    ...(stepMonths ? { stepMonths } : {}),
     startDate,
     members,
     ownerFirst: mode === 'create' && ownerFirst,
@@ -195,6 +207,11 @@ export function CircleForm({
     });
   };
 
+  const cadenceText = stepN ? monthsLabel(stepN) : 'كل أسبوع';
+  // Possible last months: every step from the start, up to 4 years.
+  const endChoices = stepN
+    ? Array.from({ length: Math.min(48, Math.floor(48 / stepN)) }, (_, k) => addMonths(startDate, stepN * (k + 1)))
+    : [];
   const size = mode === 'create' ? (slots ?? members.length) : Math.max(members.length, slots ?? 0);
   const pot = Number.isFinite(installment) ? installment * size : 0;
   const thisYear = Number(today.slice(0, 4));
@@ -226,16 +243,16 @@ export function CircleForm({
           />
           <View style={{ gap: space.xs }}>
             <Text weight="semibold">ميعاد الدفع</Text>
-            <Segmented
-              value={frequency}
-              onChange={setFrequency}
-              options={[
-                { value: 'monthly', label: 'شهري' },
-                { value: 'quarterly', label: '٣ شهور' },
-                { value: 'every4months', label: '٤ شهور' },
-                { value: 'weekly', label: 'أسبوعي' },
-              ]}
-            />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.xs }}>
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'weekly'].map((c) => (
+                <Chip
+                  key={c}
+                  label={c === 'weekly' ? 'كل أسبوع' : monthsLabel(Number(c))}
+                  active={cadence === c}
+                  onPress={() => setCadence(c)}
+                />
+              ))}
+            </ScrollView>
           </View>
         </Card>
 
@@ -272,6 +289,32 @@ export function CircleForm({
           )}
         </Card>
 
+        {stepN ? (
+          <Card>
+            <Text variant="heading">الجمعية هتخلص إمتى؟</Text>
+            <Text variant="caption">اختار آخر شهر، وعدد الأدوار بيتحسب لوحده ({cadenceText}).</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
+              {endChoices.map((iso) => {
+                const p = parseISODate(iso);
+                const n = periodsBetween(startDate, iso, stepN);
+                return (
+                  <Chip
+                    key={iso}
+                    label={`${p.y === thisYear ? monthName(p.m) : `${monthName(p.m)} ${String(p.y)}`} • ${formatNumber(n)} دور`}
+                    active={!!slots && slots === n}
+                    onPress={() => setSlotsText(String(n))}
+                  />
+                );
+              })}
+            </ScrollView>
+            {slots ? (
+              <Text variant="caption" weight="bold" color={colors.primary}>
+                {formatNumber(slots)} دور • من {formatDate(startDate)} لحد {formatDate(addMonths(startDate, stepN * (slots - 1)))}
+              </Text>
+            ) : null}
+          </Card>
+        ) : null}
+
         <Card>
           <Text variant="heading">عدد الأعضاء</Text>
           <Field
@@ -299,9 +342,10 @@ export function CircleForm({
                 <Text variant="caption">إنت بتقبض الأول، والقرعة بتكون على باقي الأعضاء بعد ما يدخلوا.</Text>
               </View>
             </View>
+            <Text variant="caption" weight="bold">
+              اسمك
+            </Text>
             <TextInput
-              placeholder={tr("اسمك")}
-              placeholderTextColor={colors.muted}
               value={members[0]?.name ?? ''}
               maxLength={60}
               onChangeText={(t) => members[0] && update(members[0].id, { name: t })}
@@ -332,8 +376,6 @@ export function CircleForm({
               </View>
             ) : (
             <TextInput
-              placeholder={tr("رقم الموبايل أو name@instapay (اختياري)")}
-              placeholderTextColor={colors.muted}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -427,9 +469,10 @@ export function CircleForm({
                   )}
                 </Row>
               </Row>
+              <Text variant="caption" weight="bold">
+                الاسم
+              </Text>
               <TextInput
-                placeholder={tr("الاسم")}
-                placeholderTextColor={colors.muted}
                 value={m.name}
                 maxLength={60}
                 onChangeText={(t) => update(m.id, { name: t })}
@@ -464,9 +507,10 @@ export function CircleForm({
                   </Text>
                 </View>
               ) : (
+              <Text variant="caption" weight="bold">
+                رقم الموبايل (إنستاباي / فودافون كاش)
+              </Text>
               <TextInput
-                placeholder={tr("رقم موبايل العضو (إنستاباي / فودافون كاش)")}
-                placeholderTextColor={colors.muted}
                 keyboardType="phone-pad"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -508,7 +552,7 @@ export function CircleForm({
 
         <View style={styles.summary}>
           <Text color={colors.white} center>
-            كل عضو يدفع {Number.isFinite(installment) ? formatMoney(installment) : '—'} {FREQUENCY_LABEL[frequency].every}، ويقبض
+            كل عضو يدفع {Number.isFinite(installment) ? formatMoney(installment) : '—'} {cadenceText}، ويقبض
           </Text>
           <Text variant="number" color={colors.gold}>
             {formatMoney(pot)}
