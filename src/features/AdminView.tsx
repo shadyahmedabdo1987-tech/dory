@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   circleInviteMessage,
+  protectionCodeMessage,
   normalizePhone,
   normalizePayAccount,
   INSTAPAY_ADDRESS,
@@ -1355,10 +1356,7 @@ function MembersTab({ circle, payments, requests }: { circle: Circle; payments: 
   };
   /** The member's own message: invite code + their number + their one-time sign-in code. */
   const sendCode = (m: Member, code: string) => {
-    const msg =
-      `أهلًا ${m.name} 👋\nصاحب "${circle.name}" ضافك في الجمعية على تطبيق دوري.\n` +
-      `كود الجمعية: ${circle.inviteCode}\nرقمك: ${m.phone ?? ''}\nكود الدخول (لأول مرة بس): \u2066${code.replace('-', '')}\u2069\n` +
-      'ادخل بكود الجمعية ورقمك، واكتب كود الدخول (٦ أرقام)، وبعدها اختار باسورد خاص بيك.';
+    const msg = protectionCodeMessage(circle.name, code);
     RNLinking.openURL(whatsappUrl(normalizePhone(m.phone ?? '') ?? '', msg)).catch(() => Share.share({ message: msg }));
   };
   const newCode = async (m: Member) => {

@@ -137,30 +137,19 @@ export function reminderMessage(circle: Circle, member: Member, entry: TimelineE
   ].join('\n');
 }
 
-export function inviteMessage(circle: Circle, member: Member): string {
-  return [
-    `أهلًا يا ${member.name} 👋`,
-    `انضم لجمعية "${circle.name}" على تطبيق دوري، وتابع دورك وأقساطك زي تطبيق البنك.`,
-    ``,
-    `كود الجمعية 👇`,
-    // Monospace block: stands out in WhatsApp and is easy to select.
-    '```' + circle.inviteCode + '```',
-    ``,
-    `حمّل تطبيق دوري، ودوس "انضم بكود"، واكتب الكود واسمك — وأنا هوافق عليك من التطبيق.`,
-    `💡 تقدر تنسخ الرسالة كلها وتدوس "الصق الكود" في التطبيق.`,
-  ].join('\n');
+/** Short and plain: just what the code is for, and the code. */
+export function inviteMessage(circle: Pick<Circle, 'name' | 'inviteCode'>, _member?: Member): string {
+  return `كود الدخول لجمعية "${circle.name}" على تطبيق دوري: \u2066${circle.inviteCode}\u2069`;
 }
 
-/** The invitation the organizer sends by SMS / WhatsApp: circle name, welcome, invite code. */
+/** The invitation the organizer sends by SMS / WhatsApp. */
 export function circleInviteMessage(circle: Pick<Circle, 'name' | 'inviteCode'>): string {
-  return [
-    `أهلًا بيك 👋`,
-    `إنت مدعو تنضم لجمعية "${circle.name}" على تطبيق دوري.`,
-    ``,
-    `كود الدعوة: ${circle.inviteCode}`,
-    ``,
-    `افتح تطبيق دوري ودوس "عندي كود دعوة" واكتب الكود، وصاحب الجمعية هيوافق على طلبك.`,
-  ].join('\n');
+  return inviteMessage(circle);
+}
+
+/** The member's protection code (sign-in code), on its own. */
+export function protectionCodeMessage(circleName: string, code: string): string {
+  return `كود الحماية الخاص بيك في جمعية "${circleName}": \u2066${code.replace(/\D/g, '')}\u2069`;
 }
 
 /** Opens the SMS app with the message ready for one or more numbers. */
