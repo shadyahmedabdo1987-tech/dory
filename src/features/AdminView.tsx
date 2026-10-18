@@ -966,7 +966,7 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
   const setDates = extraDates(circle);
   const applyPull = async () => {
     if (!pullDate || !pulled) return;
-    setSpeedOpen(false);
+    setExtraOpen(false);
     const ok = await confirm(
       `دفعة زيادة يوم ${formatDate(pullDate)}`,
       `كل عضو يدفع ${formatMoney(circle.installment * pullCount)} يوم ${formatDate(pullDate)}، و${pullCount > 1 ? `${formatNumber(pullCount)} أدوار بيتقبضوا` : 'الدور الجاي بيتقبض'} في نفس اليوم. الأدوار اللي بعده تتقدّم، وآخر دور يبقى ${pullEnd ? formatDate(pullEnd) : '—'} بدل ${plannedEnd ? formatDate(plannedEnd) : '—'}.`,
@@ -1169,65 +1169,59 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         })}
       </Card>
 
-      <Sheet visible={extraOpen} title="مبلغ إضافي على الأعضاء" onClose={() => setExtraOpen(false)}>
-        <Segmented
-          value={extraMode}
-          onChange={setExtraMode}
-          options={[
-            { value: 'bonus', label: 'يتضاف على القسط' },
-            { value: 'separate', label: 'قسط لوحده' },
-          ]}
-        />
-        <Text variant="caption">
-          {extraMode === 'bonus'
-            ? 'كل عضو يدفع المبلغ ده زيادة على قسطه في الدور اللي تختاره، وصاحب الدور بيقبضه معاه. المواعيد ما بتتغيّرش.'
-            : 'كل الأعضاء يدفعوا المبلغ ده في فترة لوحدها من غير ما حد يقبض (مثلًا مصاريف). الأدوار اللي بعدها تتأخر فترة.'}
-        </Text>
-        <Field label="المبلغ الزيادة على كل عضو" keyboardType="numeric" value={amount} onChangeText={setAmount} placeholder="مثلًا 200" />
-        {extraMode === 'bonus' ? (
-          upcomingTurns.length ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
-              <Chip label="كل الأدوار الجاية" active={bonusTarget === 'all'} onPress={() => setBonusTarget('all')} />
-              {upcomingTurns.map((e) => (
+      <Sheet visible={extraOpen} title="مبلغ إضافي" onClose={() => setExtraOpen(false)}>
+        <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: space.md, paddingBottom: space.md }} keyboardShouldPersistTaps="handled">
+          <View style={{ gap: space.sm }}>
+            <Row gap={space.sm}>
+              <Ionicons name="calendar-outline" size={22} color={colors.primary} />
+              <Text weight="bold" style={{ flex: 1 }}>قسط زيادة يسرّع الجمعية</Text>
+            </Row>
+            <Text variant="caption">
+              اختار الشهر: كل الأعضاء يدفعوا قسط زيادة يومها، والدور الجاي يتقبض فيه — والجمعية تخلص بدري.
+            </Text>
+            {pullChoices.length ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
+                {pullChoices.map((d) => (
+                  <Chip key={d} label={formatDate(d, false)} active={pullDate === d} onPress={() => setPullDate(d)} />
+                ))}
+              </ScrollView>
+            ) : (
+              <Text variant="caption" color={colors.danger}>مفيش شهور فاضية بين المواعيد الجاية.</Text>
+            )}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+              {[1, 2, 3].map((n) => (
                 <Chip
-                  key={e.period.id}
-                  label={e.recipient?.name ?? ''}
-                  sub={formatDate(e.date)}
-                  active={bonusTarget === e.period.id}
-                  onPress={() => setBonusTarget(e.period.id)}
+                  key={n}
+                  label={n === 1 ? 'قسط واحد' : n === 2 ? 'قسطين' : '٣ أقساط'}
+                  sub={formatMoney(circle.installment * n)}
+                  active={pullCount === n}
+                  onPress={() => setPullCount(n)}
                 />
               ))}
-            </ScrollView>
-          ) : (
-            <Text variant="caption" color={colors.danger}>مفيش أدوار جاية لسه ما جاش ميعادها.</Text>
-          )
-        ) : null}
-        {extraMode === 'bonus' && parseAmount(amount) > 0 && upcomingTurns.length ? (
-          <Text variant="caption" weight="bold" color={colors.success}>
-            القسط يبقى {formatMoney(circle.installment + parseAmount(amount))} وصاحب الدور يقبض{' '}
-            {formatMoney((circle.installment + parseAmount(amount)) * Math.max(0, circle.members.length - 1))}
-          </Text>
-        ) : null}
-        <Field label="السبب (اختياري)" value={note} onChangeText={setNote} placeholder="مثلًا: علشان نخلّص بدري" maxLength={120} />
-        <Button
-          label="ضيف المبلغ"
-          icon="checkmark"
-          disabled={!(parseAmount(amount) > 0) || (extraMode === 'bonus' && !upcomingTurns.length)}
-          onPress={() => {
-            setExtraOpen(false);
-            const value = parseAmount(amount);
-            if (extraMode === 'bonus') {
-              const ids = bonusTarget === 'all' ? upcomingTurns.map((e) => e.period.id) : [bonusTarget];
-              run(() => mutatePeriods(circle.id, (ps) => addBonus(ps, ids, value, note.trim())), {
-                success: 'اتضاف على القسط، وظهر عند كل الأعضاء.',
-              });
-            } else {
-              run(() => mutatePeriods(circle.id, (ps) => addExtraInstallment(ps, nextIndex, value, note.trim())));
-            }
-            setNote('');
-            setAmount('');
-          }}
-        />
+            </View>
+            {pullDate ? (
+              pulled ? (
+                <Text weight="bold" color={colors.success}>
+                  كل عضو يدفع {formatMoney(circle.installment * pullCount)} يوم {formatDate(pullDate)} • تخلص {pullEnd ? formatDate(pullEnd) : '—'}
+                </Text>
+              ) : (
+                <Text variant="caption" color={colors.danger}>مفيش أدوار كفاية بعد الميعاد ده.</Text>
+              )
+            ) : null}
+            <Button label="ضيف الدفعة" icon="add-circle-outline" disabled={!pulled} onPress={applyPull} />
+            {setDates.map((x) => (
+              <Row key={x.date} gap={space.sm}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                <Text variant="caption" weight="semibold" style={{ flex: 1 }}>
+                  دفعة زيادة يوم {formatDate(x.date)} ({formatNumber(x.count)} قسط)
+                </Text>
+                <Text variant="caption" weight="bold" color={colors.danger} onPress={() => cancelPull(x.date)}>
+                  إلغاء
+                </Text>
+              </Row>
+            ))}
+          </View>
+        </ScrollView>
       </Sheet>
 
       <Sheet visible={deferOpen} title="تأجيل قسط" onClose={() => setDeferOpen(false)}>
@@ -1343,56 +1337,6 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
               </Pressable>
             );
           })}
-          <View style={styles.amountBox}>
-            <Row gap={space.sm}>
-              <Ionicons name="calendar-outline" size={22} color={colors.primary} />
-              <Text weight="bold" style={{ flex: 1 }}>دفعة زيادة في ميعاد تختاره</Text>
-            </Row>
-            <Text variant="caption">
-              اختار الشهر: كل الأعضاء يدفعوا قسط زيادة يومها، والدور الجاي يتقبض فيه — والجمعية تخلص بدري.
-            </Text>
-            {pullChoices.length ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
-                {pullChoices.map((d) => (
-                  <Chip key={d} label={formatDate(d, false)} active={pullDate === d} onPress={() => setPullDate(d)} />
-                ))}
-              </ScrollView>
-            ) : (
-              <Text variant="caption" color={colors.danger}>مفيش شهور فاضية بين المواعيد الجاية.</Text>
-            )}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-              {[1, 2, 3].map((n) => (
-                <Chip
-                  key={n}
-                  label={n === 1 ? 'قسط واحد' : n === 2 ? 'قسطين' : '٣ أقساط'}
-                  sub={formatMoney(circle.installment * n)}
-                  active={pullCount === n}
-                  onPress={() => setPullCount(n)}
-                />
-              ))}
-            </View>
-            {pullDate ? (
-              pulled ? (
-                <Text weight="bold" color={colors.success}>
-                  كل عضو يدفع {formatMoney(circle.installment * pullCount)} يوم {formatDate(pullDate)} • تخلص {pullEnd ? formatDate(pullEnd) : '—'}
-                </Text>
-              ) : (
-                <Text variant="caption" color={colors.danger}>مفيش أدوار كفاية بعد الميعاد ده.</Text>
-              )
-            ) : null}
-            <Button label="ضيف الدفعة" icon="add-circle-outline" disabled={!pulled} onPress={applyPull} />
-            {setDates.map((x) => (
-              <Row key={x.date} gap={space.sm}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-                <Text variant="caption" weight="semibold" style={{ flex: 1 }}>
-                  دفعة زيادة يوم {formatDate(x.date)} ({formatNumber(x.count)} قسط)
-                </Text>
-                <Text variant="caption" weight="bold" color={colors.danger} onPress={() => cancelPull(x.date)}>
-                  إلغاء
-                </Text>
-              </Row>
-            ))}
-          </View>
           <View style={styles.amountBox}>
             <Row gap={space.sm}>
               <Ionicons name="cash-outline" size={22} color={colors.primary} />
