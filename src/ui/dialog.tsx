@@ -104,6 +104,9 @@ export function DialogHost() {
   // Many choices (or choices with explanations) → a tappable list; otherwise buttons.
   const asOptions = actions.length > 2 || actions.some((b) => b.hint);
   const ordered = [...actions].sort((a, b) => Number(a.style === 'destructive') - Number(b.style === 'destructive'));
+  // Two short buttons sit side by side; anything longer gets the full width, one under the other.
+  const sideBySide =
+    actions.length + (cancelButton ? 1 : 0) === 2 && [...actions, ...(cancelButton ? [cancelButton] : [])].every((b) => b.text.length <= 12);
 
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={dismiss}>
@@ -131,11 +134,11 @@ export function DialogHost() {
             {asOptions ? (
               actions.map((b) => <OptionRow key={b.text} button={b} onPress={() => close(b)} />)
             ) : (
-              <View style={[styles.actionsRow, actions.length + (cancelButton ? 1 : 0) === 2 ? null : styles.actionsColumn]}>
+              <View style={[styles.actionsRow, sideBySide ? null : styles.actionsColumn]}>
                 {ordered.map((b) => (
-                  <DialogAction key={b.text} button={b} onPress={() => close(b)} />
+                  <DialogAction key={b.text} button={b} wide={!sideBySide} onPress={() => close(b)} />
                 ))}
-                {cancelButton ? <DialogAction button={cancelButton} onPress={() => close(cancelButton)} /> : null}
+                {cancelButton ? <DialogAction button={cancelButton} wide={!sideBySide} onPress={() => close(cancelButton)} /> : null}
               </View>
             )}
           </ScrollView>
@@ -157,7 +160,7 @@ function tapFeedback() {
 }
 
 /** Two-button style: filled primary / red destructive / outlined cancel. */
-function DialogAction({ button, onPress }: { button: DialogButton; onPress: () => void }) {
+function DialogAction({ button, onPress, wide }: { button: DialogButton; onPress: () => void; wide?: boolean }) {
   const kind = button.style === 'cancel' ? 'cancel' : button.style === 'destructive' ? 'danger' : 'primary';
   const v = {
     primary: { bg: button.color ?? colors.primary, fg: colors.white, border: button.color ?? colors.primary },
@@ -174,12 +177,21 @@ function DialogAction({ button, onPress }: { button: DialogButton; onPress: () =
       }}
       style={({ pressed }) => [
         styles.action,
+        wide ? null : { flex: 1 },
         { backgroundColor: v.bg, borderColor: v.border },
         pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] },
       ]}
     >
       {button.icon ? <Ionicons name={button.icon} size={18} color={v.fg} /> : null}
-      <Text weight="bold" color={v.fg} numberOfLines={1}>
+      <Text
+        weight="bold"
+        color={v.fg}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+        maxFontSizeMultiplier={1.2}
+        style={{ flexShrink: 1, textAlign: 'center' }}
+      >
         {button.text}
       </Text>
     </Pressable>
@@ -243,7 +255,6 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
   actionsColumn: { flexDirection: 'column' },
   action: {
-    flex: 1,
     minHeight: 50,
     borderRadius: radius.md,
     borderWidth: 1.5,

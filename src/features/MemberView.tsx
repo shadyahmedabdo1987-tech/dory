@@ -85,7 +85,7 @@ export function MemberView({
       await confirm(
         'اتأكدت إن الفلوس وصلت؟',
         `أكّد بس لو ${formatMoney(amount)} كاملين وصلوا حسابك أو إيدك فعلًا. بعد التأكيد القبض بيتقفل.`,
-        `أيوه، ${formatMoney(amount)} وصلوني`,
+        'أيوه، وصلوني',
       )
     ) {
       run(() => confirmPayoutReceived(circle.id, periodId), { success: 'شكرًا! صاحب الجمعية هيوصله تأكيدك.' });
@@ -323,27 +323,26 @@ export function MemberView({
                   {request.hasReceipt && (
                     <Button label="عرض إيصال التحويل" icon="image-outline" variant="secondary" onPress={() => setPayoutReceipt(p.entry.period.id)} />
                   )}
-                  <Row gap={space.sm}>
+                  <View style={{ gap: space.sm }}>
+                    <Button
+                      label="استلمت الفلوس ✓"
+                      icon="checkmark-done"
+                      loading={busy}
+                      style={{ backgroundColor: colors.success, borderColor: colors.success }}
+                      onPress={() => confirmReceived(p.entry.period.id, p.amount)}
+                    />
                     {request.status !== 'disputed' && (
                       <Button
                         label="ما وصلنيش"
                         icon="alert-circle-outline"
                         variant="danger"
-                        style={{ flex: 1 }}
                         onPress={() => {
                           setDisputeNote('');
                           setDisputing(p.entry.period.id);
                         }}
                       />
                     )}
-                    <Button
-                      label="استلمت ✓"
-                      icon="checkmark-done"
-                      loading={busy}
-                      style={{ flex: 2, backgroundColor: colors.success, borderColor: colors.success }}
-                      onPress={() => confirmReceived(p.entry.period.id, p.amount)}
-                    />
-                  </Row>
+                  </View>
                 </View>
               ) : request?.status === 'received' ? (
                 <Row gap={space.sm}>

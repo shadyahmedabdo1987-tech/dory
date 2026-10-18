@@ -173,8 +173,10 @@ export function Button({
             weight="bold"
             color={v.fg}
             numberOfLines={singleLine ? 1 : 2}
-            adjustsFontSizeToFit={singleLine}
-            minimumFontScale={0.8}
+            // Never cut a label off with "…": it shrinks a little instead.
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+            maxFontSizeMultiplier={1.2}
             style={{ flexShrink: 1, textAlign: 'center' }}
           >
             {label}
