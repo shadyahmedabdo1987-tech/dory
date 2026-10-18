@@ -285,9 +285,6 @@ export function CircleForm({
           )}
         </Card>
 
-          </Card>
-        ) : null}
-
         <Card>
           <Text variant="heading">عدد الأعضاء</Text>
           <Field
