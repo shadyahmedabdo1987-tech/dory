@@ -726,11 +726,13 @@ export const EXACT: Record<string, string> = {
  "كود الدخول مش صح. اتأكد من الكود اللي وصلك من صاحب الجمعية، أو اطلب منه كود جديد.": "That sign-in code is wrong. Check the code the organizer sent, or ask for a new one.",
  "أهلًا بيك ✓": "Welcome ✓",
  "دخلت الجمعية باسمك ودورك. المرة الجاية تدخل بالكود ورقمك والباسورد اللي اخترته.": "You're in with your name and turn. Next time use the code, your number and your new password.",
- "الرقم ده مسجّل في الجمعية. لو دي أول مرة تدخل، دوس \"أول مرة أدخل\" واكتب كود الدخول اللي وصلك. لو عندك باسورد، اكتبه تحت.": "This number is registered. First time? Tap \"First time\" and enter the sign-in code you got. If you have a password, enter it below."
+ "الرقم ده مسجّل في الجمعية. لو دي أول مرة تدخل، دوس \"أول مرة أدخل\" واكتب كود الدخول اللي وصلك. لو عندك باسورد، اكتبه تحت.": "This number is registered. First time? Tap \"First time\" and enter the sign-in code you got. If you have a password, enter it below.",
+ "🔑 اعمل كود دخول وابعته واتساب": "🔑 Make a sign-in code and send it on WhatsApp"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
 export const PATTERNS: [string, string][] = [
+ ["كود الدخول: {0} • ابعته واتساب", "Sign-in code: {0} • send on WhatsApp"],
  ["دور إضافي لـ {0} — إمتى؟", "Extra turn for {0} — when?"],
  ["مكان دور {0} — وده واللي بعده يتأخروا {1}", "In place of {0}'s turn — it and later ones move one {1}"],
  ["اتضاف دور لـ {0} يوم {1}.", "Turn added for {0} on {1}."],

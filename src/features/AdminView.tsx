@@ -1258,8 +1258,12 @@ function MembersTab({ circle, payments, requests }: { circle: Circle; payments: 
                 {m.phone ? ` • إنستاباي: ${m.phone}` : ''}
               </Text>
               {!m.uid && firstLoginCodeOf(circle.id, m.id) ? (
-                <Text variant="caption" weight="bold" color={colors.primary}>
-                  كود الدخول: {firstLoginCodeOf(circle.id, m.id)}
+                <Text variant="caption" weight="bold" color={colors.primary} onPress={() => sendCode(m, firstLoginCodeOf(circle.id, m.id)!)}>
+                  كود الدخول: {firstLoginCodeOf(circle.id, m.id)} • ابعته واتساب
+                </Text>
+              ) : !m.uid && m.phone ? (
+                <Text variant="caption" weight="bold" color={colors.primary} onPress={() => newCode(m)}>
+                  🔑 اعمل كود دخول وابعته واتساب
                 </Text>
               ) : null}
             </View>
