@@ -93,6 +93,8 @@ import {
 } from '@/data';
 import { ActionTile, Badge, Button, Card, Chip, Field, IconButton, ProgressBar, Row, Segmented, Text, tap } from "@/ui/components";
 import { confirm, Sheet, useAction } from '@/ui/feedback';
+import { TurnRing } from '@/ui/TurnRing';
+import { Celebration } from '@/ui/Celebration';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { colors, radius, space } from '@/ui/theme';
 
@@ -166,9 +168,7 @@ export function AdminView({
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}>
       {completion.done ? (
       <Pressable onPress={() => { tap(); setShowTurns(true); }} style={({ pressed }) => [styles.hero, pressed && { opacity: 0.9 }]}>
-        <View style={styles.doneIcon}>
-          <Ionicons name="trophy" size={38} color={colors.gold} />
-        </View>
+        <Celebration size={88} height={190} />
         <Text variant="title" color={colors.white} center>
           الجمعية انتهت 🎉
         </Text>
@@ -209,6 +209,14 @@ export function AdminView({
             </Text>
           </Row>
         ) : null}
+        {heroEntry && heroEntry.due > 0 ? (() => {
+          const hs = periodSummary(circle, payments, heroEntry.index);
+          return (
+            <View style={{ marginBottom: space.sm }}>
+              <TurnRing total={hs.payers.length} paid={hs.confirmed.length} title={`دور ${heroEntry.recipient?.name ?? ''}`} />
+            </View>
+          );
+        })() : null}
         <Text variant="caption" color="rgba(255,255,255,0.75)" center>
           {heroPeriod ? `القبض في دور ${heroEntry?.recipient?.name ?? ''} (${formatDate(heroEntry!.date)})` : 'القبض في كل دور'}
         </Text>

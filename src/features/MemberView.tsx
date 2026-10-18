@@ -23,12 +23,14 @@ import {
   type Circle,
   type MemberPaymentState,
   type Payment,
-  type TimelineEntry, deferralOf, upcomingExtras, currentIndex, cadenceLabel, circleCompletion, earlyPayable, periodSummary } from "@/core";
+  type TimelineEntry, deferralOf, upcomingExtras, currentIndex, cadenceLabel, circleCompletion, earlyPayable, periodSummary, timeline } from "@/core";
 import { confirmPayoutReceived, disputePayout, hasMyPassword, loadPayoutReceipt, loadReceipt, removePayment, setMyPassword, usePayouts } from '@/data';
 import { readPrefsSync, writePrefs } from '@/ui/prefs';
 import { Badge, Button, Card, Chip, Field, ProgressBar, Row, Text, tap } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
+import { TurnRing } from '@/ui/TurnRing';
+import { Celebration } from '@/ui/Celebration';
 import { colors, radius, space } from '@/ui/theme';
 
 import { AnnouncementsCard } from './Messaging';
@@ -71,6 +73,9 @@ export function MemberView({
   const [earlyCount, setEarlyCount] = useState(1);
   const early = earlyPayable(circle, payments, memberId, today);
   const completion = circleCompletion(circle, payments);
+  // The turn being collected now (the next payout not handed over yet).
+  const turnEntry = timeline(circle).find((e) => e.period.kind === 'payout' && !e.period.paidOut && e.due > 0 && e.index >= Math.max(0, currentIndex(circle)));
+  const turnNow = turnEntry ? periodSummary(circle, payments, turnEntry.index) : null;
   const [viewing, setViewing] = useState<AccountLine | null>(null);
 
   const [requesting, setRequesting] = useState<TimelineEntry | null>(null);
@@ -155,16 +160,14 @@ export function MemberView({
           </View>
         ) : null}
         {completion.done ? (
-          <View style={styles.donePill}>
-            <Ionicons name="trophy" size={22} color={colors.gold} />
-            <View style={{ flex: 1 }}>
-              <Text weight="bold" color={colors.white}>
-                الجمعية انتهت 🎉
-              </Text>
-              <Text variant="caption" color="rgba(255,255,255,0.85)">
-                كل الأقساط اتسددت وكل الأعضاء قبضوا أدوارهم.
-              </Text>
-            </View>
+          <View style={{ alignItems: 'center', marginTop: space.sm }}>
+            <Celebration size={80} height={170} />
+            <Text weight="bold" color={colors.white} center style={{ fontSize: 22, lineHeight: 34 }}>
+              الجمعية انتهت 🎉
+            </Text>
+            <Text variant="caption" color="rgba(255,255,255,0.85)" center>
+              كل الأقساط اتسددت وكل الأعضاء قبضوا أدوارهم.
+            </Text>
           </View>
         ) : acc.remaining <= 0 && acc.totalCommitment > 0 ? (
           <View style={styles.donePill}>
@@ -194,6 +197,16 @@ export function MemberView({
         </Row>
       </Pressable>
       <TurnsSheet visible={showTurns} onClose={() => setShowTurns(false)} circle={circle} payments={payments} memberId={memberId} />
+
+      {/* The turn being collected now: one piece of the ring per installment. */}
+      {!completion.done && turnNow ? (
+        <Card style={{ alignItems: 'center', backgroundColor: colors.primaryDark, borderColor: colors.primaryDark }}>
+          <TurnRing total={turnNow.payers.length} paid={turnNow.confirmed.length} title={turnNow.entry.period.recipientId === memberId ? 'دورك إنت 🎉' : `دور ${turnNow.entry.recipient?.name ?? ''}`} />
+          <Text variant="caption" color="rgba(255,255,255,0.8)" center>
+            {formatDate(turnNow.entry.date)} • كل ما حد يدفع، الدايرة تكمل
+          </Text>
+        </Card>
+      ) : null}
 
       <PasswordCard cid={circle.id} memberId={memberId} />
 
