@@ -57,6 +57,8 @@ export function CircleForm({
   mode,
   initial,
   ownerName,
+  ownerMemberId,
+  ownerPay,
   submitLabel,
   busy,
   onSubmit,
@@ -65,6 +67,9 @@ export function CircleForm({
   initial?: CircleDraft;
   /** Organizer's name, used for their own row when they take the first turn. */
   ownerName?: string;
+  /** Edit: the organizer's own row, and the InstaPay members transfer to. */
+  ownerMemberId?: string;
+  ownerPay?: { number: string; address: string };
   submitLabel: string;
   busy?: boolean;
   onSubmit: (draft: CircleDraft) => void;
@@ -92,6 +97,9 @@ export function CircleForm({
   // The organizer's InstaPay from "my account": used as-is, no need to type it again.
   const [savedPay, setSavedPay] = useState(() => readPrefsSync().adminInstapay ?? { number: '', address: '' });
   const hasSavedPay = creating && !!(savedPay.number || savedPay.address);
+  // Edit: the organizer's row shows the circle's InstaPay (from "my account") instead of a field.
+  const isOwnerRow = (m: Member) => !creating && !!ownerMemberId && m.id === ownerMemberId;
+  const shownOwnerPay = ownerPay && (ownerPay.number || ownerPay.address) ? ownerPay : savedPay;
   useEffect(() => {
     if (!creating || hasSavedPay) return;
     const uid = firebaseAuth().currentUser?.uid;
@@ -182,6 +190,7 @@ export function CircleForm({
         name: m.name.trim(),
         // The organizer's own row carries the saved number (their contact in the circle).
         ...(creating && i === 0 && hasSavedPay && !m.phone && savedPay.number ? { phone: savedPay.number } : {}),
+        ...(isOwnerRow(m) && !m.phone && shownOwnerPay.number ? { phone: shownOwnerPay.number } : {}),
       })),
     });
   };
@@ -374,6 +383,12 @@ export function CircleForm({
                         {locked(i) ? '👑 صاحب الجمعية • الدور الأول' : `الدور ${ordinal(i)}`}
                       </Text>
                     </View>
+                  ) : isOwnerRow(m) ? (
+                    <View style={[styles.pill, { backgroundColor: colors.goldSoft }]}>
+                      <Text variant="caption" weight="bold" color={colors.goldText}>
+                        👑 صاحب الجمعية (إنت)
+                      </Text>
+                    </View>
                   ) : m.uid ? (
                     <Row gap={4}>
                       <Ionicons name="phone-portrait-outline" size={14} color={colors.success} />
@@ -407,7 +422,7 @@ export function CircleForm({
                       />
                     </>
                   )}
-                  {!locked(i) && (
+                  {!locked(i) && !isOwnerRow(m) && (
                     <IconButton icon="trash-outline" label="حذف" color={colors.danger} bg={colors.dangerSoft} onPress={() => remove(m)} />
                   )}
                 </Row>
@@ -420,6 +435,35 @@ export function CircleForm({
                 onChangeText={(t) => update(m.id, { name: t })}
                 style={[styles.input, showErrors && !m.name.trim() && { borderColor: colors.danger }]}
               />
+              {isOwnerRow(m) ? (
+                <View style={styles.savedPay}>
+                  <Ionicons
+                    name={shownOwnerPay.number || shownOwnerPay.address ? 'checkmark-circle' : 'alert-circle-outline'}
+                    size={20}
+                    color={shownOwnerPay.number || shownOwnerPay.address ? colors.success : colors.gold}
+                  />
+                  <View style={{ flex: 1 }}>
+                    {shownOwnerPay.number ? (
+                      <Text weight="semibold" style={{ writingDirection: 'ltr', textAlign: 'right' }}>
+                        {shownOwnerPay.number}
+                      </Text>
+                    ) : null}
+                    {shownOwnerPay.address ? (
+                      <Text weight="semibold" style={{ writingDirection: 'ltr', textAlign: 'right' }}>
+                        {shownOwnerPay.address}
+                      </Text>
+                    ) : null}
+                    <Text variant="caption">
+                      {shownOwnerPay.number || shownOwnerPay.address
+                        ? 'إنستاباي بتاعك من حسابك — الأعضاء بيحوّلوا عليه.'
+                        : 'سجّل رقم أو عنوان إنستاباي في حسابي علشان الأعضاء يحوّلوا عليه.'}
+                    </Text>
+                  </View>
+                  <Text variant="caption" weight="bold" color={colors.primary} onPress={() => router.push('/account')}>
+                    {shownOwnerPay.number || shownOwnerPay.address ? 'تغيير' : 'سجّله'}
+                  </Text>
+                </View>
+              ) : (
               <TextInput
                 placeholder={tr("رقم موبايل العضو (إنستاباي / فودافون كاش)")}
                 placeholderTextColor={colors.muted}
@@ -430,6 +474,7 @@ export function CircleForm({
                 onChangeText={(t) => update(m.id, { phone: t })}
                 style={[styles.input, !!m.phone && !normalizePayAccount(m.phone) && { borderColor: colors.danger }]}
               />
+              )}
             </View>
           ))}
 

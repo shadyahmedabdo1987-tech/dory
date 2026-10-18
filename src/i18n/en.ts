@@ -648,7 +648,11 @@ export const EXACT: Record<string, string> = {
  "جمعيتك في جيبك… بأمان": "Your savings circle in your pocket… safely",
  "متسجّل في حسابك وهيتحط في الجمعية لوحده.": "Saved on your account — added to the circle automatically.",
  "تغيير": "Change",
- "اتحفظ ✓ — في كل جمعياتك، وأي جمعية جديدة هتاخده لوحدها.": "Saved ✓ — on all your circles, and every new circle gets it automatically."
+ "اتحفظ ✓ — في كل جمعياتك، وأي جمعية جديدة هتاخده لوحدها.": "Saved ✓ — on all your circles, and every new circle gets it automatically.",
+ "👑 صاحب الجمعية (إنت)": "👑 Organizer (you)",
+ "إنستاباي بتاعك من حسابك — الأعضاء بيحوّلوا عليه.": "Your InstaPay from your account — members transfer to it.",
+ "سجّل رقم أو عنوان إنستاباي في حسابي علشان الأعضاء يحوّلوا عليه.": "Add your InstaPay number or address in My account so members can transfer to it.",
+ "سجّله": "Add it"
 };
 
 /** Arabic text with {n} placeholders → English with the same placeholders. */
