@@ -1372,11 +1372,8 @@ function MembersTab({ circle, payments, requests }: { circle: Circle; payments: 
   const actions = (m: Member) =>
     alert(m.name, m.uid ? 'داخل من موبايله' : 'لسه ما دخلش', [
       { text: 'عدّل الاسم أو الرقم', icon: 'create-outline' as const, onPress: () => startEdit(m) },
-      ...(!m.uid && m.phone ? [{ text: 'ابعتله كود الدخول', icon: 'logo-whatsapp' as const, color: colors.success, onPress: () => {
-        const code = firstLoginCodeOf(circle.id, m.id);
-        return code ? sendCode(m, code) : newCode(m);
-      } }] : []),
-      ...(!m.uid && m.phone ? [{ text: 'كود دخول جديد (حماية زيادة)', icon: 'refresh' as const, onPress: () => newCode(m) }] : []),
+      // One option: a fresh code (the old password / code stops working) sent on WhatsApp.
+      ...(!m.uid && m.phone ? [{ text: 'كود دخول (حماية زيادة)', icon: 'shield-checkmark-outline' as const, color: colors.success, onPress: () => newCode(m) }] : []),
       ...(!m.uid ? [{ text: 'يدخل برقمه ويختار باسورد علطول', icon: 'key-outline' as const, onPress: () => run(async () => { await clearFirstLoginCode(circle.id, m.id); bump((n) => n + 1); }, { success: `${m.name} يقدر يدخل دلوقتي بكود الجمعية ورقمه ويختار باسورد.` }) }] : []),
       ...(m.uid ? [{ text: 'فك الربط', icon: 'unlink-outline' as const, onPress: () => unlink(m) }] : []),
       { text: 'امسح العضو', style: 'destructive' as const, icon: 'trash-outline' as const, onPress: () => remove(m) },
