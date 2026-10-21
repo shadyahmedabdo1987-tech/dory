@@ -20,6 +20,8 @@ export interface Prefs {
   adminInstapay?: { number: string; address: string };
   /** Organizer: first sign-in codes for members they added — circleId → memberId → code. */
   memberCodes?: Record<string, Record<string, string>>;
+  /** App lock: a 4-digit code (stored hashed) and whether the fingerprint / face can open it. */
+  lock?: { pin: string; bio: boolean };
 }
 
 function prefsFile() {
@@ -51,9 +53,9 @@ export function writePrefs(next: Prefs): boolean {
 export function clearSignInPrefs() {
   try {
     const f = prefsFile();
-    const { theme, lang } = readPrefsSync();
+    const { theme, lang, lock } = readPrefsSync();
     if (!f.exists) return;
-    f.write(JSON.stringify({ ...(theme ? { theme } : {}), ...(lang ? { lang } : {}) }));
+    f.write(JSON.stringify({ ...(theme ? { theme } : {}), ...(lang ? { lang } : {}), ...(lock ? { lock } : {}) }));
   } catch {
     // ignore
   }

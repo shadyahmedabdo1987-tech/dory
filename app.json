@@ -3,7 +3,7 @@
     "name": "دوري",
     "slug": "dory",
     "scheme": "dory",
-    "version": "2.34.0",
+    "version": "2.35.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -47,6 +47,10 @@
         }
       ],
       "expo-localization",
+      [
+        "expo-local-authentication",
+        { "faceIDPermission": "دوري بيستخدم بصمة الوش علشان يقفل التطبيق ويفتحه ليك إنت بس." }
+      ],
       [
         "expo-notifications",
         {
