@@ -30,6 +30,7 @@ import { Badge, Button, Card, Chip, Field, ProgressBar, Row, Text, tap } from '@
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { TurnRing } from '@/ui/TurnRing';
+import { Select } from '@/ui/Select';
 import { Celebration } from '@/ui/Celebration';
 import { colors, radius, space } from '@/ui/theme';
 
@@ -461,21 +462,16 @@ export function MemberView({
       />
       <Sheet visible={earlyOpen} title="سداد معجّل" onClose={() => setEarlyOpen(false)}>
         <Text variant="caption">هتدفع كام قسط؟ بيتحسبوا بالترتيب من أقرب قسط جاي.</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
-          {early.map((e, k) => {
-            const n = k + 1;
-            const sum = early.slice(0, n).reduce((t, x) => t + x.due, 0);
-            return (
-              <Chip
-                key={e.period.id}
-                label={n === early.length && n > 1 ? 'كل اللي عليّ' : `${formatNumber(n)} قسط`}
-                sub={formatMoney(sum)}
-                active={earlyCount === n}
-                onPress={() => setEarlyCount(n)}
-              />
-            );
-          })}
-        </ScrollView>
+        <Select
+          label="كام قسط؟"
+          value={earlyCount}
+          onChange={setEarlyCount}
+          options={early.map((e, k) => ({
+            value: k + 1,
+            label: k + 1 === early.length && k > 0 ? 'كل اللي عليّ' : `${formatNumber(k + 1)} قسط`,
+            sub: `${formatMoney(early.slice(0, k + 1).reduce((t, x) => t + x.due, 0))} • لحد ${formatDate(e.date, false)}`,
+          }))}
+        />
         {early.length ? (
           <View style={styles.earlySummary}>
             <Text variant="caption">الإجمالي</Text>

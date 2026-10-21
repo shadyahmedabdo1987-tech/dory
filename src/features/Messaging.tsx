@@ -19,6 +19,7 @@ import {
 } from '@/core';
 import { deleteAnnouncement, deleteInboxMessage, postAnnouncement, useAnnouncements, useMemberMessages } from '@/data';
 import { Badge, Button, Card, Chip, Field, IconButton, Row, Text } from '@/ui/components';
+import { Select } from '@/ui/Select';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 import { alert } from '@/ui/dialog';
@@ -258,19 +259,26 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
           <Text variant="heading">ابعت رسالة</Text>
         </Row>
         <Text variant="caption">بتظهر جوه التطبيق وبتوصل كإشعار على الموبايل — للي تختارهم بس.</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
-          {templates.map((t) => (
-            <Chip key={t.key} label={t.label} active={false} onPress={() => applyTemplate(t)} />
-          ))}
-        </ScrollView>
+        <Select
+          label="رسالة جاهزة"
+          value={null}
+          placeholder="اختار رسالة جاهزة (اختياري)"
+          onChange={(k) => {
+            const t = templates.find((x) => x.key === k);
+            if (t) applyTemplate(t);
+          }}
+          options={templates.map((t) => ({ value: t.key, label: t.label }))}
+        />
 
-        <Text weight="semibold">هتوصل لمين؟</Text>
-        <View style={styles.audience}>
-          {audienceOptions.map((o) => (
-            <Chip key={o.value} label={o.label} active={audience === o.value} onPress={() => setAudience(o.value)} />
-          ))}
-          <Chip label="رسالة خاصة لعضو" active={audience === 'pick'} onPress={() => setAudience('pick')} />
-        </View>
+        <Select
+          label="هتوصل لمين؟"
+          value={audience}
+          onChange={setAudience}
+          options={[
+            ...audienceOptions.map((o) => ({ value: o.value as TemplateAudience | 'pick', label: o.label })),
+            { value: 'pick' as const, label: 'رسالة خاصة لعضو', sub: 'تختار عضو أو أكتر بالاسم' },
+          ]}
+        />
         {audience === 'pick' ? (
           <View style={{ gap: space.sm }}>
             <Text variant="caption">اختار مين يوصله — محدش غيره هيشوفها.</Text>
@@ -288,20 +296,18 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
                 );
               })}
             </View>
-            <Text variant="caption" weight="semibold">رسالة جاهزة:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
-              {quick.map((q) => (
-                <Chip
-                  key={q.label}
-                  label={q.label}
-                  active={false}
-                  onPress={() => {
-                    setTitle(q.title);
-                    setBody(q.body);
-                  }}
-                />
-              ))}
-            </ScrollView>
+            <Select
+              value={null}
+              placeholder="رسالة جاهزة (اختياري)"
+              onChange={(label) => {
+                const q = quick.find((x) => x.label === label);
+                if (q) {
+                  setTitle(q.title);
+                  setBody(q.body);
+                }
+              }}
+              options={quick.map((q) => ({ value: q.label, label: q.label }))}
+            />
           </View>
         ) : null}
         {targets ? (

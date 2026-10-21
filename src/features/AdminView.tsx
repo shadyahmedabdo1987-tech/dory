@@ -99,6 +99,7 @@ import {
 import { ActionTile, Badge, Button, Card, Chip, Field, IconButton, ProgressBar, Row, Segmented, Text, tap } from "@/ui/components";
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { TurnRing } from '@/ui/TurnRing';
+import { Select } from '@/ui/Select';
 import { Celebration } from '@/ui/Celebration';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { colors, radius, space } from '@/ui/theme';
@@ -229,14 +230,6 @@ export function AdminView({
             </Text>
           </Row>
         ) : null}
-        {heroEntry && heroEntry.due > 0 ? (() => {
-          const hs = periodSummary(circle, payments, heroEntry.index);
-          return (
-            <View style={{ marginBottom: space.sm }}>
-              <TurnRing total={hs.payers.length} paid={hs.confirmed.length} title={`دور ${heroEntry.recipient?.name ?? ''}`} />
-            </View>
-          );
-        })() : null}
         <Text variant="caption" color="rgba(255,255,255,0.75)" center>
           {heroPeriod ? `القبض في دور ${heroEntry?.recipient?.name ?? ''} (${formatDate(heroEntry!.date)})` : 'القبض في كل دور'}
         </Text>
@@ -280,6 +273,18 @@ export function AdminView({
         </Row>
       </Pressable>
       )}
+      {/* The turn being collected now: one piece of the ring per installment. */}
+      {!completion.done && heroEntry && heroEntry.due > 0 ? (() => {
+        const hs = periodSummary(circle, payments, heroEntry.index);
+        return (
+          <Card style={{ alignItems: 'center', backgroundColor: colors.primaryDark, borderColor: colors.primaryDark }}>
+            <TurnRing total={hs.payers.length} paid={hs.confirmed.length} title={`دور ${heroEntry.recipient?.name ?? ''}`} />
+            <Text variant="caption" color="rgba(255,255,255,0.8)" center>
+              {formatDate(heroEntry.date)} • كل ما حد يدفع، الدايرة تكمل
+            </Text>
+          </Card>
+        );
+      })() : null}
       <TurnsSheet visible={showTurns} onClose={() => setShowTurns(false)} circle={circle} payments={payments} />
 
       <Segmented
@@ -777,17 +782,16 @@ function CollectTab({
           return (
             <>
               <Text variant="caption">استلمت منه كام قسط كاش؟ بيتعلّموا مدفوعين بالترتيب من أقرب قسط جاي.</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
-                {list.map((e, k) => (
-                  <Chip
-                    key={e.period.id}
-                    label={k + 1 === list.length && k > 0 ? 'كل اللي عليه' : `${formatNumber(k + 1)} قسط`}
-                    sub={formatMoney(list.slice(0, k + 1).reduce((t, x) => t + x.due, 0))}
-                    active={n === k + 1}
-                    onPress={() => setEarlyCount(k + 1)}
-                  />
-                ))}
-              </ScrollView>
+              <Select
+                label="كام قسط؟"
+                value={n}
+                onChange={setEarlyCount}
+                options={list.map((e, k) => ({
+                  value: k + 1,
+                  label: k + 1 === list.length && k > 0 ? 'كل اللي عليه' : `${formatNumber(k + 1)} قسط`,
+                  sub: `${formatMoney(list.slice(0, k + 1).reduce((t, x) => t + x.due, 0))} • لحد ${formatDate(e.date, false)}`,
+                }))}
+              />
               {list.length ? (
                 <Text variant="caption" weight="bold" color={colors.primary}>
                   {formatMoney(total)} • {formatNumber(n)} قسط لحد {formatDate(list[n - 1].date)}
@@ -1180,25 +1184,26 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
               اختار الشهر: كل الأعضاء يدفعوا قسط زيادة يومها، والدور الجاي يتقبض فيه — والجمعية تخلص بدري.
             </Text>
             {pullChoices.length ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
-                {pullChoices.map((d) => (
-                  <Chip key={d} label={formatDate(d, false)} active={pullDate === d} onPress={() => setPullDate(d)} />
-                ))}
-              </ScrollView>
+              <Select
+                label="الشهر"
+                value={pullDate}
+                onChange={setPullDate}
+                placeholder="اختار الشهر"
+                options={pullChoices.map((d) => ({ value: d, label: formatDate(d) }))}
+              />
             ) : (
               <Text variant="caption" color={colors.danger}>مفيش شهور فاضية بين المواعيد الجاية.</Text>
             )}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-              {[1, 2, 3].map((n) => (
-                <Chip
-                  key={n}
-                  label={n === 1 ? 'قسط واحد' : n === 2 ? 'قسطين' : '٣ أقساط'}
-                  sub={formatMoney(circle.installment * n)}
-                  active={pullCount === n}
-                  onPress={() => setPullCount(n)}
-                />
-              ))}
-            </View>
+            <Select
+              label="كام قسط؟"
+              value={pullCount}
+              onChange={setPullCount}
+              options={[1, 2, 3].map((n) => ({
+                value: n,
+                label: n === 1 ? 'قسط واحد' : n === 2 ? 'قسطين' : '٣ أقساط',
+                sub: `كل عضو يدفع ${formatMoney(circle.installment * n)}`,
+              }))}
+            />
             {pullDate ? (
               pulled ? (
                 <Text weight="bold" color={colors.success}>
@@ -1226,21 +1231,19 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
 
       <Sheet visible={deferOpen} title="تأجيل قسط" onClose={() => setDeferOpen(false)}>
         <ScrollView contentContainerStyle={{ gap: space.md }} keyboardShouldPersistTaps="handled">
-          <Text weight="semibold">أنهي قسط؟</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
-            {deferrable.slice(0, 24).map((e) => (
-              <Chip
-                key={e.period.id}
-                label={formatDate(e.date, false)}
-                sub={e.period.kind === 'payout' ? `دور ${nameOf(e.period.recipientId)}` : 'قسط إضافي'}
-                active={deferEntry?.period.id === e.period.id}
-                onPress={() => {
-                  setDeferPeriod(e.period.id);
-                  setDeferWho([]);
-                }}
-              />
-            ))}
-          </ScrollView>
+          <Select
+            label="أنهي قسط؟"
+            value={deferEntry?.period.id ?? null}
+            onChange={(id) => {
+              setDeferPeriod(id);
+              setDeferWho([]);
+            }}
+            options={deferrable.slice(0, 24).map((e) => ({
+              value: e.period.id,
+              label: formatDate(e.date),
+              sub: e.period.kind === 'payout' ? `دور ${nameOf(e.period.recipientId)}` : 'قسط إضافي',
+            }))}
+          />
 
           <Row style={{ justifyContent: 'space-between' }}>
             <Text weight="semibold">مين يتأجل؟</Text>
@@ -1275,26 +1278,22 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
             <Text variant="caption">كل الأعضاء دفعوا القسط ده.</Text>
           )}
 
-          <Text weight="semibold">يتأجل قد إيه؟</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-            {[
+          <Select
+            label="يتأجل قد إيه؟"
+            value={deferCustom.trim() ? null : deferDays}
+            onChange={(d) => {
+              setDeferCustom('');
+              setDeferDays(d);
+            }}
+            placeholder="مدة مخصوصة (تحت)"
+            options={[
               { label: 'أسبوع', d: 7 },
               { label: 'أسبوعين', d: 14 },
               { label: 'شهر', d: 30 },
               { label: 'شهرين', d: 60 },
               { label: '٣ شهور', d: 90 },
-            ].map((o) => (
-              <Chip
-                key={o.d}
-                label={o.label}
-                active={!deferCustom.trim() && deferDays === o.d}
-                onPress={() => {
-                  setDeferCustom('');
-                  setDeferDays(o.d);
-                }}
-              />
-            ))}
-          </View>
+            ].map((o) => ({ value: o.d, label: o.label, sub: deferEntry ? `لحد ${formatDate(addDays(deferFrom, o.d))}` : undefined }))}
+          />
           <Field label="أو عدد أيام معيّن" value={deferCustom} onChangeText={setDeferCustom} keyboardType="number-pad" maxLength={3} placeholder="مثلًا 45" />
 
           {deferUntil && deferWho.length ? (
@@ -1345,18 +1344,16 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
             <Text variant="caption">
               القسط دلوقتي {formatMoney(circle.installment)}. حط المبلغ اللي اتفقتوا عليه لكل ميعاد، والتطبيق يحسب المدة الجديدة.
             </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-              {[500, 700, 1000].map((x) => (
-                <Chip
-                  key={x}
-                  label={`+${formatNumber(x)}`}
-                  sub={formatMoney(circle.installment + x)}
-                  active={perDate === circle.installment + x}
-                  onPress={() => setPerDateText(String(circle.installment + x))}
-                />
-              ))}
-              <Chip label="الضعف" sub={formatMoney(circle.installment * 2)} active={perDate === circle.installment * 2} onPress={() => setPerDateText(String(circle.installment * 2))} />
-            </View>
+            <Select
+              label="المبلغ الجديد لكل ميعاد"
+              value={[500, 700, 1000, circle.installment].map((x) => circle.installment + x).includes(perDate) ? perDate : null}
+              onChange={(v) => setPerDateText(String(v))}
+              placeholder="اختار زيادة جاهزة"
+              options={[
+                ...[500, 700, 1000].map((x) => ({ value: circle.installment + x, label: `+${formatNumber(x)}`, sub: `${formatMoney(circle.installment + x)} كل ميعاد` })),
+                { value: circle.installment * 2, label: 'الضعف', sub: `${formatMoney(circle.installment * 2)} كل ميعاد` },
+              ]}
+            />
             <Field label="أو اكتب المبلغ بنفسك" value={perDateText} onChangeText={setPerDateText} keyboardType="numeric" placeholder={`أكتر من ${circle.installment}`} />
             {perDateText.trim() && !amountPlan ? (
               <Text variant="caption" color={colors.danger}>المبلغ لازم يبقى أكبر من القسط الحالي.</Text>
@@ -1525,12 +1522,12 @@ function DeferSheet({
           />
         </Row>
         <Text weight="semibold">أو في شهر معيّن (نفس اليوم)</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
-          {[1, 2, 3, 4, 5, 6].map((k) => {
-            const d = addMonths(entry.date, k);
-            return <Chip key={k} label={formatDate(d)} active={current === d} onPress={() => onPick(d)} />;
-          })}
-        </ScrollView>
+        <Select
+          value={current ?? null}
+          onChange={(d) => onPick(d)}
+          placeholder="اختار الشهر"
+          options={[1, 2, 3, 4, 5, 6].map((k) => ({ value: addMonths(entry.date, k), label: formatDate(addMonths(entry.date, k)) }))}
+        />
         {current ? <Button label="إلغاء التأجيل" icon="close-circle-outline" variant="danger" onPress={() => onPick(null)} /> : null}
       </View>
     </Sheet>

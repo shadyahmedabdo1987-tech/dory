@@ -26,7 +26,8 @@ import {
   type Member,
   monthsLabel,
 } from '@/core';
-import { Button, Card, Chip, Field, IconButton, Row, Text } from '@/ui/components';
+import { Button, Card, Field, IconButton, Row, Text } from '@/ui/components';
+import { Select } from '@/ui/Select';
 import { isEn, tr } from '@/i18n';
 import { colors, fonts, radius, space } from '@/ui/theme';
 
@@ -236,34 +237,25 @@ export function CircleForm({
             error={has('installment') ? ERRORS.installment : undefined}
             hint="بالجنيه المصري"
           />
-          <View style={{ gap: space.xs }}>
-            <Text weight="semibold">ميعاد الدفع</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'weekly'].map((c) => (
-                <Chip
-                  key={c}
-                  label={c === 'weekly' ? 'كل أسبوع' : monthsLabel(Number(c))}
-                  active={cadence === c}
-                  onPress={() => setCadence(c)}
-                />
-              ))}
-            </ScrollView>
-          </View>
+          <Select
+            label="ميعاد الدفع"
+            value={cadence}
+            onChange={setCadence}
+            options={['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'weekly'].map((c) => ({
+              value: c,
+              label: c === 'weekly' ? 'كل أسبوع' : monthsLabel(Number(c)),
+            }))}
+          />
         </Card>
 
         <Card>
           <Text variant="heading">ميعاد أول قسط</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingVertical: 4 }}>
-            {months.map((mo) => (
-              <Chip
-                key={mo.key}
-                label={monthName(mo.m)}
-                sub={formatNumber(mo.y).replace(/[٬,]/g, '')}
-                active={mo.key === monthKey}
-                onPress={() => setMonthKey(mo.key)}
-              />
-            ))}
-          </ScrollView>
+          <Select
+            label="الشهر"
+            value={monthKey}
+            onChange={setMonthKey}
+            options={months.map((mo) => ({ value: mo.key, label: `${monthName(mo.m)} ${formatNumber(mo.y).replace(/[٬,]/g, '')}` }))}
+          />
           <Row gap={space.md}>
             <Text weight="semibold">يوم</Text>
             <TextInput
