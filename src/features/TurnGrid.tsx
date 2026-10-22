@@ -118,6 +118,7 @@ export function TurnGrid({
                 {x.state === 'open' && x.total ? `${formatNumber(x.paid)}/${formatNumber(x.total)} دفعوا` : LABEL[x.state]}
               </Text>
               {x.i === current && x.state !== 'done' ? <View style={styles.nowDot} /> : null}
+              <Ionicons name={on ? 'chevron-up' : 'chevron-down'} size={16} color={on ? colors.primary : colors.muted} style={styles.chev} />
             </Pressable>
           );
         })}
@@ -146,5 +147,6 @@ const styles = StyleSheet.create({
   },
   tileOn: { borderColor: colors.primary, borderWidth: 2.5, backgroundColor: colors.primarySoft },
   badge: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  chev: { position: 'absolute', top: 6, right: 6 },
   nowDot: { position: 'absolute', top: 6, left: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
 });

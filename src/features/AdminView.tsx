@@ -326,6 +326,8 @@ function CollectTab({
   const entries = useMemo(() => timeline(circle), [circle]);
   const current = currentIndex(circle);
   const [index, setIndex] = useState(() => Math.max(0, Math.min(current, entries.length - 1)));
+  // The chosen turn's details open under its tile, and close when it's tapped again.
+  const [expanded, setExpanded] = useState(false);
   const { run } = useAction();
   const pending = pendingApprovals(circle, payments);
   const [review, setReview] = useState<{ payment: Payment; member: Member; entry: TimelineEntry } | null>(null);
@@ -596,8 +598,12 @@ function CollectTab({
         circle={circle}
         payments={payments}
         current={current}
-        selected={i}
-        onSelect={setIndex}
+        selected={expanded ? i : -1}
+        onSelect={(k) => {
+          if (expanded && k === i) return setExpanded(false);
+          setIndex(k);
+          setExpanded(true);
+        }}
         details={
           <View style={{ gap: space.md, padding: space.sm, borderRadius: radius.lg, borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.bg }}>
           <View style={{ alignItems: 'center' }}>
