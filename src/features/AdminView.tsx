@@ -109,6 +109,7 @@ import { MessagesTab } from './Messaging';
 import { AdminPayoutSheet, describePayout, PAYOUT_TONE } from './PayoutSheets';
 import { AdminRecordTransferSheet, METHOD_COLOR, METHOD_ICON } from './PaySheet';
 import { ReceiptViewer } from './ReceiptViewer';
+import { TurnGrid } from './TurnGrid';
 import { TurnsSheet } from './TurnsSheet';
 import { useAppSession } from '@/data/session';
 import { ensurePushToken } from '@/notifications';
@@ -591,17 +592,21 @@ function CollectTab({
         </Card>
       )}
 
-      <Row style={{ justifyContent: 'space-between' }}>
-        <IconButton icon="chevron-forward" label="اللي فات" disabled={i === 0} onPress={() => setIndex(i - 1)} />
-        <View style={{ alignItems: 'center', flex: 1 }}>
-          <Text variant="heading">{periodTitle(entry)}</Text>
-          <Text variant="caption">
-            {formatDate(entry.date)}
-            {i === current ? ' • الحالي' : ''}
-          </Text>
-        </View>
-        <IconButton icon="chevron-back" label="اللي جاي" disabled={i === entries.length - 1} onPress={() => setIndex(i + 1)} />
-      </Row>
+      <TurnGrid
+        circle={circle}
+        payments={payments}
+        current={current}
+        selected={i}
+        onSelect={setIndex}
+        details={
+          <View style={{ gap: space.md, padding: space.sm, borderRadius: radius.lg, borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.bg }}>
+          <View style={{ alignItems: 'center' }}>
+            <Text variant="heading">{periodTitle(entry)}</Text>
+            <Text variant="caption">
+              {formatDate(entry.date)}
+              {i === current ? ' • الحالي' : ''}
+            </Text>
+          </View>
 
       {entry.period.kind === 'skip' ? (
         <Card>
@@ -761,6 +766,9 @@ function CollectTab({
           />
         </>
       )}
+          </View>
+        }
+      />
       <DeferSheet
         member={deferFor}
         entry={entry}
