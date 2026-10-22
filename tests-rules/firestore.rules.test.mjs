@@ -820,23 +820,18 @@ describe('organizer sign-in codes', () => {
   });
 });
 
-describe('organizer password recovery vault', () => {
+
+describe('organizer phone → email', () => {
   const PH = '201099952333';
   const owner = () =>
-    env.authenticatedContext('own1', { email: `${PH}@phone.dory.app`, firebase: { sign_in_provider: 'password' } }).firestore();
-  const hidden = (uid) =>
-    env.authenticatedContext(uid, { email: `rabc@phone.dory.app`, firebase: { sign_in_provider: 'password' } }).firestore();
-  const data = { owner: 'own1', rUid: 'hid1', salt: 'S', box: 'aa.bb', at: serverTimestamp() };
+    env.authenticatedContext('own1', { email: 'shady@gmail.com', firebase: { sign_in_provider: 'password' } }).firestore();
 
-  it('only the number owner writes; only the hidden login (or owner) reads', async () => {
-    await assertSucceeds(setDoc(doc(owner(), 'vault', PH), data));
-    await assertFails(setDoc(doc(hidden('hid1'), 'vault', PH), data));
-    await assertFails(setDoc(doc(admin(), 'vault', PH), { ...data, owner: 'admin' }));
-    await assertFails(setDoc(doc(owner(), 'vault', PH), { ...data, extra: 1 }));
-    await assertSucceeds(getDoc(doc(hidden('hid1'), 'vault', PH)));
-    await assertSucceeds(getDoc(doc(owner(), 'vault', PH)));
-    await assertFails(getDoc(doc(hidden('hid2'), 'vault', PH)));
-    await assertFails(getDoc(doc(anon('x'), 'vault', PH)));
-    await assertFails(getDocs(collection(owner(), 'vault')));
+  it('only the account itself writes its number; anyone signed in looks one up', async () => {
+    await assertFails(setDoc(doc(owner(), 'adminLogins', PH), { uid: 'own1', email: 'other@gmail.com' }));
+    await assertFails(setDoc(doc(anon('a1'), 'adminLogins', PH), { uid: 'a1', email: 'shady@gmail.com' }));
+    await assertSucceeds(setDoc(doc(owner(), 'adminLogins', PH), { uid: 'own1', email: 'shady@gmail.com' }));
+    await assertFails(setDoc(doc(admin(), 'adminLogins', PH), { uid: 'admin', email: 'shady@gmail.com' }));
+    await assertSucceeds(getDoc(doc(anon('a2'), 'adminLogins', PH)));
+    await assertFails(getDocs(collection(anon('a2'), 'adminLogins')));
   });
 });

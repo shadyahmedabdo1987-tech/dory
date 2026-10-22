@@ -1,69 +1,61 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ScrollView } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, View } from 'react-native';
 
 import { normalizePhone } from '@/core';
-import { createRecoveryCode, signInAdmin, signUpAdmin } from '@/data';
+import { isEmail, sendAdminResetLink, signInAdmin, signUpAdmin } from '@/data';
 import { Button, Card, Field, Segmented, Text } from '@/ui/components';
 import { alert } from '@/ui/dialog';
-import { ForgotPasswordSheet, RecoveryCodeSheet } from '@/features/RecoveryCode';
-import { useAction } from '@/ui/feedback';
+import { Sheet, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { writePrefs } from '@/ui/prefs';
-import { hasSavedPassword, rememberPassword, unlockSavedPassword } from '@/ui/savedPassword';
 import { colors, space } from '@/ui/theme';
 
 type Mode = 'signin' | 'signup';
 
-/** Organizer account: mobile number + password, exactly like the members. */
+/**
+ * Organizer account: signs in with the mobile number + password.
+ * The email is asked once at sign-up and only used for the "forgot password" link.
+ */
 export default function AuthScreen() {
   const [mode, setMode] = useState<Mode>('signup');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [forgotOpen, setForgotOpen] = useState(false);
-  const [recovery, setRecovery] = useState<string | null>(null);
+  const [forgotEmail, setForgotEmail] = useState('');
   const { busy, run } = useAction();
 
   const phoneOk = !!normalizePhone(phone);
-  const [onPhone, setOnPhone] = useState(false);
-  useEffect(() => {
-    if (mode === 'signin' && phoneOk) hasSavedPassword({ kind: 'admin', phone }).then(setOnPhone);
-    else setOnPhone(false);
-  }, [mode, phone, phoneOk]);
+  const emailOk = isEmail(email);
 
-  const quick = () =>
+  const submit = () =>
     run(async () => {
-      const saved = await unlockSavedPassword({ kind: 'admin', phone }, 'ادخل دوري');
-      await signInAdmin(phone, saved);
+      if (mode === 'signup') await signUpAdmin(name, phone, email, password);
+      else await signInAdmin(phone, password);
       writePrefs({ myPhone: phone.trim() });
       router.back();
     });
 
-  const submit = async () => {
+  const sendLink = async () => {
     const ok = await run(async () => {
-      if (mode === 'signup') await signUpAdmin(name, phone, password);
-      else await signInAdmin(phone, password);
-      writePrefs({ myPhone: phone.trim() });
-      await rememberPassword({ kind: 'admin', phone }, password);
+      await sendAdminResetLink(phone, forgotEmail);
       return true;
     });
     if (!ok) return;
-    if (mode === 'signin') return router.back();
-    // New account: give the recovery code right away (sent to the owner's own WhatsApp).
-    const code = await createRecoveryCode(password).catch(() => null);
-    if (code) setRecovery(code);
-    else {
-      alert('الحساب اتعمل ✓', 'اعمل كود استرجاع من صفحة حسابك، علشان لو نسيت الرقم السري.');
-      router.back();
-    }
+    setForgotOpen(false);
+    alert(
+      'بعتنالك لينك على إيميلك ✓',
+      'افتح الإيميل ودوس على اللينك، هيفتحلك صفحة تكتب فيها رقم سري جديد. بعدها ارجع هنا وادخل برقمك والرقم السري الجديد. لو مش لاقيه، بص في الـSpam.',
+    );
   };
 
   return (
     <KeyboardScreen>
       <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">
         <Text color={colors.muted}>
-          سجّل برقم موبايلك ورقم سري، زي الأعضاء بالظبط. لو غيّرت موبايلك، ادخل بنفس الرقم والرقم السري وهتلاقي كل جمعياتك زي ما هي.
+          سجّل برقم موبايلك ورقم سري. لو غيّرت موبايلك، ادخل بنفس الرقم والرقم السري وهتلاقي كل جمعياتك زي ما هي.
         </Text>
         <Segmented
           value={mode}
@@ -80,7 +72,6 @@ export default function AuthScreen() {
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
-            autoCapitalize="none"
             autoComplete="tel"
             placeholder="01xxxxxxxxx"
             style={{ textAlign: 'left', writingDirection: 'ltr' }}
@@ -91,37 +82,66 @@ export default function AuthScreen() {
             onChangeText={setPassword}
             secureTextEntry
             autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            hint={mode === 'signup' ? '٦ حروف أو أرقام أو أكتر — احفظه كويس' : undefined}
+            hint={mode === 'signup' ? '٦ حروف أو أرقام أو أكتر' : undefined}
           />
+          {mode === 'signup' && (
+            <Field
+              label="إيميلك (لو نسيت الرقم السري بس)"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              placeholder="name@gmail.com"
+              hint="مش هتدخل بيه. لو نسيت الرقم السري هنبعتلك عليه لينك تغيّره منه."
+              error={email.trim() && !emailOk ? 'الإيميل مكتوب غلط' : undefined}
+              style={{ textAlign: 'left', writingDirection: 'ltr' }}
+            />
+          )}
           <Button
             label={mode === 'signup' ? 'إنشاء الحساب' : 'دخول'}
             icon="log-in-outline"
             loading={busy}
-            disabled={!phoneOk || password.length < 6 || (mode === 'signup' && !name.trim())}
+            disabled={!phoneOk || password.length < 6 || (mode === 'signup' && (!name.trim() || !emailOk))}
             onPress={submit}
           />
-          {onPhone ? <Button label="ادخل بالبصمة أو قفل الموبايل" icon="finger-print" variant="secondary" loading={busy} onPress={quick} /> : null}
-          {mode === 'signin' && <Button label="نسيت الرقم السري" variant="ghost" onPress={() => setForgotOpen(true)} />}
+          {mode === 'signin' && (
+            <Button
+              label="نسيت الرقم السري"
+              variant="ghost"
+              onPress={() => {
+                setForgotEmail('');
+                setForgotOpen(true);
+              }}
+            />
+          )}
         </Card>
       </ScrollView>
-      <ForgotPasswordSheet
-        visible={forgotOpen}
-        initialPhone={phone}
-        onClose={() => setForgotOpen(false)}
-        onDone={(p) => {
-          setForgotOpen(false);
-          writePrefs({ myPhone: p.trim() });
-          router.back();
-        }}
-      />
-      <RecoveryCodeSheet
-        code={recovery}
-        phone={phone}
-        onClose={() => {
-          setRecovery(null);
-          router.back();
-        }}
-      />
+
+      <Sheet visible={forgotOpen} title="نسيت الرقم السري" onClose={() => setForgotOpen(false)}>
+        <View style={{ gap: space.md }}>
+          <Text variant="caption">اكتب رقمك والإيميل اللي سجّلت بيه، وهنبعتلك عليه لينك تغيّر منه الرقم السري.</Text>
+          <Field
+            label="رقم الموبايل"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            placeholder="01xxxxxxxxx"
+            style={{ textAlign: 'left', writingDirection: 'ltr' }}
+          />
+          <Field
+            label="الإيميل"
+            value={forgotEmail}
+            onChangeText={setForgotEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            placeholder="name@gmail.com"
+            style={{ textAlign: 'left', writingDirection: 'ltr' }}
+          />
+          <Button label="ابعتلي اللينك" icon="mail-outline" loading={busy} disabled={!phoneOk || !isEmail(forgotEmail)} onPress={sendLink} />
+        </View>
+      </Sheet>
     </KeyboardScreen>
   );
 }

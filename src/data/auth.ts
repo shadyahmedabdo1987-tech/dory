@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { normalizePhone } from '@/core';
 
 import { AppError } from './errors';
+import { restCommit, restGet } from './rest';
 import { firebaseAuth, isFirebaseConfigured, resetFirestore } from './firebase';
 
 export interface Session {
@@ -69,7 +70,7 @@ export async function updateMyName(name: string): Promise<void> {
 const PHONE_DOMAIN = '@phone.dory.app';
 export function loginFor(idOrPhone: string): string {
   const phone = normalizePhone(idOrPhone.trim());
-  if (!phone) throw new AppError('auth/invalid-email', 'رقم الموبايل مكتوب غلط.');
+  if (!phone) throw new AppError('dory/bad-phone', 'رقم الموبايل مكتوب غلط.');
   return `${phone}${PHONE_DOMAIN}`;
 }
 /** The number an organizer signs in with (or null for an older email account). */
@@ -79,28 +80,66 @@ export function phoneOfLogin(email: string | null | undefined): string | null {
   return d.startsWith('20') ? `0${d.slice(2)}` : d;
 }
 
-export async function signUpAdmin(name: string, email: string, password: string): Promise<User> {
-  email = loginFor(email);
+export const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
+
+/**
+ * The organizer signs in with the mobile number; the email (asked once at sign-up) is only
+ * where the "change / forgot password" link goes. `adminLogins/{phone}` maps one to the other.
+ */
+async function adminEmailOf(phone: string): Promise<string | null> {
+  await ensureSignedIn(); // the lookup needs a (silent) sign-in
+  const f = await restGet(`adminLogins/${phone}`).catch(() => null);
+  return typeof f?.email === 'string' ? f.email : null;
+}
+
+function phoneOrThrow(raw: string): string {
+  const p = normalizePhone(raw.trim());
+  if (!p) throw new AppError('dory/bad-phone', 'رقم الموبايل مكتوب غلط.');
+  return p;
+}
+
+export async function signUpAdmin(name: string, rawPhone: string, rawEmail: string, password: string): Promise<User> {
+  const phone = phoneOrThrow(rawPhone);
+  const email = rawEmail.trim().toLowerCase();
+  if (!isEmail(email)) throw new AppError('auth/invalid-email', 'الإيميل مكتوب غلط.');
+  if (await adminEmailOf(phone)) throw new AppError('auth/phone-in-use', 'الرقم ده عليه حساب بالفعل. سجّل دخول.');
   const auth = firebaseAuth();
   const current = auth.currentUser;
   // A member who joined anonymously keeps their circles by upgrading in place.
-  const cred =
-    current?.isAnonymous
-      ? await linkWithCredential(current, EmailAuthProvider.credential(email.trim(), password))
-      : await createUserWithEmailAndPassword(auth, email.trim(), password);
+  const cred = current?.isAnonymous
+    ? await linkWithCredential(current, EmailAuthProvider.credential(email, password))
+    : await createUserWithEmailAndPassword(auth, email, password);
   if (name.trim()) await updateProfile(cred.user, { displayName: name.trim() });
   // Refresh the ID token so security rules see the new sign-in provider.
   await cred.user.getIdToken(true);
+  await restCommit([{ set: `adminLogins/${phone}`, data: { uid: cred.user.uid, email } }]);
   return cred.user;
 }
 
-export async function signInAdmin(email: string, password: string): Promise<User> {
-  const cred = await signInWithEmailAndPassword(firebaseAuth(), loginFor(email), password);
+export async function signInAdmin(rawPhone: string, password: string): Promise<User> {
+  const phone = phoneOrThrow(rawPhone);
+  const email = await adminEmailOf(phone);
+  // Older accounts (made with the number only) sign in with the number-shaped login.
+  const cred = await signInWithEmailAndPassword(firebaseAuth(), email ?? loginFor(phone), password);
   return cred.user;
 }
 
-export async function resetPassword(email: string): Promise<void> {
-  await sendPasswordResetEmail(firebaseAuth(), email.trim());
+/** Forgot password: the email must be the one this number registered with. */
+export async function sendAdminResetLink(rawPhone: string, rawEmail: string): Promise<void> {
+  const phone = phoneOrThrow(rawPhone);
+  const email = rawEmail.trim().toLowerCase();
+  const saved = await adminEmailOf(phone);
+  if (!saved) throw new AppError('auth/user-not-found', 'مفيش حساب صاحب جمعية بالرقم ده.');
+  if (saved !== email) throw new AppError('auth/wrong-email', 'الإيميل ده مش هو اللي متسجّل بالرقم ده.');
+  await sendPasswordResetEmail(firebaseAuth(), email);
+}
+
+/** Signed in: send the change-password link to my own email. Returns where it went. */
+export async function sendMyResetLink(): Promise<string> {
+  const email = firebaseAuth().currentUser?.email;
+  if (!email || email.endsWith(PHONE_DOMAIN)) throw new AppError('auth/no-email', 'الحساب ده مفيهوش إيميل.');
+  await sendPasswordResetEmail(firebaseAuth(), email);
+  return email;
 }
 
 /** Members don't need an account: an anonymous session is enough to join. */

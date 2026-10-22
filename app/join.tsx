@@ -38,7 +38,6 @@ import { colors, radius, space } from '@/ui/theme';
 import { useAppSession } from '@/data/session';
 import { readPrefsSync, writePrefs } from '@/ui/prefs';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
-import { hasSavedPassword, rememberPassword, unlockSavedPassword } from '@/ui/savedPassword';
 
 /** The spinner shows at least this long so the screen doesn't flash. */
 const MIN_LOADING_MS = 1500;
@@ -304,22 +303,6 @@ function JoinSheet({
   const [name, setName] = useState(user?.displayName ?? '');
   const { busy, run } = useAction();
   const phoneOk = !!normalizePhone(phone);
-  const [onPhone, setOnPhone] = useState(false);
-  useEffect(() => {
-    if (step === 'login' && circle && phoneOk) hasSavedPassword({ kind: 'member', cid: circle.id, phone }).then(setOnPhone);
-    else setOnPhone(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, phone, phoneOk]);
-  const quickLogin = async () => {
-    if (!circle) return;
-    try {
-      const saved = await unlockSavedPassword({ kind: 'member', cid: circle.id, phone }, 'ادخل الجمعية');
-      setWithCode(false);
-      login(saved);
-    } catch (e) {
-      alert('معلش', (e as Error).message);
-    }
-  };
   const passwordShort = !!password && password.length < MIN_PASSWORD;
   const mismatch = !!password2 && password2 !== password;
 
@@ -369,7 +352,7 @@ function JoinSheet({
     });
 
   // Registered member: number + password → straight back in, same name and turn.
-  const login = (pw: string = password) =>
+  const login = () =>
     circle &&
     run(async () => {
       await ensurePushToken().catch(() => null);
@@ -377,21 +360,21 @@ function JoinSheet({
       const me = (await ensureSignedIn()).uid;
       if (withCode) {
         // The organizer's code (checked against its fingerprint), then a password of their own.
-        await joinWithLoginCode(code, phone, me, pw);
+        await joinWithLoginCode(code, phone, me, password);
         writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
         setFromCode(true);
         setPassword('');
         setPassword2('');
         return setStep('setpw');
       }
-      const used = pw;
+      const used = password;
       try {
-        await joinCircle(code, phone, me, pw);
+        await joinCircle(code, phone, me, password);
       } catch (e) {
         if (errorCode(e) !== 'dory/signin-failed') throw e;
         // A sign-out from another phone may still be landing — try once more.
         await new Promise((r) => setTimeout(r, 1500));
-        await joinCircle(code, phone, me, pw);
+        await joinCircle(code, phone, me, password);
       }
       // First sign-in for a member who never chose a password: this one becomes theirs.
       const memberId = await memberIdForPhone(circle.id, phone).catch(() => null);
@@ -401,7 +384,6 @@ function JoinSheet({
         await markPasswordSet(circle.id, memberId).catch(() => {});
       }
       writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
-      await rememberPassword({ kind: 'member', cid: circle.id, phone }, used);
       alert('أهلًا بيك تاني ✓', 'دخلت باسمك ودورك المسجّلين في الجمعية.');
       open(circle.id);
     });
@@ -423,7 +405,6 @@ function JoinSheet({
       }
       const memberId = await memberIdForPhone(circle.id, phone);
       if (memberId) await setMyPassword(circle.id, memberId, phone, password);
-      await rememberPassword({ kind: 'member', cid: circle.id, phone }, password);
       writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
       alert('أهلًا بيك ✓', 'دخلت الجمعية باسمك ودورك. المرة الجاية تدخل بالكود ورقمك والباسورد اللي اخترته.');
       open(circle.id);
@@ -437,7 +418,6 @@ function JoinSheet({
       const memberId = await memberIdForPhone(circle.id, phone);
       if (!memberId) throw new AppError('dory/phone-not-found', arabicError({ code: 'dory/phone-not-found' }));
       await setMyPassword(circle.id, memberId, phone, password);
-      await rememberPassword({ kind: 'member', cid: circle.id, phone }, password);
       writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
       alert('تم حفظ الباسورد ✓', 'بقيت مربوط بالجمعية باسمك ودورك. المرة الجاية تدخل بالكود ورقمك والباسورد ده.');
       open(circle.id);
@@ -452,7 +432,6 @@ function JoinSheet({
       await ensurePushToken().catch(() => null);
       // The mobile number is also the InstaPay / Vodafone Cash number they get paid on.
       const result = await requestJoin(circle.id, { name, phone, password, payAccount: phone }, uid);
-      await rememberPassword({ kind: 'member', cid: circle.id, phone }, password);
       writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
       if (result.joined) return open(circle.id);
       await addPendingJoin({ cid: circle.id, circleName: circle.name, name: name.trim() });
@@ -581,11 +560,8 @@ function JoinSheet({
                 icon="log-in-outline"
                 loading={busy}
                 disabled={withCode ? !/^\d{6}$/.test(password) : !password}
-                onPress={() => login()}
+                onPress={login}
               />
-              {onPhone && !withCode ? (
-                <Button label="ادخل بالبصمة أو قفل الموبايل" icon="finger-print" variant="secondary" loading={busy} onPress={quickLogin} />
-              ) : null}
               <Pressable
                 onPress={() => {
                   setPassword('');
@@ -599,7 +575,7 @@ function JoinSheet({
                 </Text>
               </Pressable>
               <Text variant="caption" center>
-                نسيت الباسورد؟ لو دخلت قبل كده من الموبايل ده، ادخل بالبصمة أو قفل الموبايل. غير كده، اطلب من صاحب الجمعية كود دخول وهتختار باسورد جديد.
+                نسيت الباسورد؟ اطلب من صاحب الجمعية يفك الربط، وبعدها تدخل بالكود ورقمك وتختار باسورد جديد.
               </Text>
             </>
           ) : (

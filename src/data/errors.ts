@@ -39,11 +39,11 @@ export const MESSAGES: Record<string, string> = {
   'failed-precondition': 'العملية مش متاحة دلوقتي. جرّب تاني.',
 
   // Auth
-  'auth/invalid-email': 'رقم الموبايل مكتوب غلط.',
+  'auth/invalid-email': 'الإيميل مكتوب غلط.',
   'auth/invalid-credential': 'الرقم أو الرقم السري غلط.',
   'auth/wrong-password': 'الرقم أو الرقم السري غلط.',
   'auth/user-not-found': 'مفيش حساب بالرقم ده.',
-  'auth/email-already-in-use': 'الرقم ده عليه حساب بالفعل. سجّل دخول.',
+  'auth/email-already-in-use': 'الإيميل ده عليه حساب تاني. اكتب إيميل تاني.',
   'auth/weak-password': 'الرقم السري لازم يكون ٦ حروف أو أرقام أو أكتر.',
   'auth/too-many-requests': 'محاولات كتير. استنى شوية وجرّب تاني.',
   'auth/network-request-failed': 'مفيش نت. اتأكد من الاتصال وجرّب تاني.',

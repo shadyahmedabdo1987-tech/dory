@@ -7,14 +7,13 @@ import { BackHandler, I18nManager, Linking, Platform, ScrollView, StyleSheet, Vi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatNumber, INSTAPAY_ADDRESS, normalizePayAccount, normalizePhone } from '@/core';
-import { changeMyEmail, clearPendingJoins, phoneOfLogin, myAdminInstapay, myMemberProfiles, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles, withTimeout } from '@/data';
+import { changeMyEmail, clearPendingJoins, phoneOfLogin, sendMyResetLink, myAdminInstapay, myMemberProfiles, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles, withTimeout } from '@/data';
 import { useAppSession } from '@/data/session';
 import { clearReminders, unregisterPush } from '@/notifications';
 import { Badge, Button, Card, Field, Row, Segmented, Text } from '@/ui/components';
 import { alert } from '@/ui/dialog';
 import { confirm, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
-import { RecoveryCard } from '@/features/RecoveryCode';
 import { LockCard } from '@/features/LockCard';
 import { clearSignInPrefs, readPrefsSync, writePrefs, type Lang, type ThemeMode } from '@/ui/prefs';
 import { lang as currentLang } from '@/i18n';
@@ -24,7 +23,9 @@ import { colors, radius, space, themeMode } from '@/ui/theme';
 export default function Account() {
   const insets = useSafeAreaInsets();
   const { user, isAccount, refresh } = useAppSession();
-  const loginPhone = phoneOfLogin(user?.email);
+  const syntheticPhone = phoneOfLogin(user?.email);
+  const loginPhone = syntheticPhone ?? (readPrefsSync().myPhone || null);
+  const hasResetEmail = !!user?.email && !syntheticPhone;
   const { refs } = useMyCircles(user?.uid);
   const { busy, run } = useAction();
 
@@ -203,7 +204,7 @@ export default function Account() {
           <Badge label={isAccount ? 'صاحب جمعية' : 'عضو'} tone="gold" />
           {isAccount && user.email ? (
             <Text variant="caption" color="rgba(255,255,255,0.85)" selectable style={{ writingDirection: 'ltr' }}>
-              {loginPhone ?? user.email}
+              {loginPhone ?? ''}
             </Text>
           ) : null}
         </View>
@@ -283,51 +284,34 @@ export default function Account() {
           {isAccount ? (
             <View style={styles.info}>
               <Row gap={space.sm}>
-                <Ionicons name={loginPhone ? 'call-outline' : 'mail-outline'} size={18} color={colors.muted} />
+                <Ionicons name="call-outline" size={18} color={colors.muted} />
                 <Text variant="caption" style={{ flex: 1 }}>
-                  {loginPhone ? 'رقم الدخول' : 'الإيميل'}
+                  رقم الدخول
                 </Text>
-                {!emailOpen && !loginPhone ? (
-                  <Text variant="caption" weight="bold" color={colors.primary} onPress={() => setEmailOpen(true)}>
-                    تعديل
-                  </Text>
-                ) : null}
               </Row>
-              <Text
-                weight="semibold"
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.7}
-                selectable
-                style={{ writingDirection: 'ltr', textAlign: 'left', marginTop: 2 }}
-              >
-                {loginPhone ?? user.email ?? '—'}
+              <Text weight="semibold" numberOfLines={1} selectable style={{ writingDirection: 'ltr', textAlign: 'left', marginTop: 2 }}>
+                {loginPhone ?? '—'}
               </Text>
-              {emailOpen ? (
-                <View style={{ gap: space.sm, marginTop: space.sm }}>
-                  <Field
-                    label="الإيميل الجديد"
-                    value={newEmail}
-                    onChangeText={setNewEmail}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    error={emailBad ? 'إيميل مش صحيح' : undefined}
-                    style={{ textAlign: 'left', writingDirection: 'ltr' }}
-                  />
-                  <Field label="الباسورد الحالي" value={password} onChangeText={setPassword} secureTextEntry />
-                  <Row gap={space.sm}>
-                    <Button label="غيّر الإيميل" icon="mail" loading={busy} style={{ flex: 2 }} onPress={saveEmail} />
-                    <Button label="إلغاء" variant="ghost" style={{ flex: 1 }} onPress={() => setEmailOpen(false)} />
-                  </Row>
-                </View>
+              {hasResetEmail ? (
+                <Button
+                  label="غيّر الرقم السري"
+                  icon="key-outline"
+                  variant="secondary"
+                  loading={busy}
+                  style={{ marginTop: space.sm }}
+                  onPress={() =>
+                    run(async () => {
+                      await sendMyResetLink();
+                      alert('بعتنالك لينك على إيميلك ✓', 'افتح الإيميل ودوس على اللينك، وغيّر منه الرقم السري. لو مش لاقيه، بص في الـSpam.');
+                    })
+                  }
+                />
               ) : null}
             </View>
           ) : (
             <Text variant="caption">حساب إنستاباي ده بيتكتب لوحده لما تطلب القبض.</Text>
           )}
         </Card>
-
-        {loginPhone ? <RecoveryCard phone={loginPhone} /> : null}
 
         <LockCard />
 
