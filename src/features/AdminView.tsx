@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Animated, I18nManager, Linking as RNLinking, PanResponder, Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
@@ -109,7 +109,7 @@ import { MessagesTab } from './Messaging';
 import { AdminPayoutSheet, describePayout, PAYOUT_TONE } from './PayoutSheets';
 import { AdminRecordTransferSheet, METHOD_COLOR, METHOD_ICON } from './PaySheet';
 import { ReceiptViewer } from './ReceiptViewer';
-import { TurnGrid } from './TurnGrid';
+import { ScrollToContext, TurnGrid } from './TurnGrid';
 import { TurnsSheet } from './TurnsSheet';
 import { useAppSession } from '@/data/session';
 import { ensurePushToken } from '@/notifications';
@@ -177,6 +177,18 @@ export function AdminView({
   // The amounts shown up top follow the turn being collected now (or the next one), extras included.
   const heroEntry = timeline(circle).find((e) => e.period.kind === 'payout' && !e.period.paidOut && e.index >= Math.max(0, o.current));
   const heroPeriod = heroEntry?.period;
+  // Lets a section (e.g. an opened turn) bring itself into view.
+  const scrollRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
+  const scrollToNode = useCallback((node: View | null, offset = 12) => {
+    const content = contentRef.current;
+    if (!node || !content) return;
+    node.measureLayout(
+      content,
+      (_x, y) => scrollRef.current?.scrollTo({ y: Math.max(0, y - offset), animated: true }),
+      () => {},
+    );
+  }, []);
   const extras = upcomingExtras(circle, o.current);
   // The headline total grows with every extra amount still to be collected.
   const extrasTotal = extras.reduce((s, x) => s + x.total, 0);
@@ -185,7 +197,9 @@ export function AdminView({
 
   return (
     <KeyboardScreen>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: insets.bottom + space.xxl }}>
+    <ScrollToContext.Provider value={scrollToNode}>
+    <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }}>
+    <View ref={contentRef} collapsable={false} style={{ gap: space.lg }}>
       {completion.done ? (
       <Pressable onPress={() => { tap(); setShowTurns(true); }} style={({ pressed }) => [styles.hero, pressed && { opacity: 0.9 }]}>
         <Celebration size={88} height={190} />
@@ -303,7 +317,9 @@ export function AdminView({
       {tab === 'schedule' && <ScheduleTab circle={circle} payments={payments} />}
       {tab === 'members' && <MembersTab circle={circle} payments={payments} requests={joinRequests} />}
       {tab === 'messages' && <MessagesTab circle={circle} payments={payments} uid={uid} />}
+    </View>
     </ScrollView>
+    </ScrollToContext.Provider>
     </KeyboardScreen>
   );
 }

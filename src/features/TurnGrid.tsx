@@ -1,10 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { formatDate, formatNumber, periodSummary, type Circle, type Payment } from '@/core';
 import { Text, tap } from '@/ui/components';
 import { colors, radius, space } from '@/ui/theme';
+
+/** Provided by the screen's scroll view: scrolls so that `node` sits at the top. */
+export const ScrollToContext = createContext<((node: View | null, offset?: number) => void) | null>(null);
 
 export type TurnState = 'done' | 'awaiting' | 'collected' | 'open' | 'upcoming' | 'skip';
 
@@ -67,6 +70,18 @@ export function TurnGrid({
   const rows: (typeof items)[] = [];
   for (let k = 0; k < items.length; k += 3) rows.push(items.slice(k, k + 3));
 
+  // Opening a turn brings its row + details into view; closing it goes back up to the tile.
+  const scrollTo = useContext(ScrollToContext);
+  const rowRefs = useRef<(View | null)[]>([]);
+  const last = useRef(-1);
+  useEffect(() => {
+    const k = selected >= 0 ? selected : last.current;
+    if (selected >= 0) last.current = selected;
+    if (k < 0 || !scrollTo) return;
+    const t = setTimeout(() => scrollTo(rowRefs.current[Math.floor(k / 3)] ?? null), selected >= 0 ? 80 : 30);
+    return () => clearTimeout(t);
+  }, [selected, scrollTo]);
+
   return (
     <View style={{ gap: space.sm }}>
       <View style={styles.head}>
@@ -76,7 +91,14 @@ export function TurnGrid({
         </Text>
       </View>
       {rows.map((row, r) => (
-        <View key={r} style={{ gap: space.sm }}>
+        <View
+          key={r}
+          ref={(v) => {
+            rowRefs.current[r] = v;
+          }}
+          collapsable={false}
+          style={{ gap: space.sm }}
+        >
       <View style={styles.grid}>
         {row.map((x) => {
           const green = x.state === 'done';
