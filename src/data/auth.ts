@@ -92,13 +92,34 @@ async function adminEmailOf(phone: string): Promise<string | null> {
   return typeof f?.email === 'string' ? f.email : null;
 }
 
+/**
+ * Runs an organizer sign-up / sign-in step. If it fails and the only session is the silent
+ * one made just for the number lookup, drop it — a failed attempt leaves nobody signed in.
+ */
+async function cleanOnFail<T>(fn: () => Promise<T>, alwaysClean = false): Promise<T> {
+  const auth = firebaseAuth();
+  const before = auth.currentUser?.uid ?? null;
+  const drop = async () => {
+    const u = auth.currentUser;
+    if (!before && u?.isAnonymous) await fbSignOut(auth).catch(() => {});
+  };
+  try {
+    const r = await fn();
+    if (alwaysClean) await drop();
+    return r;
+  } catch (e) {
+    await drop();
+    throw e;
+  }
+}
+
 function phoneOrThrow(raw: string): string {
   const p = normalizePhone(raw.trim());
   if (!p) throw new AppError('dory/bad-phone', 'رقم الموبايل مكتوب غلط.');
   return p;
 }
 
-export async function signUpAdmin(name: string, rawPhone: string, rawEmail: string, password: string): Promise<User> {
+async function signUpAdminInner(name: string, rawPhone: string, rawEmail: string, password: string): Promise<User> {
   const phone = phoneOrThrow(rawPhone);
   const email = rawEmail.trim().toLowerCase();
   if (!isEmail(email)) throw new AppError('auth/invalid-email', 'الإيميل مكتوب غلط.');
@@ -131,7 +152,7 @@ export async function signUpAdmin(name: string, rawPhone: string, rawEmail: stri
   return cred.user;
 }
 
-export async function signInAdmin(rawPhone: string, password: string): Promise<User> {
+async function signInAdminInner(rawPhone: string, password: string): Promise<User> {
   const phone = phoneOrThrow(rawPhone);
   const email = await adminEmailOf(phone);
   // Older accounts (made with the number only) sign in with the number-shaped login.
@@ -140,7 +161,7 @@ export async function signInAdmin(rawPhone: string, password: string): Promise<U
 }
 
 /** Forgot password: the email must be the one this number registered with. */
-export async function sendAdminResetLink(rawPhone: string, rawEmail: string): Promise<void> {
+async function sendAdminResetLinkInner(rawPhone: string, rawEmail: string): Promise<void> {
   const phone = phoneOrThrow(rawPhone);
   const email = rawEmail.trim().toLowerCase();
   const saved = await adminEmailOf(phone);
@@ -148,6 +169,11 @@ export async function sendAdminResetLink(rawPhone: string, rawEmail: string): Pr
   if (saved !== email) throw new AppError('auth/wrong-email', 'الإيميل ده مش هو اللي متسجّل بالرقم ده.');
   await sendPasswordResetEmail(firebaseAuth(), email);
 }
+
+export const signUpAdmin = (name: string, phone: string, email: string, password: string) =>
+  cleanOnFail(() => signUpAdminInner(name, phone, email, password));
+export const signInAdmin = (phone: string, password: string) => cleanOnFail(() => signInAdminInner(phone, password));
+export const sendAdminResetLink = (phone: string, email: string) => cleanOnFail(() => sendAdminResetLinkInner(phone, email), true);
 
 /** Signed in: send the change-password link to my own email. Returns where it went. */
 export async function sendMyResetLink(): Promise<string> {

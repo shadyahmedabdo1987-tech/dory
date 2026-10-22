@@ -84,6 +84,9 @@ function Home({ uid }: { uid: string }) {
   // Already in that circle (as member or organizer) → the request is done, don't show it.
   const memberIds = new Set((refs ?? []).map((r) => r.id));
   const waiting = pending.filter((p) => !memberIds.has(p.cid));
+  // A silent (anonymous) session with nothing in it — e.g. a sign-up that didn't go through —
+  // isn't a member of anything: show the start screen, as if never signed in.
+  if (user?.isAnonymous && !loading && refs && refs.length === 0 && waiting.length === 0) return <Welcome />;
   const sections: (CircleRef | { header: string } | { pending: PendingJoin })[] = [
     ...(waiting.length ? [{ header: 'طلبات مستنية موافقة' }, ...waiting.map((p) => ({ pending: p }))] : []),
     ...(member.length ? [{ header: 'جمعيات أنا فيها' }, ...member] : []),

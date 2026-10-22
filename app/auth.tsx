@@ -30,13 +30,16 @@ export default function AuthScreen() {
   const phoneOk = !!normalizePhone(phone);
   const emailOk = isEmail(email);
 
-  const submit = () =>
-    run(async () => {
+  const submit = async () => {
+    const ok = await run(async () => {
       if (mode === 'signup') await signUpAdmin(name, phone, email, password);
       else await signInAdmin(phone, password);
       writePrefs({ myPhone: phone.trim() });
-      router.back();
+      return true;
     });
+    if (ok) router.back();
+    else setPassword(''); // nothing kept from a failed try
+  };
 
   const sendLink = async () => {
     const ok = await run(async () => {
