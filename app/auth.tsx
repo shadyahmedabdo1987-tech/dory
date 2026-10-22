@@ -21,20 +21,20 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const { busy, run } = useAction();
 
-  const phoneOk = phone.includes('@') ? phone.trim().length > 5 : !!normalizePhone(phone);
+  const phoneOk = !!normalizePhone(phone);
 
   const submit = () =>
     run(async () => {
       if (mode === 'signup') await signUpAdmin(name, phone, password);
       else await signInAdmin(phone, password);
-      if (!phone.includes('@')) writePrefs({ myPhone: phone.trim() });
+      writePrefs({ myPhone: phone.trim() });
       router.back();
     });
 
   const forgot = () =>
     alert(
       'نسيت الرقم السري؟',
-      'ابعتلنا من نفس رقمك على الإيميل اللي في صفحة الخصوصية، وهنرجّعلك حسابك.',
+      'كلّم صاحب التطبيق من نفس رقمك وهيرجّعلك حسابك.',
     );
 
   return (
@@ -57,7 +57,7 @@ export default function AuthScreen() {
             label="رقم الموبايل"
             value={phone}
             onChangeText={setPhone}
-            keyboardType={phone.includes('@') ? 'email-address' : 'phone-pad'}
+            keyboardType="phone-pad"
             autoCapitalize="none"
             autoComplete="tel"
             placeholder="01xxxxxxxxx"
@@ -80,11 +80,6 @@ export default function AuthScreen() {
           />
           {mode === 'signin' && <Button label="نسيت الرقم السري" variant="ghost" onPress={forgot} />}
         </Card>
-        {mode === 'signin' ? (
-          <Text variant="caption" center>
-            ليك حساب قديم بالإيميل؟ اكتب الإيميل مكان الرقم وهيدخلك عادي.
-          </Text>
-        ) : null}
       </ScrollView>
     </KeyboardScreen>
   );

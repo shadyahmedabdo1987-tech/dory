@@ -68,9 +68,7 @@ export async function updateMyName(name: string): Promise<void> {
  */
 const PHONE_DOMAIN = '@phone.dory.app';
 export function loginFor(idOrPhone: string): string {
-  const v = idOrPhone.trim();
-  if (v.includes('@')) return v;
-  const phone = normalizePhone(v);
+  const phone = normalizePhone(idOrPhone.trim());
   if (!phone) throw new AppError('auth/invalid-email', 'رقم الموبايل مكتوب غلط.');
   return `${phone}${PHONE_DOMAIN}`;
 }
