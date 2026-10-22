@@ -1,13 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { formatDate, formatNumber, periodSummary, type Circle, type Payment } from '@/core';
 import { Text, tap } from '@/ui/components';
+import { ScrollToContext } from '@/ui/Reveal';
 import { colors, radius, space } from '@/ui/theme';
-
-/** Provided by the screen's scroll view: scrolls so that `node` sits at the top. */
-export const ScrollToContext = createContext<((node: View | null, offset?: number) => void) | null>(null);
 
 export type TurnState = 'done' | 'awaiting' | 'collected' | 'open' | 'upcoming' | 'skip';
 

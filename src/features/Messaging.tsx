@@ -19,6 +19,7 @@ import {
 } from '@/core';
 import { deleteAnnouncement, deleteInboxMessage, postAnnouncement, useAnnouncements, useMemberMessages } from '@/data';
 import { Badge, Button, Card, Field, IconButton, Row, Text } from '@/ui/components';
+import { Reveal } from '@/ui/Reveal';
 import { MultiSelect, Select } from '@/ui/Select';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
@@ -280,7 +281,7 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
           ]}
         />
         {audience === 'pick' ? (
-          <View style={{ gap: space.sm }}>
+          <Reveal active style={{ gap: space.sm }}>
             <Text variant="caption">اختار مين يوصله — محدش غيره هيشوفها.</Text>
             <MultiSelect
               values={picked}
@@ -303,7 +304,7 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
               }}
               options={quick.map((q) => ({ value: q.label, label: q.label }))}
             />
-          </View>
+          </Reveal>
         ) : null}
         {targets ? (
           <Text variant="caption" color={targets.length ? colors.primary : colors.danger}>

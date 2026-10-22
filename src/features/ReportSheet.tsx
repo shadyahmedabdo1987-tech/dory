@@ -15,6 +15,7 @@ import {
 } from '@/core';
 import { Badge, Button, Card, ProgressBar, Row, Text } from '@/ui/components';
 import { Sheet } from '@/ui/feedback';
+import { Reveal, ScrollToContext, useScrollTo } from '@/ui/Reveal';
 import { colors, radius, space } from '@/ui/theme';
 
 /**
@@ -36,16 +37,21 @@ export function ReportSheet({
   role: 'admin' | 'member';
   memberId?: string;
 }) {
+  const scroll = useScrollTo();
   if (!visible) return null;
   return (
     <Sheet visible title={role === 'admin' ? `تقرير "${circle.name}"` : 'تقريري'} onClose={onClose}>
-      <ScrollView contentContainerStyle={{ gap: space.md, paddingBottom: space.lg }}>
+      <ScrollToContext.Provider value={scroll.scrollToNode}>
+      <ScrollView ref={scroll.scrollRef} contentContainerStyle={{ paddingBottom: space.lg }}>
+      <View ref={scroll.contentRef} collapsable={false} style={{ gap: space.md }}>
         {role === 'admin' ? (
           <AdminReport circle={circle} payments={payments} />
         ) : memberId ? (
           <MemberReportView report={memberReport(circle, payments, memberId)} circle={circle} share />
         ) : null}
+      </View>
       </ScrollView>
+      </ScrollToContext.Provider>
     </Sheet>
   );
 }
@@ -212,7 +218,7 @@ function AdminReport({ circle, payments }: { circle: Circle; payments: Payment[]
         {rep.rows.map((r, k) => {
           const expanded = open === r.member.id;
           return (
-            <View key={r.member.id} style={[k > 0 && styles.divider]}>
+            <Reveal key={r.member.id} active={expanded} style={k > 0 ? styles.divider : undefined}>
               <Pressable onPress={() => setOpen(expanded ? null : r.member.id)} style={styles.row}>
                 <View style={styles.turnNum}>
                   <Text weight="bold" color={colors.primary}>
@@ -236,7 +242,7 @@ function AdminReport({ circle, payments }: { circle: Circle; payments: Payment[]
                   <MemberReportView report={r} circle={circle} />
                 </View>
               ) : null}
-            </View>
+            </Reveal>
           );
         })}
       </Card>

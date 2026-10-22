@@ -109,7 +109,8 @@ import { MessagesTab } from './Messaging';
 import { AdminPayoutSheet, describePayout, PAYOUT_TONE } from './PayoutSheets';
 import { AdminRecordTransferSheet, METHOD_COLOR, METHOD_ICON } from './PaySheet';
 import { ReceiptViewer } from './ReceiptViewer';
-import { ScrollToContext, TurnGrid } from './TurnGrid';
+import { TurnGrid } from './TurnGrid';
+import { ScrollToContext, useScrollTo } from '@/ui/Reveal';
 import { TurnsSheet } from './TurnsSheet';
 import { useAppSession } from '@/data/session';
 import { ensurePushToken } from '@/notifications';
@@ -178,17 +179,7 @@ export function AdminView({
   const heroEntry = timeline(circle).find((e) => e.period.kind === 'payout' && !e.period.paidOut && e.index >= Math.max(0, o.current));
   const heroPeriod = heroEntry?.period;
   // Lets a section (e.g. an opened turn) bring itself into view.
-  const scrollRef = useRef<ScrollView>(null);
-  const contentRef = useRef<View>(null);
-  const scrollToNode = useCallback((node: View | null, offset = 12) => {
-    const content = contentRef.current;
-    if (!node || !content) return;
-    node.measureLayout(
-      content,
-      (_x, y) => scrollRef.current?.scrollTo({ y: Math.max(0, y - offset), animated: true }),
-      () => {},
-    );
-  }, []);
+  const { scrollRef, contentRef, scrollToNode } = useScrollTo();
   const extras = upcomingExtras(circle, o.current);
   // The headline total grows with every extra amount still to be collected.
   const extrasTotal = extras.reduce((s, x) => s + x.total, 0);
