@@ -2,39 +2,46 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView } from 'react-native';
 
-import { resetPassword, signInAdmin, signUpAdmin } from '@/data';
+import { normalizePhone } from '@/core';
+import { signInAdmin, signUpAdmin } from '@/data';
 import { Button, Card, Field, Segmented, Text } from '@/ui/components';
-import { useAction } from '@/ui/feedback';
-import { colors, space } from '@/ui/theme';
 import { alert } from '@/ui/dialog';
+import { useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
+import { writePrefs } from '@/ui/prefs';
+import { colors, space } from '@/ui/theme';
 
 type Mode = 'signin' | 'signup';
 
+/** Organizer account: mobile number + password, exactly like the members. */
 export default function AuthScreen() {
   const [mode, setMode] = useState<Mode>('signup');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const { busy, run } = useAction();
 
+  const phoneOk = phone.includes('@') ? phone.trim().length > 5 : !!normalizePhone(phone);
+
   const submit = () =>
     run(async () => {
-      if (mode === 'signup') await signUpAdmin(name, email, password);
-      else await signInAdmin(email, password);
+      if (mode === 'signup') await signUpAdmin(name, phone, password);
+      else await signInAdmin(phone, password);
+      if (!phone.includes('@')) writePrefs({ myPhone: phone.trim() });
       router.back();
     });
 
-  const forgot = () => {
-    if (!email.trim()) return alert('اكتب إيميلك الأول', 'وبعدين دوس "نسيت كلمة السر".');
-    run(() => resetPassword(email), { success: 'بعتنالك إيميل تغيّر منه كلمة السر.' });
-  };
+  const forgot = () =>
+    alert(
+      'نسيت الرقم السري؟',
+      'ابعتلنا من نفس رقمك على الإيميل اللي في صفحة الخصوصية، وهنرجّعلك حسابك.',
+    );
 
   return (
     <KeyboardScreen>
       <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">
         <Text color={colors.muted}>
-          حساب صاحب الجمعية بيحفظ كل جمعياتك على السيرفر. لو غيّرت موبايلك، سجّل دخول بنفس الإيميل وهتلاقي كل حاجة زي ما هي.
+          سجّل برقم موبايلك ورقم سري، زي الأعضاء بالظبط. لو غيّرت موبايلك، ادخل بنفس الرقم والرقم السري وهتلاقي كل جمعياتك زي ما هي.
         </Text>
         <Segmented
           value={mode}
@@ -47,31 +54,37 @@ export default function AuthScreen() {
         <Card>
           {mode === 'signup' && <Field label="اسمك" value={name} onChangeText={setName} placeholder="مثلًا: شادي" />}
           <Field
-            label="الإيميل"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
+            label="رقم الموبايل"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType={phone.includes('@') ? 'email-address' : 'phone-pad'}
             autoCapitalize="none"
-            autoComplete="email"
-            placeholder="name@example.com"
+            autoComplete="tel"
+            placeholder="01xxxxxxxxx"
+            style={{ textAlign: 'left', writingDirection: 'ltr' }}
           />
           <Field
-            label="كلمة السر"
+            label="الرقم السري"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            hint={mode === 'signup' ? '٦ حروف أو أكتر' : undefined}
+            hint={mode === 'signup' ? '٦ حروف أو أرقام أو أكتر — احفظه كويس' : undefined}
           />
           <Button
             label={mode === 'signup' ? 'إنشاء الحساب' : 'دخول'}
             icon="log-in-outline"
             loading={busy}
-            disabled={!email.trim() || password.length < 6}
+            disabled={!phoneOk || password.length < 6 || (mode === 'signup' && !name.trim())}
             onPress={submit}
           />
-          {mode === 'signin' && <Button label="نسيت كلمة السر" variant="ghost" onPress={forgot} />}
+          {mode === 'signin' && <Button label="نسيت الرقم السري" variant="ghost" onPress={forgot} />}
         </Card>
+        {mode === 'signin' ? (
+          <Text variant="caption" center>
+            ليك حساب قديم بالإيميل؟ اكتب الإيميل مكان الرقم وهيدخلك عادي.
+          </Text>
+        ) : null}
       </ScrollView>
     </KeyboardScreen>
   );

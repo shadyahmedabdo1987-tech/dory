@@ -7,7 +7,7 @@ import { BackHandler, I18nManager, Linking, Platform, ScrollView, StyleSheet, Vi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatNumber, INSTAPAY_ADDRESS, normalizePayAccount, normalizePhone } from '@/core';
-import { changeMyEmail, clearPendingJoins, myAdminInstapay, myMemberProfiles, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles, withTimeout } from '@/data';
+import { changeMyEmail, clearPendingJoins, phoneOfLogin, myAdminInstapay, myMemberProfiles, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles, withTimeout } from '@/data';
 import { useAppSession } from '@/data/session';
 import { clearReminders, unregisterPush } from '@/notifications';
 import { Badge, Button, Card, Field, Row, Segmented, Text } from '@/ui/components';
@@ -23,6 +23,7 @@ import { colors, radius, space, themeMode } from '@/ui/theme';
 export default function Account() {
   const insets = useSafeAreaInsets();
   const { user, isAccount, refresh } = useAppSession();
+  const loginPhone = phoneOfLogin(user?.email);
   const { refs } = useMyCircles(user?.uid);
   const { busy, run } = useAction();
 
@@ -159,7 +160,9 @@ export default function Account() {
     const ok = await confirm(
       'تسجيل الخروج',
       isAccount
-        ? `مسجّل بـ ${user.email ?? ''}. تقدر ترجع تدخل بنفس الإيميل في أي وقت.`
+        ? loginPhone
+          ? `مسجّل برقم ${loginPhone}. تقدر ترجع تدخل بنفس الرقم والرقم السري في أي وقت.`
+          : `مسجّل بـ ${user.email ?? ''}. تقدر ترجع تدخل بيه في أي وقت.`
         : 'تقدر ترجع تدخل في أي وقت من أي موبايل بكود الجمعية ورقم موبايلك، وهتلاقي اسمك ودورك ومدفوعاتك زي ما هي.',
       'خروج',
       true,
@@ -198,8 +201,8 @@ export default function Account() {
           </Text>
           <Badge label={isAccount ? 'صاحب جمعية' : 'عضو'} tone="gold" />
           {isAccount && user.email ? (
-            <Text variant="caption" color="rgba(255,255,255,0.85)" selectable>
-              {user.email}
+            <Text variant="caption" color="rgba(255,255,255,0.85)" selectable style={{ writingDirection: 'ltr' }}>
+              {loginPhone ?? user.email}
             </Text>
           ) : null}
         </View>
@@ -279,11 +282,11 @@ export default function Account() {
           {isAccount ? (
             <View style={styles.info}>
               <Row gap={space.sm}>
-                <Ionicons name="mail-outline" size={18} color={colors.muted} />
+                <Ionicons name={loginPhone ? 'call-outline' : 'mail-outline'} size={18} color={colors.muted} />
                 <Text variant="caption" style={{ flex: 1 }}>
-                  الإيميل
+                  {loginPhone ? 'رقم الدخول' : 'الإيميل'}
                 </Text>
-                {!emailOpen ? (
+                {!emailOpen && !loginPhone ? (
                   <Text variant="caption" weight="bold" color={colors.primary} onPress={() => setEmailOpen(true)}>
                     تعديل
                   </Text>
@@ -297,7 +300,7 @@ export default function Account() {
                 selectable
                 style={{ writingDirection: 'ltr', textAlign: 'left', marginTop: 2 }}
               >
-                {user.email ?? '—'}
+                {loginPhone ?? user.email ?? '—'}
               </Text>
               {emailOpen ? (
                 <View style={{ gap: space.sm, marginTop: space.sm }}>
