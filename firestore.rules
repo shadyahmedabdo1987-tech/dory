@@ -496,6 +496,25 @@ service cloud.firestore {
     }
 
     // Everything else is closed.
+    // Organizer password recovery (see src/core/vault.ts). The organizer (signed in with
+    // <phone>@phone.dory.app) keeps their password here encrypted with the recovery code;
+    // only the hidden login made from that code can read it back.
+    match /vault/{phone} {
+      function isOwnerPhone() {
+        return request.auth != null
+          && request.auth.token.email == phone + '@phone.dory.app';
+      }
+      allow get: if isOwnerPhone()
+        || (request.auth != null && resource != null && request.auth.uid == resource.data.rUid);
+      allow create, update: if isOwnerPhone()
+        && request.resource.data.keys().hasOnly(['owner', 'rUid', 'salt', 'box', 'at'])
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.rUid is string
+        && request.resource.data.box is string && request.resource.data.box.size() < 2000
+        && request.resource.data.salt is string && request.resource.data.salt.size() < 64;
+      allow delete: if isOwnerPhone();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

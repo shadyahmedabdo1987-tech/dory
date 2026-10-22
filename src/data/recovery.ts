@@ -1,48 +1,118 @@
-import { getFunctions, httpsCallable } from 'firebase/functions';
+/**
+ * Organizer password recovery with a one-time recovery code (no email, SMS or paid server).
+ * See src/core/vault.ts for how it works.
+ */
+import * as ExpoCrypto from 'expo-crypto';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 
-import { normalizePhone } from '@/core';
+import { makeRecoveryCode, normalizePhone, openPassword, RECOVERY_DOMAIN, recoveryLogin, sealPassword } from '@/core';
 
-import { AppError } from './errors';
-import { firebaseApp } from './firebase';
+import { quickAppCheckToken } from './appCheck';
+import { signInAdmin } from './auth';
+import { AppError, MESSAGES } from './errors';
+import { firebaseAuth } from './firebase';
 
-const REGION = process.env.EXPO_PUBLIC_FUNCTIONS_REGION || 'europe-west1';
-const fns = () => getFunctions(firebaseApp(), REGION);
+const API_KEY = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
+const PROJECT = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+const DOCS = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
 
-/** Server error → the Arabic message the function already sent, or a friendly fallback. */
-function friendly(e: unknown): never {
-  const err = e as { code?: string; message?: string };
-  const code = String(err.code ?? '').replace('functions/', '');
-  if (['permission-denied', 'invalid-argument', 'resource-exhausted'].includes(code) && err.message) {
-    throw new AppError(`recovery/${code}`, err.message);
+const WRONG = () => new AppError('recovery/wrong', 'الرقم أو كود الاسترجاع غلط.');
+
+const randomBytes = (n: number) => ExpoCrypto.getRandomBytes(n);
+
+async function call(url: string, init: RequestInit, idToken?: string): Promise<Response> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (idToken) headers.Authorization = `Bearer ${idToken}`;
+  const appCheck = await quickAppCheckToken();
+  if (appCheck) headers['X-Firebase-AppCheck'] = appCheck;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  try {
+    return await fetch(url, { ...init, headers, signal: controller.signal });
+  } catch {
+    throw new AppError('dory/offline-timeout', MESSAGES['dory/offline-timeout']);
+  } finally {
+    clearTimeout(timer);
   }
-  if (code === 'not-found' || code === 'internal' || code === 'unavailable') {
-    throw new AppError('recovery/unavailable', 'خدمة الاسترجاع مش شغالة دلوقتي. جرّب بعد شوية.');
-  }
-  throw e;
 }
 
-/** New recovery code for the signed-in organizer (the old one stops working). */
-export async function issueRecoveryCode(): Promise<string> {
-  try {
-    const r = await httpsCallable<unknown, { code: string }>(fns(), 'issueRecoveryCode')({});
-    return r.data.code;
-  } catch (e) {
-    friendly(e);
-  }
+/** Firebase Auth REST: works on the hidden login without touching the app's own session. */
+async function identity(method: 'signUp' | 'signInWithPassword' | 'delete', body: object) {
+  const res = await call(`https://identitytoolkit.googleapis.com/v1/accounts:${method}?key=${API_KEY}`, {
+    method: 'POST',
+    body: JSON.stringify({ ...body, returnSecureToken: true }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { idToken?: string; localId?: string; error?: { message?: string } };
+  if (res.ok) return data as { idToken: string; localId: string };
+  const msg = data.error?.message ?? '';
+  if (msg.startsWith('TOO_MANY_ATTEMPTS')) throw new AppError('auth/too-many-requests', MESSAGES['auth/too-many-requests']);
+  if (/INVALID_LOGIN|INVALID_PASSWORD|EMAIL_NOT_FOUND|USER_DISABLED/.test(msg)) throw WRONG();
+  throw new AppError('recovery/failed', 'حصلت مشكلة. جرّب تاني.');
 }
 
-/** Number + recovery code + new password → password changed; returns the next code. */
-export async function resetPasswordWithCode(phone: string, code: string, password: string): Promise<string> {
-  try {
-    const r = await httpsCallable<unknown, { code: string }>(fns(), 'resetPasswordWithCode')({
-      phone: normalizePhone(phone),
-      code,
-      password,
-    });
-    return r.data.code;
-  } catch (e) {
-    friendly(e);
+const str = (v: string) => ({ stringValue: v });
+
+function myPhone(): { uid: string; phone: string; email: string } {
+  const user = firebaseAuth().currentUser;
+  const email = user?.email ?? '';
+  if (!user || !email.endsWith(RECOVERY_DOMAIN) || email.startsWith('r')) {
+    throw new AppError('recovery/no-account', 'لازم تكون داخل بحساب صاحب الجمعية.');
   }
+  return { uid: user.uid, phone: email.slice(0, -RECOVERY_DOMAIN.length), email };
+}
+
+/** Makes a new recovery code for the signed-in organizer (`password` = their current password). */
+export async function createRecoveryCode(password: string): Promise<string> {
+  const { uid, phone } = myPhone();
+  const code = makeRecoveryCode(randomBytes);
+  const hidden = await identity('signUp', recoveryLogin(phone, code));
+  const salt = makeRecoveryCode(randomBytes);
+  const user = firebaseAuth().currentUser!;
+  const res = await call(
+    `${DOCS}/vault/${phone}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        fields: {
+          owner: str(uid),
+          rUid: str(hidden.localId),
+          salt: str(salt),
+          box: str(sealPassword(password, code, salt)),
+          at: { timestampValue: new Date().toISOString() },
+        },
+      }),
+    },
+    await user.getIdToken(),
+  );
+  if (!res.ok) throw new AppError('recovery/failed', 'مقدرتش أحفظ كود الاسترجاع. جرّب تاني من صفحة حسابك.');
+  return code;
+}
+
+/** Account screen: checks the current password, then makes a new code. */
+export async function renewRecoveryCode(password: string): Promise<string> {
+  const { email } = myPhone();
+  await reauthenticateWithCredential(firebaseAuth().currentUser!, EmailAuthProvider.credential(email, password));
+  return createRecoveryCode(password);
+}
+
+/** Forgot password: number + recovery code + new password. Signs in and returns the next code. */
+export async function resetPasswordWithCode(rawPhone: string, code: string, newPassword: string): Promise<string> {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) throw WRONG();
+  const hidden = await identity('signInWithPassword', recoveryLogin(phone, code));
+
+  const res = await call(`${DOCS}/vault/${phone}`, { method: 'GET' }, hidden.idToken);
+  if (!res.ok) throw WRONG();
+  const f = ((await res.json()) as { fields?: Record<string, { stringValue?: string }> }).fields ?? {};
+  if (f.rUid?.stringValue !== hidden.localId) throw WRONG();
+  const old = openPassword(f.box?.stringValue ?? '', code, f.salt?.stringValue ?? '');
+  if (old === null) throw WRONG();
+
+  await signInAdmin(phone, old);
+  await updatePassword(firebaseAuth().currentUser!, newPassword);
+  const next = await createRecoveryCode(newPassword);
+  await identity('delete', { idToken: hidden.idToken }).catch(() => {}); // the used code is gone for good
+  return next;
 }
 
 export function recoveryWhatsappText(code: string): string {

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
 
 import { normalizePhone, whatsappUrl } from '@/core';
-import { issueRecoveryCode, recoveryWhatsappText, resetPasswordWithCode, signInAdmin } from '@/data';
+import { recoveryWhatsappText, renewRecoveryCode, resetPasswordWithCode } from '@/data';
 import { Button, Card, Field, Row, Text } from '@/ui/components';
 import { alert } from '@/ui/dialog';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
@@ -71,11 +71,15 @@ export function RecoveryCodeSheet({ code, phone, onClose }: { code: string | nul
 /** Account screen: make a new recovery code (the old one stops working). */
 export function RecoveryCard({ phone }: { phone: string }) {
   const [code, setCode] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [pw, setPw] = useState('');
   const { busy, run } = useAction();
   const make = async () => {
-    if (!(await confirm('كود استرجاع جديد', 'الكود القديم هيبطل يشتغل، والجديد هيظهرلك مرة واحدة بس.', 'اعمل كود'))) return;
-    const c = await run(issueRecoveryCode);
-    if (c) setCode(c);
+    const c = await run(() => renewRecoveryCode(pw));
+    if (!c) return;
+    setAsking(false);
+    setPw('');
+    setCode(c);
   };
   return (
     <Card>
@@ -86,7 +90,14 @@ export function RecoveryCard({ phone }: { phone: string }) {
         </Text>
       </Row>
       <Text variant="caption">لو نسيت الرقم السري، الكود ده بيرجّعلك حسابك. لو ضاع منك، اعمل واحد جديد.</Text>
-      <Button label="اعمل كود استرجاع جديد" icon="refresh-outline" variant="secondary" loading={busy} onPress={make} />
+      <Button label="اعمل كود استرجاع جديد" icon="refresh-outline" variant="secondary" onPress={() => setAsking(true)} />
+      <Sheet visible={asking} title="كود استرجاع جديد" onClose={() => setAsking(false)}>
+        <View style={{ gap: space.md }}>
+          <Text variant="caption">الكود القديم هيبطل يشتغل، والجديد هيظهرلك مرة واحدة بس. اكتب الرقم السري بتاعك للتأكيد.</Text>
+          <Field label="الرقم السري الحالي" value={pw} onChangeText={setPw} secureTextEntry />
+          <Button label="اعمل الكود" icon="key" loading={busy} disabled={pw.length < 6} onPress={make} />
+        </View>
+      </Sheet>
       <RecoveryCodeSheet code={code} phone={phone} onClose={() => setCode(null)} />
     </Card>
   );
@@ -118,9 +129,7 @@ export function ForgotPasswordSheet({
 
   const submit = async () => {
     const next = await run(async () => {
-      const c = await resetPasswordWithCode(phone, clean, pw);
-      await signInAdmin(phone, pw);
-      return c;
+      return resetPasswordWithCode(phone, clean, pw);
     });
     if (next) setNewCode(next);
   };

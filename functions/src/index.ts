@@ -161,5 +161,3 @@ export const onAnnouncementCreated = onDocumentCreated('circles/{cid}/announceme
     type: 'announcement',
   });
 });
-
-export { issueRecoveryCode, resetPasswordWithCode } from './recovery.js';

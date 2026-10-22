@@ -6,3 +6,4 @@ export * from './reminders.ts';
 export * from './payments.ts';
 export * from './whatsapp.ts';
 export * from './hash.ts';
+export * from './vault.ts';

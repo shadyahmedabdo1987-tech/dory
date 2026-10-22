@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ScrollView } from 'react-native';
 
 import { normalizePhone } from '@/core';
-import { issueRecoveryCode, signInAdmin, signUpAdmin } from '@/data';
+import { createRecoveryCode, signInAdmin, signUpAdmin } from '@/data';
 import { Button, Card, Field, Segmented, Text } from '@/ui/components';
 import { alert } from '@/ui/dialog';
 import { ForgotPasswordSheet, RecoveryCodeSheet } from '@/features/RecoveryCode';
@@ -36,7 +36,7 @@ export default function AuthScreen() {
     if (!ok) return;
     if (mode === 'signin') return router.back();
     // New account: give the recovery code right away (sent to the owner's own WhatsApp).
-    const code = await issueRecoveryCode().catch(() => null);
+    const code = await createRecoveryCode(password).catch(() => null);
     if (code) setRecovery(code);
     else {
       alert('الحساب اتعمل ✓', 'اعمل كود استرجاع من صفحة حسابك، علشان لو نسيت الرقم السري.');

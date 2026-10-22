@@ -819,3 +819,24 @@ describe('organizer sign-in codes', () => {
     await assertSucceeds(deleteDoc(doc(adb, 'circles', CID, 'phones', 'code-m1')));
   });
 });
+
+describe('organizer password recovery vault', () => {
+  const PH = '201099952333';
+  const owner = () =>
+    env.authenticatedContext('own1', { email: `${PH}@phone.dory.app`, firebase: { sign_in_provider: 'password' } }).firestore();
+  const hidden = (uid) =>
+    env.authenticatedContext(uid, { email: `rabc@phone.dory.app`, firebase: { sign_in_provider: 'password' } }).firestore();
+  const data = { owner: 'own1', rUid: 'hid1', salt: 'S', box: 'aa.bb', at: serverTimestamp() };
+
+  it('only the number owner writes; only the hidden login (or owner) reads', async () => {
+    await assertSucceeds(setDoc(doc(owner(), 'vault', PH), data));
+    await assertFails(setDoc(doc(hidden('hid1'), 'vault', PH), data));
+    await assertFails(setDoc(doc(admin(), 'vault', PH), { ...data, owner: 'admin' }));
+    await assertFails(setDoc(doc(owner(), 'vault', PH), { ...data, extra: 1 }));
+    await assertSucceeds(getDoc(doc(hidden('hid1'), 'vault', PH)));
+    await assertSucceeds(getDoc(doc(owner(), 'vault', PH)));
+    await assertFails(getDoc(doc(hidden('hid2'), 'vault', PH)));
+    await assertFails(getDoc(doc(anon('x'), 'vault', PH)));
+    await assertFails(getDocs(collection(owner(), 'vault')));
+  });
+});
