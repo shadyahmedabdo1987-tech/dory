@@ -6,7 +6,7 @@ import { formatDate, formatNumber, periodSummary, type Circle, type Payment } fr
 import { Text, tap } from '@/ui/components';
 import { colors, radius, space } from '@/ui/theme';
 
-export type TurnState = 'done' | 'collected' | 'open' | 'upcoming' | 'skip';
+export type TurnState = 'done' | 'awaiting' | 'collected' | 'open' | 'upcoming' | 'skip';
 
 /** Where one turn stands: green once its money is all in (and handed over), yellow until then. */
 export function turnState(circle: Circle, payments: Payment[], index: number, current: number): { state: TurnState; paid: number; total: number } {
@@ -15,14 +15,19 @@ export function turnState(circle: Circle, payments: Payment[], index: number, cu
   if (kind === 'skip') return { state: 'skip', paid: 0, total: 0 };
   const total = s.payers.length;
   const paid = s.confirmed.length;
-  if (s.isComplete && (kind !== 'payout' || s.entry.period.paidOut)) return { state: 'done', paid, total };
+  if (kind !== 'payout') return s.isComplete ? { state: 'done', paid, total } : { state: index > current && paid === 0 ? 'upcoming' : 'open', paid, total };
+  // A turn is over only when its recipient confirmed getting the money (the organizer's own turn needs no confirmation).
+  const own = !!circle.ownerMemberId && s.entry.period.recipientId === circle.ownerMemberId;
+  if (s.entry.period.paidOut && (own || s.entry.period.received)) return { state: 'done', paid, total };
+  if (s.entry.period.paidOut) return { state: 'awaiting', paid, total };
   if (s.isComplete) return { state: 'collected', paid, total };
   return { state: index > current && paid === 0 ? 'upcoming' : 'open', paid, total };
 }
 
 const LABEL: Record<TurnState, string> = {
   done: 'تم الانتهاء من الدور',
-  collected: 'تم السداد',
+  awaiting: 'اتسلّم • مستني تأكيد الاستلام',
+  collected: 'تم السداد • مستني التسليم',
   open: 'لسه ما اتسددش',
   upcoming: 'جاي',
   skip: 'مؤجّل',
@@ -74,7 +79,8 @@ export function TurnGrid({
         <View key={r} style={{ gap: space.sm }}>
       <View style={styles.grid}>
         {row.map((x) => {
-          const green = x.state === 'done' || x.state === 'collected';
+          const green = x.state === 'done';
+          const waiting = x.state === 'awaiting' || x.state === 'collected';
           const grey = x.state === 'skip';
           const bg = green ? colors.success : grey ? colors.border : x.state === 'upcoming' ? colors.goldSoft : colors.gold;
           const fg = green || x.state === 'open' ? colors.white : colors.goldText;
@@ -93,6 +99,8 @@ export function TurnGrid({
               <View style={[styles.badge, { backgroundColor: bg }]}>
                 {green ? (
                   <Ionicons name="checkmark" size={26} color={colors.white} />
+                ) : waiting ? (
+                  <Ionicons name={x.state === 'awaiting' ? 'hourglass' : 'cash'} size={24} color={colors.white} />
                 ) : grey ? (
                   <Ionicons name="pause" size={22} color={colors.muted} />
                 ) : (
