@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView } from 'react-native';
 
 import { normalizePhone } from '@/core';
@@ -10,6 +10,7 @@ import { ForgotPasswordSheet, RecoveryCodeSheet } from '@/features/RecoveryCode'
 import { useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { writePrefs } from '@/ui/prefs';
+import { hasSavedPassword, rememberPassword, unlockSavedPassword } from '@/ui/savedPassword';
 import { colors, space } from '@/ui/theme';
 
 type Mode = 'signin' | 'signup';
@@ -25,12 +26,26 @@ export default function AuthScreen() {
   const { busy, run } = useAction();
 
   const phoneOk = !!normalizePhone(phone);
+  const [onPhone, setOnPhone] = useState(false);
+  useEffect(() => {
+    if (mode === 'signin' && phoneOk) hasSavedPassword({ kind: 'admin', phone }).then(setOnPhone);
+    else setOnPhone(false);
+  }, [mode, phone, phoneOk]);
+
+  const quick = () =>
+    run(async () => {
+      const saved = await unlockSavedPassword({ kind: 'admin', phone }, 'ادخل دوري');
+      await signInAdmin(phone, saved);
+      writePrefs({ myPhone: phone.trim() });
+      router.back();
+    });
 
   const submit = async () => {
     const ok = await run(async () => {
       if (mode === 'signup') await signUpAdmin(name, phone, password);
       else await signInAdmin(phone, password);
       writePrefs({ myPhone: phone.trim() });
+      await rememberPassword({ kind: 'admin', phone }, password);
       return true;
     });
     if (!ok) return;
@@ -85,6 +100,7 @@ export default function AuthScreen() {
             disabled={!phoneOk || password.length < 6 || (mode === 'signup' && !name.trim())}
             onPress={submit}
           />
+          {onPhone ? <Button label="ادخل بالبصمة أو قفل الموبايل" icon="finger-print" variant="secondary" loading={busy} onPress={quick} /> : null}
           {mode === 'signin' && <Button label="نسيت الرقم السري" variant="ghost" onPress={() => setForgotOpen(true)} />}
         </Card>
       </ScrollView>

@@ -26,6 +26,7 @@ import {
   type TimelineEntry, deferralOf, upcomingExtras, currentIndex, cadenceLabel, circleCompletion, earlyPayable, periodSummary, timeline } from "@/core";
 import { confirmPayoutReceived, disputePayout, hasMyPassword, loadPayoutReceipt, loadReceipt, removePayment, setMyPassword, usePayouts } from '@/data';
 import { readPrefsSync, writePrefs } from '@/ui/prefs';
+import { rememberPassword } from '@/ui/savedPassword';
 import { Badge, Button, Card, Chip, Field, ProgressBar, Row, Text, tap } from '@/ui/components';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
@@ -564,6 +565,7 @@ function PasswordCard({ cid, memberId }: { cid: string; memberId: string }) {
     run(
       async () => {
         await setMyPassword(cid, memberId, phone, password);
+        await rememberPassword({ kind: 'member', cid, phone }, password);
         writePrefs({ myPhone: phone.trim() });
         setNeeded(false);
       },

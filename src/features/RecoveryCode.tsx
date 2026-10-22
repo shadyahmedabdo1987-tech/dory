@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
 
 import { normalizePhone, whatsappUrl } from '@/core';
-import { recoveryWhatsappText, renewRecoveryCode, resetPasswordWithCode } from '@/data';
+import { changeAdminPassword, recoveryWhatsappText, renewRecoveryCode, resetPasswordWithCode } from '@/data';
+import { hasSavedPassword, rememberPassword, unlockSavedPassword, UnlockError } from '@/ui/savedPassword';
 import { Button, Card, Field, Row, Text } from '@/ui/components';
 import { alert } from '@/ui/dialog';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
@@ -68,34 +69,122 @@ export function RecoveryCodeSheet({ code, phone, onClose }: { code: string | nul
   );
 }
 
-/** Account screen: make a new recovery code (the old one stops working). */
+/**
+ * Account screen (organizer): see / change the password and make a new recovery code.
+ * On this phone it all opens with the fingerprint / face or the phone's lock code.
+ */
 export function RecoveryCard({ phone }: { phone: string }) {
+  const login = { kind: 'admin' as const, phone };
   const [code, setCode] = useState<string | null>(null);
-  const [asking, setAsking] = useState(false);
+  const [mode, setMode] = useState<'code' | 'change' | null>(null);
+  const [saved, setSaved] = useState(false);
   const [pw, setPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [newPw2, setNewPw2] = useState('');
   const { busy, run } = useAction();
-  const make = async () => {
-    const c = await run(() => renewRecoveryCode(pw));
-    if (!c) return;
-    setAsking(false);
+
+  useEffect(() => {
+    hasSavedPassword(login).then(setSaved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phone]);
+
+  const open = (m: 'code' | 'change') => {
     setPw('');
+    setNewPw('');
+    setNewPw2('');
+    setMode(m);
+  };
+
+  /** The current password: from the phone (fingerprint) or typed. */
+  const current = async () => (pw ? pw : unlockSavedPassword(login));
+
+  const show = async () => {
+    try {
+      const p = await unlockSavedPassword(login, 'افتح علشان تشوف الرقم السري');
+      alert('الرقم السري بتاعك', `\u2066${p}\u2069`);
+    } catch (e) {
+      if (e instanceof UnlockError) alert('معلش', e.message);
+    }
+  };
+
+  const makeCode = async () => {
+    const c = await run(async () => {
+      const old = await current();
+      const next = await renewRecoveryCode(old);
+      await rememberPassword(login, old);
+      return next;
+    });
+    if (!c) return;
+    setMode(null);
     setCode(c);
   };
+
+  const change = async () => {
+    const c = await run(async () => {
+      const old = await current();
+      const next = await changeAdminPassword(old, newPw);
+      await rememberPassword(login, newPw);
+      return next;
+    });
+    if (!c) return;
+    setSaved(true);
+    setMode(null);
+    alert('الرقم السري اتغيّر ✓', 'وكمان طلعلك كود استرجاع جديد، احفظه.');
+    setCode(c);
+  };
+
+  const needsTyping = !saved;
   return (
     <Card>
       <Row gap={space.sm}>
         <Ionicons name="key-outline" size={22} color={colors.primary} />
         <Text variant="heading" style={{ flex: 1 }}>
-          كود الاسترجاع
+          الرقم السري والاسترجاع
         </Text>
       </Row>
-      <Text variant="caption">لو نسيت الرقم السري، الكود ده بيرجّعلك حسابك. لو ضاع منك، اعمل واحد جديد.</Text>
-      <Button label="اعمل كود استرجاع جديد" icon="refresh-outline" variant="secondary" onPress={() => setAsking(true)} />
-      <Sheet visible={asking} title="كود استرجاع جديد" onClose={() => setAsking(false)}>
+      <Text variant="caption">
+        {saved
+          ? 'نسيت الرقم السري؟ افتح بالبصمة أو قفل الموبايل وشوفه أو غيّره. وكود الاسترجاع بيرجّعلك حسابك من أي موبايل تاني.'
+          : 'كود الاسترجاع بيرجّعلك حسابك لو نسيت الرقم السري. لو ضاع منك، اعمل واحد جديد.'}
+      </Text>
+      {saved ? <Button label="اعرض الرقم السري" icon="finger-print" variant="secondary" onPress={show} /> : null}
+      <Row gap={space.sm}>
+        <Button label="غيّر الرقم السري" icon="create-outline" variant="secondary" style={{ flex: 1 }} onPress={() => open('change')} />
+        <Button label="كود استرجاع جديد" icon="refresh-outline" variant="secondary" style={{ flex: 1 }} onPress={() => open('code')} />
+      </Row>
+      <Sheet visible={!!mode} title={mode === 'change' ? 'غيّر الرقم السري' : 'كود استرجاع جديد'} onClose={() => setMode(null)}>
         <View style={{ gap: space.md }}>
-          <Text variant="caption">الكود القديم هيبطل يشتغل، والجديد هيظهرلك مرة واحدة بس. اكتب الرقم السري بتاعك للتأكيد.</Text>
-          <Field label="الرقم السري الحالي" value={pw} onChangeText={setPw} secureTextEntry />
-          <Button label="اعمل الكود" icon="key" loading={busy} disabled={pw.length < 6} onPress={make} />
+          {mode === 'code' ? (
+            <Text variant="caption">الكود القديم هيبطل يشتغل، والجديد هيظهرلك مرة واحدة بس.</Text>
+          ) : null}
+          {needsTyping ? (
+            <Field label="الرقم السري الحالي" value={pw} onChangeText={setPw} secureTextEntry />
+          ) : (
+            <Text variant="caption" color={colors.primary} weight="semibold">
+              هنطلب البصمة أو قفل الموبايل بدل الرقم السري القديم.
+            </Text>
+          )}
+          {mode === 'change' ? (
+            <>
+              <Field label="الرقم السري الجديد" value={newPw} onChangeText={setNewPw} secureTextEntry hint="٦ حروف أو أرقام أو أكتر" />
+              <Field
+                label="اكتبه تاني"
+                value={newPw2}
+                onChangeText={setNewPw2}
+                secureTextEntry
+                error={newPw2.length > 0 && newPw2.length >= newPw.length && newPw2 !== newPw ? 'مش زي اللي فوق' : undefined}
+              />
+              <Button
+                label="غيّر"
+                icon="checkmark-circle-outline"
+                loading={busy}
+                disabled={(needsTyping && pw.length < 6) || newPw.length < 6 || newPw !== newPw2}
+                onPress={change}
+              />
+            </>
+          ) : (
+            <Button label="اعمل الكود" icon="key" loading={busy} disabled={needsTyping && pw.length < 6} onPress={makeCode} />
+          )}
         </View>
       </Sheet>
       <RecoveryCodeSheet code={code} phone={phone} onClose={() => setCode(null)} />
@@ -129,16 +218,41 @@ export function ForgotPasswordSheet({
 
   const submit = async () => {
     const next = await run(async () => {
-      return resetPasswordWithCode(phone, clean, pw);
+      const c = await resetPasswordWithCode(phone, clean, pw);
+      await rememberPassword({ kind: 'admin', phone }, pw);
+      return c;
     });
     if (next) setNewCode(next);
+  };
+
+  // Same phone as before: the fingerprint / lock code shows the saved password.
+  const [onPhone, setOnPhone] = useState(false);
+  useEffect(() => {
+    if (visible && normalizePhone(phone)) hasSavedPassword({ kind: 'admin', phone }).then(setOnPhone);
+    else setOnPhone(false);
+  }, [visible, phone]);
+  const fromPhone = async () => {
+    try {
+      const p = await unlockSavedPassword({ kind: 'admin', phone }, 'افتح علشان تشوف الرقم السري');
+      alert('الرقم السري بتاعك', `\u2066${p}\u2069`);
+    } catch (e) {
+      if (e instanceof UnlockError) alert('معلش', e.message);
+    }
   };
 
   return (
     <>
       <Sheet visible={visible && !newCode} title="نسيت الرقم السري" onClose={onClose}>
         <View style={{ gap: space.md }}>
-          <Text variant="caption">اكتب رقمك وكود الاسترجاع اللي بعتّه لنفسك على واتساب لما عملت الحساب، واختار رقم سري جديد.</Text>
+          {onPhone ? (
+            <View style={{ gap: space.sm }}>
+              <Button label="افتكره بالبصمة أو قفل الموبايل" icon="finger-print" onPress={fromPhone} />
+              <Text variant="caption" center>
+                أو بكود الاسترجاع:
+              </Text>
+            </View>
+          ) : null}
+          <Text variant="caption">اكتب رقمك وكود الاسترجاع اللي بعتّه لنفسك على واتساب لما عملت الحساب، واختار رقم سري جديد. ولو لسه داخل على موبايلك القديم، افتح صفحة حسابك هناك وغيّره بالبصمة.</Text>
           <Field
             label="رقم الموبايل"
             value={phone}

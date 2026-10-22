@@ -95,6 +95,15 @@ export async function renewRecoveryCode(password: string): Promise<string> {
   return createRecoveryCode(password);
 }
 
+/** Signed-in organizer changes the password (old one checked); returns a fresh recovery code. */
+export async function changeAdminPassword(oldPassword: string, newPassword: string): Promise<string> {
+  const { email } = myPhone();
+  const user = firebaseAuth().currentUser!;
+  await reauthenticateWithCredential(user, EmailAuthProvider.credential(email, oldPassword));
+  await updatePassword(user, newPassword);
+  return createRecoveryCode(newPassword);
+}
+
 /** Forgot password: number + recovery code + new password. Signs in and returns the next code. */
 export async function resetPasswordWithCode(rawPhone: string, code: string, newPassword: string): Promise<string> {
   const phone = normalizePhone(rawPhone);
