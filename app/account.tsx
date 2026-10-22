@@ -14,6 +14,7 @@ import { Badge, Button, Card, Field, Row, Segmented, Text } from '@/ui/component
 import { alert } from '@/ui/dialog';
 import { confirm, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
+import { RecoveryCard } from '@/features/RecoveryCode';
 import { LockCard } from '@/features/LockCard';
 import { clearSignInPrefs, readPrefsSync, writePrefs, type Lang, type ThemeMode } from '@/ui/prefs';
 import { lang as currentLang } from '@/i18n';
@@ -325,6 +326,8 @@ export default function Account() {
             <Text variant="caption">حساب إنستاباي ده بيتكتب لوحده لما تطلب القبض.</Text>
           )}
         </Card>
+
+        {loginPhone ? <RecoveryCard phone={loginPhone} /> : null}
 
         <LockCard />
 
