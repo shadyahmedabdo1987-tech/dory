@@ -105,10 +105,25 @@ export async function signUpAdmin(name: string, rawPhone: string, rawEmail: stri
   if (await adminEmailOf(phone)) throw new AppError('auth/phone-in-use', 'الرقم ده عليه حساب بالفعل. سجّل دخول.');
   const auth = firebaseAuth();
   const current = auth.currentUser;
-  // A member who joined anonymously keeps their circles by upgrading in place.
-  const cred = current?.isAnonymous
-    ? await linkWithCredential(current, EmailAuthProvider.credential(email, password))
-    : await createUserWithEmailAndPassword(auth, email, password);
+  let cred;
+  try {
+    // A member who joined anonymously keeps their circles by upgrading in place.
+    cred = current?.isAnonymous
+      ? await linkWithCredential(current, EmailAuthProvider.credential(email, password))
+      : await createUserWithEmailAndPassword(auth, email, password);
+  } catch (e) {
+    const code = (e as { code?: string }).code ?? '';
+    if (code !== 'auth/email-already-in-use' && code !== 'auth/credential-already-in-use') throw e;
+    // The email already has an (older) account: if the password matches, it's theirs — use it.
+    try {
+      cred = await signInWithEmailAndPassword(auth, email, password);
+    } catch {
+      throw new AppError(
+        'dory/email-taken',
+        'الإيميل ده عليه حساب قديم برقم سري تاني. اكتب نفس الرقم السري القديم بتاعه، أو استخدم إيميل تاني.',
+      );
+    }
+  }
   if (name.trim()) await updateProfile(cred.user, { displayName: name.trim() });
   // Refresh the ID token so security rules see the new sign-in provider.
   await cred.user.getIdToken(true);
