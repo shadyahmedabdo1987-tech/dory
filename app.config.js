@@ -58,6 +58,11 @@ module.exports = ({ config }) => {
     // unless a root/EAS google-services.json is provided.
     android: {
       ...config.android,
+      // Google Play needs a bigger number for every upload: 2.35.0 → 23500.
+      versionCode: (() => {
+        const [a, b, c] = String(config.version).split('.').map((n) => parseInt(n, 10) || 0);
+        return a * 10000 + b * 100 + c;
+      })(),
       googleServicesFile: androidFile || (fs.existsSync('./config/google-services.json') ? './config/google-services.json' : undefined),
     },
     ios: { ...config.ios, ...(iosFile && { googleServicesFile: iosFile }) },
