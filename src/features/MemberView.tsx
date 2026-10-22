@@ -23,7 +23,7 @@ import {
   type Circle,
   type MemberPaymentState,
   type Payment,
-  type TimelineEntry, deferralOf, upcomingExtras, currentIndex, cadenceLabel, circleCompletion, earlyPayable, periodSummary, timeline } from "@/core";
+  type TimelineEntry, deferralOf, upcomingExtras, currentIndex, cadenceLabel, circleCompletion, earlyPayable, periodSummary, timeline, isOwnPayout } from "@/core";
 import { confirmPayoutReceived, disputePayout, hasMyPassword, loadPayoutReceipt, loadReceipt, removePayment, setMyPassword, usePayouts } from '@/data';
 import { readPrefsSync, writePrefs } from '@/ui/prefs';
 import { Badge, Button, Card, Chip, Field, ProgressBar, Row, Text, tap } from '@/ui/components';
@@ -256,6 +256,17 @@ export function MemberView({
           <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <View>
               <Text variant="number">{formatMoney(next.entry.due)}</Text>
+              {(() => {
+                // Sped up: several turns on this date — the member pays them all together.
+                const same = timeline(circle).filter(
+                  (e) => e.date === next.entry.date && e.period.kind !== 'skip' && !isOwnPayout(e.period, memberId),
+                );
+                return same.length > 1 ? (
+                  <Text variant="caption" weight="bold" color={colors.primary}>
+                    إجمالي الميعاد ده {formatMoney(same.reduce((t, e) => t + e.due, 0))} ({formatNumber(same.length)} أقساط)
+                  </Text>
+                ) : null;
+              })()}
               <Text variant="caption">
                 {formatDate(next.entry.date)} • {relativeDays(daysBetween(today, next.entry.date))}
               </Text>

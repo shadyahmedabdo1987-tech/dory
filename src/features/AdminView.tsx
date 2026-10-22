@@ -179,12 +179,14 @@ export function AdminView({
   const openPayoutRequests = payouts.filter((r) => r.status === 'requested' || r.status === 'disputed').length;
   const [showTurns, setShowTurns] = useState(false);
   // The amounts shown up top follow the turn being collected now (or the next one), extras included.
-  const heroEntry = timeline(circle).find((e) => e.period.kind === 'payout' && !e.period.paidOut && e.index >= Math.max(0, o.current));
+  const ownTurn = (e: TimelineEntry) => !!circle.ownerMemberId && e.period.recipientId === circle.ownerMemberId;
+  const heroEntry =
+    timeline(circle).find((e) => e.period.kind === 'payout' && !e.period.paidOut && e.index >= Math.max(0, o.current)) ??
+    // Everything handed over: the last date whose recipients haven't all confirmed yet.
+    timeline(circle).find((e) => e.period.kind === 'payout' && e.period.paidOut && !e.period.received && !ownTurn(e));
   const heroPeriod = heroEntry?.period;
   // Sped up by turns: every turn on the hero's date is paid and received together.
-  const heroGroup = heroEntry
-    ? timeline(circle).filter((e) => e.period.kind === 'payout' && !e.period.paidOut && e.date === heroEntry.date)
-    : [];
+  const heroGroup = heroEntry ? timeline(circle).filter((e) => e.period.kind === 'payout' && e.date === heroEntry.date) : [];
   const heroMulti = heroGroup.length > 1;
   const heroEach = heroMulti ? heroGroup.reduce((t, e) => t + e.due, 0) : 0;
   // Lets a section (e.g. an opened turn) bring itself into view.
@@ -401,6 +403,8 @@ function CollectTab({
   const i = Math.min(index, entries.length - 1);
   const s = periodSummary(circle, payments, i);
   const entry = s.entry;
+  // Turns sharing this date (sped up) are shown together.
+  const sameDate = entries.filter((e) => e.date === entry.date && e.period.kind !== 'skip');
 
   /** Reminder only to the members who haven't paid this period (their private messages + push). */
   const remindUnpaid = async () => {
@@ -624,13 +628,26 @@ function CollectTab({
         payments={payments}
         current={current}
         selected={expanded ? i : -1}
-        onSelect={(k) => {
-          if (expanded && k === i) return setExpanded(false);
+        onSelect={(k, wasOpen) => {
+          if (wasOpen) return setExpanded(false);
           setIndex(k);
           setExpanded(true);
         }}
         details={
           <View style={{ gap: space.md, padding: space.sm, borderRadius: radius.lg, borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.bg }}>
+          {sameDate.length > 1 ? (
+            <View style={{ gap: space.xs }}>
+              <Text weight="bold" center color={colors.primary}>
+                {formatNumber(sameDate.length)} أدوار في نفس الميعاد • كل عضو يدفع {formatMoney(sameDate.reduce((t, e) => t + e.due, 0))}
+              </Text>
+              <Select
+                value={i}
+                onChange={setIndex}
+                title="دور مين؟"
+                options={sameDate.map((e) => ({ value: e.index, label: periodTitle(e), sub: `${formatMoney(e.due)} على كل عضو` }))}
+              />
+            </View>
+          ) : null}
           <View style={{ alignItems: 'center' }}>
             <Text variant="heading">{periodTitle(entry)}</Text>
             <Text variant="caption">

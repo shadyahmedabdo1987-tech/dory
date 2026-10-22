@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { formatDate, formatNumber, periodSummary, type Circle, type Payment } from '@/core';
+import { formatDate, formatMoney, formatNumber, periodSummary, type Circle, type Payment } from '@/core';
 import { Text, tap } from '@/ui/components';
 import { ScrollToContext } from '@/ui/Reveal';
 import { colors, radius, space } from '@/ui/theme';
@@ -50,21 +50,45 @@ export function TurnGrid({
   payments: Payment[];
   current: number;
   selected: number;
-  onSelect: (index: number) => void;
+  onSelect: (index: number, wasOpen: boolean) => void;
   /** The chosen turn's payments, shown right under its row. */
   details?: ReactNode;
 }) {
+  // Turns on the same date (sped up) share one tile: all their names, one total.
   const items = useMemo(() => {
-    const n = circle.periods.length;
-    return Array.from({ length: n }, (_, i) => {
+    const rank: Record<TurnState, number> = { upcoming: 0, open: 1, collected: 2, awaiting: 3, done: 4, skip: 5 };
+    const out: {
+      i: number;
+      indices: number[];
+      names: string[];
+      date: string;
+      each: number;
+      state: TurnState;
+      paid: number;
+      total: number;
+    }[] = [];
+    for (let i = 0; i < circle.periods.length; i++) {
       const s = periodSummary(circle, payments, i);
       const t = turnState(circle, payments, i, current);
-      const name = s.entry.period.kind === 'payout' ? s.entry.recipient?.name ?? '—' : s.entry.period.kind === 'skip' ? 'تأجيل' : 'قسط إضافي';
-      return { i, name, date: s.entry.date, ...t };
-    });
+      const kind = s.entry.period.kind;
+      const name = kind === 'payout' ? s.entry.recipient?.name ?? '—' : kind === 'skip' ? 'تأجيل' : 'قسط إضافي';
+      const prev = out[out.length - 1];
+      if (prev && kind !== 'skip' && prev.state !== 'skip' && prev.date === s.entry.date) {
+        prev.indices.push(i);
+        prev.names.push(name);
+        prev.each += s.entry.due;
+        prev.paid += t.paid;
+        prev.total += t.total;
+        if (rank[t.state] < rank[prev.state]) prev.state = t.state;
+        continue;
+      }
+      out.push({ i, indices: [i], names: [name], date: s.entry.date, each: s.entry.due, ...t });
+    }
+    return out;
   }, [circle, payments, current]);
 
-  const doneCount = items.filter((x) => x.state === 'done').length;
+  const doneCount = items.filter((x) => x.state === 'done').reduce((t, x) => t + x.indices.length, 0);
+  const turnCount = items.reduce((t, x) => t + x.indices.length, 0);
   const rows: (typeof items)[] = [];
   for (let k = 0; k < items.length; k += 3) rows.push(items.slice(k, k + 3));
 
@@ -76,16 +100,17 @@ export function TurnGrid({
     const k = selected >= 0 ? selected : last.current;
     if (selected >= 0) last.current = selected;
     if (k < 0 || !scrollTo) return;
-    const t = setTimeout(() => scrollTo(rowRefs.current[Math.floor(k / 3)] ?? null), selected >= 0 ? 80 : 30);
+    const g = items.findIndex((x) => x.indices.includes(k));
+    const t = setTimeout(() => scrollTo(rowRefs.current[Math.floor(Math.max(0, g) / 3)] ?? null), selected >= 0 ? 80 : 30);
     return () => clearTimeout(t);
-  }, [selected, scrollTo]);
+  }, [selected, scrollTo, items]);
 
   return (
     <View style={{ gap: space.sm }}>
       <View style={styles.head}>
         <Text variant="heading">الأدوار</Text>
         <Text variant="caption" weight="semibold" color={colors.success}>
-          خلص {formatNumber(doneCount)} من {formatNumber(items.length)}
+          خلص {formatNumber(doneCount)} من {formatNumber(turnCount)}
         </Text>
       </View>
       {rows.map((row, r) => (
@@ -104,15 +129,15 @@ export function TurnGrid({
           const grey = x.state === 'skip';
           const bg = green ? colors.success : grey ? colors.border : x.state === 'upcoming' ? colors.goldSoft : colors.gold;
           const fg = green || x.state === 'open' ? colors.white : colors.goldText;
-          const on = x.i === selected;
+          const on = x.indices.includes(selected);
           return (
             <Pressable
               key={x.i}
               accessibilityRole="button"
-              accessibilityLabel={`${x.name}: ${LABEL[x.state]}`}
+              accessibilityLabel={`${x.names.join(' و')}: ${LABEL[x.state]}`}
               onPress={() => {
                 tap();
-                onSelect(x.i);
+                onSelect(x.i, on);
               }}
               style={({ pressed }) => [styles.tile, on && styles.tileOn, pressed && { opacity: 0.8 }]}
             >
@@ -125,13 +150,20 @@ export function TurnGrid({
                   <Ionicons name="pause" size={22} color={colors.muted} />
                 ) : (
                   <Text weight="bold" color={fg} style={{ fontSize: 18, lineHeight: 26 }}>
-                    {formatNumber(x.i + 1)}
+                    {x.indices.length > 1 ? `${formatNumber(x.i + 1)}+` : formatNumber(x.i + 1)}
                   </Text>
                 )}
               </View>
-              <Text weight="bold" center numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={{ alignSelf: 'stretch' }}>
-                {x.name}
-              </Text>
+              {x.names.map((n, k) => (
+                <Text key={k} weight="bold" center numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={{ alignSelf: 'stretch' }}>
+                  {n}
+                </Text>
+              ))}
+              {x.names.length > 1 ? (
+                <Text variant="caption" weight="bold" center color={colors.primary} numberOfLines={1} adjustsFontSizeToFit>
+                  كل عضو {formatMoney(x.each)}
+                </Text>
+              ) : null}
               <Text variant="caption" center numberOfLines={1}>
                 {formatDate(x.date, false)}
               </Text>
@@ -151,7 +183,7 @@ export function TurnGrid({
           );
         })}
       </View>
-          {row.some((x) => x.i === selected) ? details : null}
+          {row.some((x) => x.indices.includes(selected)) ? details : null}
         </View>
       ))}
     </View>
