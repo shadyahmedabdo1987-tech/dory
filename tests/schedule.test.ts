@@ -508,3 +508,25 @@ describe('extra payment date', () => {
     assert.ok(extraDateChoices(c, '2026-10-20').includes('2026-11-18'));
   });
 });
+
+it('speedUpTurns: N turns share each date, members pay N installments', async () => {
+  const { speedUpTurns, periodDates, turnsPerDate } = await import('../src/core/schedule.ts');
+  const base = {
+    startDate: '2026-10-22',
+    frequency: 'monthly' as const,
+    periods: [
+      { id: 'a', kind: 'payout' as const, recipientId: 'm1' },
+      { id: 'b', kind: 'payout' as const, recipientId: 'm2' },
+      { id: 'c', kind: 'payout' as const, recipientId: 'm3' },
+      { id: 'd', kind: 'payout' as const, recipientId: 'm4' },
+      { id: 'e', kind: 'payout' as const, recipientId: 'm5' },
+    ],
+  };
+  const two = { ...base, periods: speedUpTurns(base.periods, 1, 2) };
+  assert.deepEqual(periodDates(two), ['2026-10-22', '2026-11-22', '2026-11-22', '2026-12-22', '2026-12-22']);
+  assert.equal(turnsPerDate(two, 1), 2);
+  const three = { ...base, periods: speedUpTurns(base.periods, 0, 3) };
+  assert.deepEqual(periodDates(three), ['2026-10-22', '2026-10-22', '2026-10-22', '2026-11-22', '2026-11-22']);
+  const back = { ...base, periods: speedUpTurns(three.periods, 0, 1) };
+  assert.deepEqual(periodDates(back), ['2026-10-22', '2026-11-22', '2026-12-22', '2027-01-22', '2027-02-22']);
+});

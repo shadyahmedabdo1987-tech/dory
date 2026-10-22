@@ -55,6 +55,7 @@ import {
   type Circle,
   type Member,
   type Payment,
+  type Period,
   type TimelineEntry,
   type PayoutRequest,
   type PaymentMethod,
@@ -66,6 +67,8 @@ import {
   circleCompletion,
   earlyPayable,
   speedUpByAmount,
+  speedUpTurns,
+  turnsPerDate,
   pullTurnsTo,
   extraDateChoices,
   extraDates,
@@ -178,6 +181,12 @@ export function AdminView({
   // The amounts shown up top follow the turn being collected now (or the next one), extras included.
   const heroEntry = timeline(circle).find((e) => e.period.kind === 'payout' && !e.period.paidOut && e.index >= Math.max(0, o.current));
   const heroPeriod = heroEntry?.period;
+  // Sped up by turns: every turn on the hero's date is paid and received together.
+  const heroGroup = heroEntry
+    ? timeline(circle).filter((e) => e.period.kind === 'payout' && !e.period.paidOut && e.date === heroEntry.date)
+    : [];
+  const heroMulti = heroGroup.length > 1;
+  const heroEach = heroMulti ? heroGroup.reduce((t, e) => t + e.due, 0) : 0;
   // Lets a section (e.g. an opened turn) bring itself into view.
   const { scrollRef, contentRef, scrollToNode } = useScrollTo();
   const extras = upcomingExtras(circle, o.current);
@@ -237,18 +246,27 @@ export function AdminView({
           </Row>
         ) : null}
         <Text variant="caption" color="rgba(255,255,255,0.75)" center>
-          {heroPeriod ? `القبض في دور ${heroEntry?.recipient?.name ?? ''} (${formatDate(heroEntry!.date)})` : 'القبض في كل دور'}
+          {heroMulti
+            ? `${formatNumber(heroGroup.length)} أدوار بيتقبضوا ${formatDate(heroEntry!.date)}: ${heroGroup.map((e) => e.recipient?.name ?? '').join(' و')}`
+            : heroPeriod
+              ? `القبض في دور ${heroEntry?.recipient?.name ?? ''} (${formatDate(heroEntry!.date)})`
+              : 'القبض في كل دور'}
         </Text>
         <Text variant="number" color={colors.gold}>
-          {formatMoney(extrasTotal ? headlineTotal : payoutPot(circle, heroPeriod))}
+          {formatMoney(heroMulti ? heroEach * circle.members.length + extrasTotal : extrasTotal ? headlineTotal : payoutPot(circle, heroPeriod))}
         </Text>
         {extrasTotal ? (
           <Text variant="caption" color="rgba(255,255,255,0.85)" center>
             القبض {formatMoney(payoutPot(circle, heroPeriod) - heroBonusTotal)} + مبالغ إضافية {formatMoney(extrasTotal)}
           </Text>
         ) : null}
+        {heroMulti ? (
+          <Text variant="caption" weight="bold" color={colors.white} center>
+            كل عضو يدفع {formatMoney(heroEach)} في الميعاد ده ({formatNumber(heroGroup.length)} أقساط) • {formatNumber(circle.members.length)} عضو × {formatMoney(heroEach)}
+          </Text>
+        ) : null}
         <Text variant="caption" color="rgba(255,255,255,0.85)" center>
-          {formatNumber(circle.members.length)} عضو × {formatMoney(heroPeriod ? periodDue(circle, heroPeriod) : circle.installment)}{' '}
+          {heroMulti ? 'القبض لكل دور: ' : ''}{formatNumber(circle.members.length)} عضو × {formatMoney(heroPeriod ? periodDue(circle, heroPeriod) : circle.installment)}{' '}
           {heroPeriod?.bonus ? `(القسط ${formatMoney(circle.installment)} + زيادة ${formatMoney(heroPeriod.bonus)})` : cadenceLabel(circle)}
         </Text>
         <Text variant="caption" color="rgba(255,255,255,0.75)" center>
@@ -1055,6 +1073,39 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
     if (ok) run(() => mutatePeriods(circle.id, (ps) => speedUp(ps, speedFrom, mode)), { success: 'المواعيد الجديدة اتسجّلت وظهرت عند كل الأعضاء.' });
   };
 
+  // Speed up by turns: 1, 2, 3… turns on every coming date.
+  const turnsLeft = circle.periods.slice(speedFrom).filter((p) => p.kind !== 'skip').length;
+  const turnsNow = turnsPerDate(circle, speedFrom);
+  const [turnsN, setTurnsN] = useState<number | null>(null);
+  const turnLabel = (n: number) => (n === 1 ? 'دور واحد' : n === 2 ? 'دورين' : `${formatNumber(n)} أدوار`);
+  /** The coming dates of a plan: what each member pays and who receives. */
+  const planDates = (periods: Period[]) => {
+    const list = timeline({ ...circle, periods }).slice(speedFrom);
+    const out: { date: string; each: number; names: string[] }[] = [];
+    for (const e of list) {
+      const last = out[out.length - 1];
+      const row = last && last.date === e.date ? last : (out.push({ date: e.date, each: 0, names: [] }), out[out.length - 1]);
+      row.each += e.due;
+      row.names.push(e.period.kind === 'payout' ? e.recipient?.name ?? '—' : e.period.kind === 'skip' ? 'تأجيل' : 'قسط إضافي');
+    }
+    return out;
+  };
+  const turnsPlan = turnsN ? speedUpTurns(circle.periods, speedFrom, turnsN) : null;
+  const turnsEnd = turnsPlan ? endDate({ ...circle, periods: turnsPlan }) : null;
+  const applyTurns = async () => {
+    if (!turnsN || !turnsPlan) return;
+    setSpeedOpen(false);
+    const ok = await confirm(
+      turnsN === 1 ? 'ترجع دور واحد في كل ميعاد؟' : `${turnLabel(turnsN)} في كل ميعاد`,
+      `كل عضو هيدفع ${formatMoney(circle.installment * turnsN)} في كل ميعاد جاي، و${turnsN === 1 ? 'واحد بيقبض' : `${formatNumber(turnsN)} بيقبضوا مع بعض`}. آخر دور ${turnsEnd ? formatDate(turnsEnd) : '—'} بدل ${plannedEnd ? formatDate(plannedEnd) : '—'}. بلّغ الأعضاء من تبويب الرسائل.`,
+      'طبّق',
+    );
+    if (ok) {
+      run(() => mutatePeriods(circle.id, (ps) => speedUpTurns(ps, speedFrom, turnsN)), { success: 'المواعيد الجديدة اتسجّلت وظهرت عند كل الأعضاء.' });
+      setTurnsN(null);
+    }
+  };
+
   const scheduleExtras = upcomingExtras(circle, current);
   const cancelExtra = async (x: (typeof scheduleExtras)[number]) => {
     if (hasPayments(x.entry.period.id)) {
@@ -1333,60 +1384,105 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
         </ScrollView>
       </Sheet>
       <Sheet visible={speedOpen} title="تسريع الجمعية" onClose={() => setSpeedOpen(false)}>
-        <Text variant="caption">
-          لو اتفقت مع الأعضاء تخلّصوا بدري. الأدوار اللي قبضت أو ميعادها جه ما بتتغيّرش. ولو عايزين يدفعوا مبلغ زيادة مرة واحدة استخدم "مبلغ إضافي".
-        </Text>
-        <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: space.sm }}>
-          {speedOptions.map((o) => {
-            const end = endWith(o.mode);
-            return (
-              <Pressable key={o.mode} onPress={() => applySpeed(o.mode, o.title)} style={({ pressed }) => [styles.speedRow, pressed && { opacity: 0.7 }]}>
-                <Ionicons name="flash" size={22} color={colors.gold} />
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text weight="bold">{o.title}</Text>
-                  <Text variant="caption">{o.body}</Text>
-                  <Text variant="caption" weight="bold" color={colors.success}>
-                    تخلص {end ? formatDate(end) : '—'} بدل {plannedEnd ? formatDate(plannedEnd) : '—'}
+        <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: space.md, paddingBottom: space.md }} keyboardShouldPersistTaps="handled">
+          <View style={styles.amountBox}>
+            <Row gap={space.sm}>
+              <Ionicons name="information-circle" size={22} color={colors.primary} />
+              <Text weight="bold" style={{ flex: 1 }}>إزاي التسريع بيشتغل؟</Text>
+            </Row>
+            <Text variant="caption">
+              القسط {formatMoney(circle.installment)} على كل عضو، والقبض {formatMoney(payoutPot(circle))} للدور. التسريع بيغيّر الأدوار اللي لسه ما جاش ميعادها بس ({formatNumber(turnsLeft)} دور) — اللي قبض أو ميعاده جه ما بيتغيّرش.
+            </Text>
+            <Text variant="caption">
+              مثال: دورين في كل ميعاد = كل عضو يدفع {formatMoney(circle.installment * 2)}، واتنين يقبضوا مع بعض ({formatMoney(payoutPot(circle) * 2)} في الميعاد)، والجمعية تخلص في نص المدة.
+            </Text>
+          </View>
+
+          <View style={styles.amountBox}>
+            <Row gap={space.sm}>
+              <Ionicons name="flash" size={22} color={colors.gold} />
+              <Text weight="bold" style={{ flex: 1 }}>كام دور في كل ميعاد؟</Text>
+            </Row>
+            <Select
+              value={turnsN}
+              onChange={setTurnsN}
+              placeholder={turnsNow > 1 ? `دلوقتي: ${turnLabel(turnsNow)} في كل ميعاد` : 'دلوقتي: دور واحد في كل ميعاد'}
+              title="كام دور في كل ميعاد؟"
+              options={Array.from({ length: Math.max(1, turnsLeft) }, (_, k) => k + 1).map((n) => {
+                const end = endDate({ ...circle, periods: speedUpTurns(circle.periods, speedFrom, n) });
+                return {
+                  value: n,
+                  label: `${turnLabel(n)} في كل ميعاد${n === 1 ? ' (العادي)' : ''}`,
+                  sub: `كل عضو يدفع ${formatMoney(circle.installment * n)} • تخلص ${end ? formatDate(end, false) : '—'}`,
+                };
+              })}
+            />
+            {turnsPlan ? (
+              <View style={{ gap: space.xs }}>
+                <Text weight="bold" color={colors.success}>
+                  تخلص {turnsEnd ? formatDate(turnsEnd) : '—'} بدل {plannedEnd ? formatDate(plannedEnd) : '—'}
+                </Text>
+                {planDates(turnsPlan).map((d) => (
+                  <Text key={d.date} variant="caption">
+                    📅 {formatDate(d.date, false)}: كل عضو يدفع {formatMoney(d.each)} — يقبض {d.names.join(' و')}
                   </Text>
-                </View>
-              </Pressable>
-            );
-          })}
+                ))}
+              </View>
+            ) : null}
+            <Button label="طبّق التسريع" icon="flash" disabled={!turnsPlan} onPress={applyTurns} />
+          </View>
+
           <View style={styles.amountBox}>
             <Row gap={space.sm}>
               <Ionicons name="cash-outline" size={22} color={colors.primary} />
-              <Text weight="bold" style={{ flex: 1 }}>ادفعوا أكتر… وخلّصوا أسرع</Text>
+              <Text weight="bold" style={{ flex: 1 }}>ادفعوا مبلغ زيادة… وخلّصوا أسرع</Text>
             </Row>
             <Text variant="caption">
-              القسط دلوقتي {formatMoney(circle.installment)}. حط المبلغ اللي اتفقتوا عليه لكل ميعاد، والتطبيق يحسب المدة الجديدة.
+              كل عضو يحط مبلغ زيادة كل ميعاد، والزيادة بتتجمع لحد ما تكفي دور كامل فيتقبض بدري. التطبيق بيقولك بالظبط كل عضو هيدفع كام في كل ميعاد.
             </Text>
             <Select
-              label="المبلغ الجديد لكل ميعاد"
-              value={[500, 700, 1000, circle.installment].map((x) => circle.installment + x).includes(perDate) ? perDate : null}
+              label="المبلغ لكل ميعاد"
+              value={[500, 700, 1000].map((x) => circle.installment + x).includes(perDate) ? perDate : null}
               onChange={(v) => setPerDateText(String(v))}
               placeholder="اختار زيادة جاهزة"
-              options={[
-                ...[500, 700, 1000].map((x) => ({ value: circle.installment + x, label: `+${formatNumber(x)}`, sub: `${formatMoney(circle.installment + x)} كل ميعاد` })),
-                { value: circle.installment * 2, label: 'الضعف', sub: `${formatMoney(circle.installment * 2)} كل ميعاد` },
-              ]}
+              options={[500, 700, 1000].map((x) => ({ value: circle.installment + x, label: `زيادة ${formatNumber(x)}`, sub: `${formatMoney(circle.installment + x)} في المتوسط كل ميعاد` }))}
             />
             <Field label="أو اكتب المبلغ بنفسك" value={perDateText} onChangeText={setPerDateText} keyboardType="numeric" placeholder={`أكتر من ${circle.installment}`} />
             {perDateText.trim() && !amountPlan ? (
               <Text variant="caption" color={colors.danger}>المبلغ لازم يبقى أكبر من القسط الحالي.</Text>
             ) : null}
             {amountPlan ? (
-              <View style={{ gap: 2 }}>
+              <View style={{ gap: space.xs }}>
                 <Text weight="bold" color={colors.success}>
                   {formatNumber(amountPlan.perDateDues.length)} ميعاد بدل {formatNumber(datesNow)} • تخلص {amountEnd ? formatDate(amountEnd) : '—'}
                 </Text>
-                <Text variant="caption">
-                  بدل {plannedEnd ? formatDate(plannedEnd) : '—'}
-                  {amountPlan.perDateDues.some((d) => d !== perDate) ? ` • بيتدفع ${[...new Set(amountPlan.perDateDues)].map((d) => formatMoney(d)).join(' أو ')} في الميعاد (في المتوسط ${formatMoney(perDate)})` : ''}
-                </Text>
+                {planDates(amountPlan.periods).map((d) => (
+                  <Text key={d.date} variant="caption">
+                    📅 {formatDate(d.date, false)}: كل عضو يدفع {formatMoney(d.each)} — يقبض {d.names.join(' و')}
+                  </Text>
+                ))}
               </View>
             ) : null}
-            <Button label="طبّق المبلغ الجديد" icon="flash" disabled={!amountPlan} onPress={applyAmount} />
+            <Button label="طبّق المبلغ" icon="flash" disabled={!amountPlan} onPress={applyAmount} />
           </View>
+
+          {speedOptions.filter((o) => o.mode !== 'double').length ? (
+            <Select
+              label="أو قصّر المدة بين المواعيد"
+              value={null}
+              placeholder="اختار…"
+              onChange={(m) => {
+                const o = speedOptions.find((x) => x.mode === m);
+                if (o) applySpeed(o.mode, o.title);
+              }}
+              options={speedOptions
+                .filter((o) => o.mode !== 'double')
+                .map((o) => {
+                  const end = endWith(o.mode);
+                  return { value: o.mode, label: o.title, sub: `${o.body} تخلص ${end ? formatDate(end, false) : '—'}` };
+                })}
+            />
+          ) : null}
           {sped ? (
             <Button label="رجّع المواعيد العادية" icon="refresh" variant="secondary" onPress={() => applySpeed('normal', '')} />
           ) : null}

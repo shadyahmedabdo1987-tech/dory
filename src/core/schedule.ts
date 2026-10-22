@@ -114,6 +114,39 @@ export function speedUp(periods: Period[], from: number, mode: SpeedUp | 'normal
 }
 
 /**
+ * Speed up by turns: from `from` on, `perDate` turns share each date — every member pays
+ * that many installments on the date and that many people receive. 1 = back to normal.
+ * A skipped period keeps a date of its own.
+ */
+export function speedUpTurns(periods: Period[], from: number, perDate: number): Period[] {
+  const n = Math.max(1, Math.floor(perDate));
+  let k = 0;
+  return periods.map((p, i) => {
+    if (i < from) return p;
+    const { gap: _old, ...rest } = p;
+    if (p.kind === 'skip') {
+      k = 0;
+      return rest;
+    }
+    const join = i > 0 && k % n !== 0;
+    k++;
+    return join ? { ...rest, gap: 'same' as const } : rest;
+  });
+}
+
+/** How many turns share each date from `from` on (1 when not sped up by turns). */
+export function turnsPerDate(circle: Pick<Circle, 'periods' | 'startDate' | 'frequency'>, from: number): number {
+  const dates = periodDates(circle);
+  let best = 1;
+  let run = 0;
+  for (let i = from; i < circle.periods.length; i++) {
+    run = i > from && dates[i] === dates[i - 1] && circle.periods[i].kind !== 'skip' ? run + 1 : 1;
+    best = Math.max(best, run);
+  }
+  return best;
+}
+
+/**
  * Speed up by paying more each time: from `from` on, members pay about `perDate`
  * per date instead of one installment, so more turns fit on each date and the
  * circle ends sooner. Turns are grouped on a date while the money put aside
