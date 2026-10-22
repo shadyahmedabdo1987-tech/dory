@@ -3,7 +3,7 @@
     "name": "دوري",
     "slug": "dory",
     "scheme": "dory",
-    "version": "2.44.0",
+    "version": "2.45.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

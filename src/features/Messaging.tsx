@@ -18,8 +18,8 @@ import {
   type TemplateAudience,
 } from '@/core';
 import { deleteAnnouncement, deleteInboxMessage, postAnnouncement, useAnnouncements, useMemberMessages } from '@/data';
-import { Badge, Button, Card, Chip, Field, IconButton, Row, Text } from '@/ui/components';
-import { Select } from '@/ui/Select';
+import { Badge, Button, Card, Field, IconButton, Row, Text } from '@/ui/components';
+import { MultiSelect, Select } from '@/ui/Select';
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { colors, radius, space } from '@/ui/theme';
 import { alert } from '@/ui/dialog';
@@ -282,20 +282,15 @@ export function MessagesTab({ circle, payments, uid }: { circle: Circle; payment
         {audience === 'pick' ? (
           <View style={{ gap: space.sm }}>
             <Text variant="caption">اختار مين يوصله — محدش غيره هيشوفها.</Text>
-            <View style={styles.audience}>
-              {circle.members.filter((m) => m.id !== circle.ownerMemberId).map((m) => {
-                const on = picked.includes(m.id);
-                return (
-                  <Chip
-                    key={m.id}
-                    label={m.name}
-                    sub={m.uid ? undefined : 'لسه ما دخلش'}
-                    active={on}
-                    onPress={() => setPicked(on ? picked.filter((x) => x !== m.id) : [...picked, m.id])}
-                  />
-                );
-              })}
-            </View>
+            <MultiSelect
+              values={picked}
+              onChange={setPicked}
+              placeholder="اختار الأعضاء…"
+              title="هتوصل لمين؟"
+              options={circle.members
+                .filter((m) => m.id !== circle.ownerMemberId)
+                .map((m) => ({ value: m.id, label: m.name, sub: m.uid ? undefined : 'لسه ما دخلش التطبيق' }))}
+            />
             <Select
               value={null}
               placeholder="رسالة جاهزة (اختياري)"

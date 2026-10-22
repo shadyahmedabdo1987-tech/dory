@@ -96,10 +96,10 @@ import {
   unlinkMember,
   updatePayInfo,
 } from '@/data';
-import { ActionTile, Badge, Button, Card, Chip, Field, IconButton, ProgressBar, Row, Segmented, Text, tap } from "@/ui/components";
+import { ActionTile, Badge, Button, Card, Field, IconButton, ProgressBar, Row, Segmented, Text, tap } from "@/ui/components";
 import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { TurnRing } from '@/ui/TurnRing';
-import { Select } from '@/ui/Select';
+import { MultiSelect, Select } from '@/ui/Select';
 import { Celebration } from '@/ui/Celebration';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { colors, radius, space } from '@/ui/theme';
@@ -1273,21 +1273,16 @@ function ScheduleTab({ circle, payments }: { circle: Circle; payments: Payment[]
             ) : null}
           </Row>
           {deferCandidates.length ? (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-              {deferCandidates.map((m) => {
-                const on = deferWho.includes(m.id);
+            <MultiSelect
+              values={deferWho}
+              onChange={setDeferWho}
+              placeholder="اختار الأعضاء…"
+              title="مين يتأجل؟"
+              options={deferCandidates.map((m) => {
                 const already = deferEntry ? deferralOf(deferEntry.period, m.id) : undefined;
-                return (
-                  <Chip
-                    key={m.id}
-                    label={m.name}
-                    sub={already ? `مؤجَّل لحد ${formatDate(already, false)}` : undefined}
-                    active={on}
-                    onPress={() => setDeferWho(on ? deferWho.filter((x) => x !== m.id) : [...deferWho, m.id])}
-                  />
-                );
+                return { value: m.id, label: m.name, sub: already ? `مؤجَّل لحد ${formatDate(already, false)}` : undefined };
               })}
-            </View>
+            />
           ) : (
             <Text variant="caption">كل الأعضاء دفعوا القسط ده.</Text>
           )}
