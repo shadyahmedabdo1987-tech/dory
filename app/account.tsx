@@ -8,12 +8,12 @@ import { BackHandler, I18nManager, Linking, Platform, ScrollView, StyleSheet, Vi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatNumber, INSTAPAY_ADDRESS, normalizePayAccount, normalizePhone } from '@/core';
-import { changeMyEmail, clearPendingJoins, phoneOfLogin, sendMyResetLink, myAdminInstapay, myMemberProfiles, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles, withTimeout } from '@/data';
+import { changeMyEmail, clearPendingJoins, deleteMyAccount, phoneOfLogin, sendMyResetLink, myAdminInstapay, myMemberProfiles, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles, withTimeout } from '@/data';
 import { useAppSession } from '@/data/session';
 import { clearReminders, unregisterPush } from '@/notifications';
 import { Badge, Button, Card, Field, Row, Segmented, Text } from '@/ui/components';
 import { alert } from '@/ui/dialog';
-import { confirm, useAction } from '@/ui/feedback';
+import { confirm, Sheet, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
 import { LockCard } from '@/features/LockCard';
 import { clearSignInPrefs, readPrefsSync, writePrefs, type Lang, type ThemeMode } from '@/ui/prefs';
@@ -148,6 +148,38 @@ export default function Account() {
     writePrefs({ theme: t });
     if (t === themeMode) return;
     restartNow('الوضع اتغيّر ✓', t === 'dark' ? 'moon' : 'sunny');
+  };
+
+  // App Store / Google Play: the account (and everything in it) can be deleted from inside the app.
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePw, setDeletePw] = useState('');
+  const deleteAccount = async () => {
+    const ok = await confirm(
+      'حذف الحساب نهائيًا؟',
+      isAccount
+        ? 'هتتمسح كل الجمعيات اللي إنت صاحبها بكل بياناتها (الأعضاء والأقساط والإيصالات)، وحسابك. ومش هينفع ترجعها تاني.'
+        : 'هتخرج من كل الجمعيات اللي إنت فيها، وحسابك على الموبايل ده هيتمسح.',
+      'احذف نهائيًا',
+      true,
+    );
+    if (!ok) return;
+    const done = await run(async () => {
+      await clearReminders();
+      try {
+        await deleteMyAccount(refs ?? [], deletePw);
+      } catch (e) {
+        // A member's silent account may need a fresh sign-in to be deleted: their data is already gone, so just sign out.
+        if (isAccount || String((e as { code?: string }).code ?? '') !== 'auth/requires-recent-login') throw e;
+      }
+      clearSignInPrefs();
+      await clearPendingJoins();
+      await signOut().catch(() => {});
+      return true;
+    });
+    if (!done) return;
+    setDeleteOpen(false);
+    setDeletePw('');
+    if (router.canDismiss()) router.dismissAll();
   };
 
   const logout = async () => {
@@ -361,6 +393,16 @@ export default function Account() {
         </Card>
 
         <Button label="تسجيل الخروج" icon="log-out-outline" variant="danger" onPress={logout} />
+        <Button label="حذف الحساب" icon="trash-outline" variant="ghost" onPress={() => (isAccount ? setDeleteOpen(true) : deleteAccount())} />
+        <Sheet visible={deleteOpen} title="حذف الحساب" onClose={() => setDeleteOpen(false)}>
+          <View style={{ gap: space.md }}>
+            <Text variant="caption">
+              هتتمسح كل الجمعيات اللي إنت صاحبها بكل بياناتها، وحسابك نهائيًا. اكتب الرقم السري بتاعك للتأكيد.
+            </Text>
+            <Field label="الرقم السري" value={deletePw} onChangeText={setDeletePw} secureTextEntry />
+            <Button label="احذف حسابي نهائيًا" icon="trash" variant="danger" loading={busy} disabled={deletePw.length < 6} onPress={deleteAccount} />
+          </View>
+        </Sheet>
         <Text variant="caption" center>
           دوري • نسخة {Constants.expoConfig?.version ?? ''}
         </Text>

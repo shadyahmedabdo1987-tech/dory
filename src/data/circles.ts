@@ -54,10 +54,12 @@ import {
   setPaidOut,
   cleanGroupLink,
 } from '@/core';
+import { deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+
 import { readPrefsSync, writePrefs } from '@/ui/prefs';
 
 import { AppError, arabicError, errorCode, retry, withTimeout } from './errors';
-import { firestore } from './firebase';
+import { firebaseAuth, firestore } from './firebase';
 import { restCommit, restGet } from './rest';
 import { circleNameOf, memberNameOf, myPushToken, pushToAdmin, pushToMembers, pushToUids, sendPush, uidOfMember } from './push';
 
@@ -1814,4 +1816,30 @@ export function watchInbox(
 
 export async function deleteAnnouncement(cid: string, id: string) {
   await withTimeout(deleteDoc(doc(announcementsCol(firestore(), cid), id)));
+}
+
+/**
+ * "Delete my account" (required by the App Store and Google Play): deletes every circle I
+ * organize with all its data, frees my member rows, removes my number → email link,
+ * and deletes the sign-in account itself. Organizers confirm with their password.
+ */
+export async function deleteMyAccount(refs: CircleRef[], password?: string): Promise<void> {
+  const user = firebaseAuth().currentUser;
+  if (!user) return;
+  if (!user.isAnonymous && user.email) {
+    if (!password) throw new AppError('auth/missing-password', arabicError({ code: 'auth/missing-password' }));
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+  }
+  const db = firestore();
+  for (const r of refs.filter((x) => x.role === 'admin')) {
+    const snap = await retry(() => getDoc(circleRef(db, r.id)));
+    if (!snap.exists()) continue;
+    const ms = await retry(() => getDocs(collection(db, 'circles', r.id, 'members')));
+    const members: Member[] = ms.docs.map((d) => ({ id: d.id, name: String(d.data().name ?? ''), uid: d.data().uid ?? null }));
+    await deleteCircle(circleFromDoc(r.id, snap.data(), members));
+  }
+  await releaseMyMemberships(user.uid, refs.filter((x) => x.role === 'member')).catch(() => {});
+  const phone = normalizePhone(readPrefsSync().myPhone ?? '');
+  if (phone && !user.isAnonymous) await restCommit([{ delete: `adminLogins/${phone}` }]).catch(() => {});
+  await deleteUser(user);
 }

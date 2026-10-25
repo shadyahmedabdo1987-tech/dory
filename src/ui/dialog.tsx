@@ -5,7 +5,7 @@ import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, View } from
 
 import { Text } from './components';
 import { colors, fonts, radius, space } from './theme';
-import { useNoSheetOpen } from './layers';
+import { inlineLayers, useNoSheetOpen } from './layers';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -93,7 +93,7 @@ export function DialogHost({ inline, active = true }: { inline?: boolean; active
     queue = queue.filter((d) => d.id !== current.id);
     emit();
     // Let the dialog unmount before the action opens anything else.
-    if (button?.onPress) setTimeout(button.onPress, 60);
+    if (button?.onPress) setTimeout(button.onPress, inlineLayers ? 120 : 60);
   };
 
   const cancelButton = current?.buttons.find((b) => b.style === 'cancel');
@@ -284,7 +284,8 @@ const styles = StyleSheet.create({
 
 /** A native modal, or (inside a sheet on iOS) a full-size overlay. */
 export function Layer({ inline, onRequestClose, children }: { inline?: boolean; onRequestClose: () => void; children: ReactNode }) {
-  if (inline) {
+  // iOS: never a second native modal (they race with sheets and pages and can freeze the screen).
+  if (inline || inlineLayers) {
     return (
       <View style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]} pointerEvents="box-none">
         {children}
