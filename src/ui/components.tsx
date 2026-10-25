@@ -237,6 +237,8 @@ export function IconButton({
   );
 }
 
+const E2E = process.env.EXPO_PUBLIC_E2E === '1';
+
 export function Field({
   label,
   error,
@@ -251,6 +253,8 @@ export function Field({
         maxFontSizeMultiplier={1.15}
         placeholderTextColor={colors.muted}
         {...input}
+        // Automated UI tests only (test builds): the iOS simulator can't type into hidden-text fields.
+        {...(E2E ? { secureTextEntry: false, autoComplete: 'off' as const } : null)}
         placeholder={tr(input.placeholder)}
         style={[styles.input, error ? { borderColor: colors.danger } : null, style]}
       />

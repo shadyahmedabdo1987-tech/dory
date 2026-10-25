@@ -55,7 +55,7 @@ jobs:
             printf '%s\n' EXPO_PUBLIC_FIREBASE_API_KEY=demo-key EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=demo-dory.firebaseapp.com \
               EXPO_PUBLIC_FIREBASE_PROJECT_ID=demo-dory EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=demo-dory.appspot.com \
               EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=1 EXPO_PUBLIC_FIREBASE_APP_ID=1:1:ios:1 \
-              EXPO_PUBLIC_FIREBASE_EMULATOR_HOST=localhost EXPO_PUBLIC_APP_CHECK=off > .env
+              EXPO_PUBLIC_FIREBASE_EMULATOR_HOST=localhost EXPO_PUBLIC_APP_CHECK=off EXPO_PUBLIC_E2E=1 > .env
           else
             cp config/production.env .env
           fi
