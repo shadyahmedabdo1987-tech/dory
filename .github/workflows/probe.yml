@@ -1,0 +1,16 @@
+name: probe
+on: push
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - run: |
+          for p in expo-iap react-native-iap react-native-nitro-modules expo-application; do
+            echo "::notice::$p latest=$(npm view $p version) peer=$(npm view $p peerDependencies --json | tr -d '\n ')"
+          done
+          echo "::notice::expo-iap versions=$(npm view expo-iap versions --json | tr -d '\n ' | tail -c 400)"
+          V=$(npm view expo@~54.0.12 version --json | tail -2 | head -1 | tr -d ' ",')
+          mkdir x && cd x && npm init -y >/dev/null && npm i --no-audit --no-fund expo@$V >/dev/null 2>&1
+          echo "::notice::app=$(node -p "require('expo/bundledNativeModules.json')['expo-application']") build-props=$(node -p "require('expo/bundledNativeModules.json')['expo-build-properties']")"
