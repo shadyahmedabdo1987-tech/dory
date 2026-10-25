@@ -47,6 +47,16 @@ export async function saveCirclePushToken(cid: string, uid: string) {
   }
 }
 
+/**
+ * Sign-out: this phone stops being reachable as me in every circle. Otherwise the next person
+ * who signs in on it would still get my notifications (e.g. "مبروك! قبضت جمعيتك" for my turn).
+ */
+export async function clearMyCirclePushTokens(uid: string, cids: string[]) {
+  await Promise.all(
+    cids.map((cid) => setDoc(doc(tokensCol(cid), uid), { token: '', updatedAt: serverTimestamp() }).catch(() => {})),
+  );
+}
+
 export async function sendPush(tokens: (string | null | undefined)[], msg: PushMessage): Promise<void> {
   const to = [...new Set(tokens.filter((t): t is string => !!t && t !== myToken))];
   if (to.length === 0) return;
@@ -84,7 +94,28 @@ async function tokenOf(cid: string, uid: string): Promise<string | null> {
 
 /** Specific people in a circle (by their user ids). */
 export async function pushToUids(cid: string, uids: (string | null | undefined)[], msg: PushMessage) {
-  const tokens = await Promise.all(uids.filter((u): u is string => !!u).map((u) => tokenOf(cid, u)));
+  const wanted = uids.filter((u): u is string => !!u);
+  if (wanted.length === 0) return;
+  // The organizer can see every phone in the circle: a phone that moved on to another member
+  // (signed out, someone else signed in) only gets messages meant for whoever is on it now.
+  try {
+    const snap = await getDocs(tokensCol(cid));
+    const owner = new Map<string, { uid: string; at: number }>();
+    for (const d of snap.docs) {
+      const t = String(d.data().token ?? '');
+      if (!t) continue;
+      const at = (d.data().updatedAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+      const cur = owner.get(t);
+      if (!cur || at > cur.at) owner.set(t, { uid: d.id, at });
+    }
+    const set = new Set(wanted);
+    const tokens = [...owner.entries()].filter(([, o]) => set.has(o.uid)).map(([t]) => t);
+    await sendPush(tokens, { circleId: cid, ...msg });
+    return;
+  } catch {
+    // Not the organizer (can't list): each person's own token.
+  }
+  const tokens = await Promise.all(wanted.map((u) => tokenOf(cid, u)));
   await sendPush(tokens, { circleId: cid, ...msg });
 }
 
@@ -92,7 +123,8 @@ export async function pushToUids(cid: string, uids: (string | null | undefined)[
 export async function pushToMembers(cid: string, exceptUid: string, msg: PushMessage) {
   try {
     const snap = await getDocs(tokensCol(cid));
-    const tokens = snap.docs.filter((d) => d.id !== exceptUid).map((d) => String(d.data().token ?? ''));
+    const mine = snap.docs.find((d) => d.id === exceptUid)?.data().token;
+    const tokens = snap.docs.filter((d) => d.id !== exceptUid).map((d) => String(d.data().token ?? '')).filter((t) => t && t !== mine);
     await sendPush(tokens, { circleId: cid, ...msg });
   } catch {
     // best effort

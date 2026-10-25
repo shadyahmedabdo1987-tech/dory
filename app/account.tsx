@@ -8,7 +8,7 @@ import { BackHandler, I18nManager, Linking, Platform, ScrollView, StyleSheet, Vi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatNumber, INSTAPAY_ADDRESS, normalizePayAccount, normalizePhone } from '@/core';
-import { changeMyEmail, clearPendingJoins, deleteMyAccount, phoneOfLogin, sendMyResetLink, myAdminInstapay, myMemberProfiles, releaseMyMemberships, setInstapayForMyCircles, signOut, updateMyName, useMyCircles, withTimeout } from '@/data';
+import { changeMyEmail, clearPendingJoins, deleteMyAccount, phoneOfLogin, sendMyResetLink, myAdminInstapay, myMemberProfiles, releaseMyMemberships, clearMyCirclePushTokens, setInstapayForMyCircles, signOut, updateMyName, useMyCircles, withTimeout } from '@/data';
 import { useAppSession } from '@/data/session';
 import { clearReminders, unregisterPush } from '@/notifications';
 import { Badge, Button, Card, Field, Row, Segmented, Text } from '@/ui/components';
@@ -120,6 +120,22 @@ export default function Account() {
     );
 
   /** Applies a new language / look right away: the app restarts itself on the same screen. */
+  // After signing out: start the app over on the welcome screen (no half-closed screens left behind).
+  const backToStart = () => {
+    setTimeout(async () => {
+      try {
+        await Updates.reloadAsync();
+      } catch {
+        try {
+          if (router.canDismiss()) router.dismissAll();
+          router.replace('/');
+        } catch {
+          // already on the start screen
+        }
+      }
+    }, 150);
+  };
+
   const restartNow = async (title: string, icon: 'moon' | 'sunny' | 'language') => {
     try {
       await Updates.reloadAsync();
@@ -179,7 +195,7 @@ export default function Account() {
     if (!done) return;
     setDeleteOpen(false);
     setDeletePw('');
-    if (router.canDismiss()) router.dismissAll();
+    backToStart();
   };
 
   const logout = async () => {
@@ -198,7 +214,9 @@ export default function Account() {
       // Best effort, and never more than a few seconds on a slow network.
       const quick = (p: Promise<unknown>) => withTimeout(p, 6_000).catch(() => {});
       await quick(unregisterPush(user.uid));
-      await clearReminders();
+      // This phone stops getting my notifications in every circle (the next person on it won't see mine).
+      await quick(clearMyCirclePushTokens(user.uid, (refs ?? []).map((r) => r.id)));
+      await clearReminders().catch(() => {});
       // Free my member rows so code + number + password brings me back to them on any phone.
       await quick(releaseMyMemberships(user.uid, (refs ?? []).filter((r) => r.role === 'member')));
       // Sign-in fields start empty next time.
@@ -206,7 +224,7 @@ export default function Account() {
       await clearPendingJoins();
       await signOut();
     });
-    if (router.canDismiss()) router.dismissAll();
+    backToStart();
   };
 
   return (
