@@ -1,0 +1,13 @@
+name: probe
+on: push
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - run: |
+          npm view expo@54 version --json | tail -3
+          V=$(npm view expo@~54.0.12 version --json | tail -2 | head -1 | tr -d ' ",')
+          mkdir x && cd x && npm init -y >/dev/null && npm i --no-audit --no-fund expo@$V >/dev/null 2>&1
+          echo "::notice::updates=$(node -p "require('expo/bundledNativeModules.json')['expo-updates']") restart=$(npm view react-native-restart version)"
