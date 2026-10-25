@@ -19,7 +19,7 @@ name: Organizer sign-in screen -> forgot password sheet -> close -> back
       - waitForAnimationToEnd
 - takeScreenshot: 11-auth-again
 - tapOn:
-    point: "90%,7%"
+    point: "94%,9%"
 - waitForAnimationToEnd
 - takeScreenshot: 12-home
 - assertVisible: "عندي كود دعوة"

@@ -4,6 +4,10 @@ name: iOS simulator test
 
 on:
   workflow_dispatch:
+    inputs:
+      reuse_run:
+        description: "Run id whose built app to reuse (skips the 20-minute build)"
+        default: ""
 
 concurrency:
   group: ios-sim-test
@@ -11,6 +15,7 @@ concurrency:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   sim:
@@ -26,7 +31,15 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+      - name: Reuse a built app
+        if: ${{ inputs.reuse_run != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "${{ inputs.reuse_run }}" -R "${{ github.repository }}" -n dory-sim-app -D simapp
+          APP=$(ls -d simapp/*.app | head -1); echo "APP=$GITHUB_WORKSPACE/$APP" >> "$GITHUB_ENV"
       - name: Build for the simulator
+        if: ${{ inputs.reuse_run == '' }}
         run: |
           set -eo pipefail
           npm install --no-audit --no-fund 2>&1 | tail -3
@@ -37,7 +50,14 @@ jobs:
             -destination "generic/platform=iOS Simulator" -derivedDataPath build CODE_SIGNING_ALLOWED=NO build 2>&1 \
             | tee "$RUNNER_TEMP/xc.log" | grep -E "error:|\*\* BUILD" | tail -20
           APP=$(ls -d build/Build/Products/Release-iphonesimulator/*.app | head -1)
-          echo "APP=$APP" >> "$GITHUB_ENV"
+          echo "APP=$GITHUB_WORKSPACE/$APP" >> "$GITHUB_ENV"
+      - name: Keep the built app
+        if: ${{ inputs.reuse_run == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dory-sim-app
+          path: build/Build/Products/Release-iphonesimulator/*.app
+          retention-days: 3
       - name: Boot an iPhone
         run: |
           xcrun simctl list runtimes | tail -3
@@ -66,6 +86,9 @@ jobs:
           export MAESTRO_DRIVER_STARTUP_TIMEOUT=900000 MAESTRO_CLI_NO_ANALYTICS=1
           maestro --device "$DEV" test .maestro --test-output-dir out/flows --format junit --output out/junit.xml > out/maestro.log 2>&1 && echo "ALL PASS" > out/summary.txt || echo "SOME FAILED" > out/summary.txt
           grep -E "testcase|failure" out/junit.xml >> out/summary.txt 2>/dev/null || true
+          maestro --device "$DEV" test .maestro-probe/join.yaml > out/probe.log 2>&1 || true
+          maestro --device "$DEV" hierarchy > out/hier-join.json 2>out/hier.err || true
+          xcrun simctl io "$DEV" screenshot out/probe-join.png || true
           kill -INT $REC; sleep 3
           cat out/summary.txt
       - name: Report (branch ios-sim-report)

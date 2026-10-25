@@ -1,0 +1,11 @@
+appId: com.alabdo.dory
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "عندي كود دعوة"
+    timeout: 60000
+- tapOn: "عندي كود دعوة"
+- extendedWaitUntil:
+    visible: "ادخل كود الدعوة"
+    timeout: 15000
+- waitForAnimationToEnd
