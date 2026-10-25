@@ -14,7 +14,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
     below: "الرقم السري"
     index: 0
 - inputText: "test1234"
-- hideKeyboard
+- tapOn: "رقم الموبايل"
 - tapOn: "دخول"
 - extendedWaitUntil:
     visible: "جمعية جديدة"
@@ -28,7 +28,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
 - inputText: "Test Circle"
 - tapOn: "1000"
 - inputText: "1000"
-- hideKeyboard
+- tapOn: "اسم الجمعية"
 - scrollUntilVisible:
     element: "عدد الأعضاء المطلوب (معاك إنت)"
     direction: DOWN
@@ -37,7 +37,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
     index: 0
 - eraseText: 3
 - inputText: "3"
-- hideKeyboard
+- tapOn: "عدد الأعضاء"
 - scrollUntilVisible:
     element: "ابدأ الجمعية"
     direction: DOWN
@@ -47,7 +47,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
     commands:
       - tapOn: "رقم الموبايل أو name@instapay"
       - inputText: "01000000077"
-      - hideKeyboard
+      - tapOn: "بياناتك كصاحب الجمعية"
 - takeScreenshot: e10-new-circle
 - tapOn: "ابدأ الجمعية"
 - extendedWaitUntil:
@@ -92,7 +92,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
 - tapOn: "ادخل الجمعية"
 - tapOn: "01xxxxxxxxx"
 - inputText: "01000000088"
-- hideKeyboard
+- tapOn: "انضمام لـ.*"
 - tapOn: "متابعة"
 - extendedWaitUntil:
     visible: "ابعت طلب الانضمام"
@@ -107,7 +107,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
     below: "اكتب الباسورد تاني"
     index: 0
 - inputText: "member1234"
-- hideKeyboard
+- tapOn: "اسمك"
 - takeScreenshot: e15-join-form
 - tapOn: "ابعت طلب الانضمام"
 - extendedWaitUntil:
@@ -139,7 +139,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
     below: "الرقم السري"
     index: 0
 - inputText: "test1234"
-- hideKeyboard
+- tapOn: "رقم الموبايل"
 - tapOn: "دخول"
 - extendedWaitUntil:
     visible: "Test Circle"

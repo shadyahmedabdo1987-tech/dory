@@ -20,7 +20,7 @@ name: Organizer - sign up, open screens, sign out, sign in again, sign out
 - inputText: "test1234"
 - tapOn: "name@gmail.com"
 - inputText: "admin-test@example.com"
-- hideKeyboard
+- tapOn: "رقم الموبايل"
 - takeScreenshot: e01-signup-filled
 - tapOn: "إنشاء الحساب"
 - extendedWaitUntil:
@@ -65,7 +65,7 @@ name: Organizer - sign up, open screens, sign out, sign in again, sign out
     below: "الرقم السري"
     index: 0
 - inputText: "test1234"
-- hideKeyboard
+- tapOn: "رقم الموبايل"
 - tapOn: "دخول"
 - extendedWaitUntil:
     visible: "جمعية جديدة"
