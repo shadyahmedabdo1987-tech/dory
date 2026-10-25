@@ -41,6 +41,39 @@ import { KeyboardScreen } from '@/ui/KeyboardScreen';
 
 /** The spinner shows at least this long so the screen doesn't flash. */
 const MIN_LOADING_MS = 1500;
+/** Never wait forever on a slow or dropped connection. */
+const LOOKUP_TIMEOUT_MS = 20000;
+
+function withTimeout<T>(p: Promise<T>, ms = LOOKUP_TIMEOUT_MS): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new AppError('unavailable', 'النت بطيء أو مقطوع. اتأكد من الاتصال وجرّب تاني.')), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
+/** Full-screen spinner that always offers a way back if it takes too long. */
+function Loading({ onBack }: { onBack: () => void }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 6000);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <View style={styles.loadingRoot}>
+      <SpinningLogo label="بنفتح الجمعية بتاعتك…" />
+      {slow ? <Button label="رجوع" icon="arrow-forward" variant="secondary" onPress={onBack} /> : null}
+    </View>
+  );
+}
 
 type Phase = { kind: 'enter' } | { kind: 'loading' } | { kind: 'found'; circle: DirectoryEntry } | { kind: 'error'; message: string };
 
@@ -57,9 +90,13 @@ export default function JoinScreen() {
     const started = Date.now();
     try {
       // Reading a circle card needs a (silent, anonymous) sign-in.
-      const user = await ensureSignedIn();
-      setUid(user.uid);
-      const circle = await findCircleByCode(value);
+      const circle = await withTimeout(
+        (async () => {
+          const user = await ensureSignedIn();
+          setUid(user.uid);
+          return findCircleByCode(value);
+        })(),
+      );
       await new Promise((r) => setTimeout(r, Math.max(0, MIN_LOADING_MS - (Date.now() - started))));
       setPhase({ kind: 'found', circle });
     } catch (e) {
@@ -76,13 +113,7 @@ export default function JoinScreen() {
 
   if (sent && uid) return <WaitingForApproval {...sent} uid={uid} />;
 
-  if (phase.kind === 'loading') {
-    return (
-      <View style={styles.loadingRoot}>
-        <SpinningLogo label="بنفتح الجمعية بتاعتك…" />
-      </View>
-    );
-  }
+  if (phase.kind === 'loading') return <Loading onBack={() => setPhase({ kind: 'enter' })} />;
   if (phase.kind === 'found' && uid) {
     return <FoundCircle circle={phase.circle} code={code} uid={uid} onSent={setSent} onBack={() => setPhase({ kind: 'enter' })} />;
   }
@@ -160,17 +191,18 @@ function FoundCircle({
   onSent: (s: { cid: string; circleName: string; name: string }) => void;
   onBack: () => void;
 }) {
-  const { refs } = useMyCircles(uid);
+  const { refs: liveRefs, error: refsError } = useMyCircles(uid);
   const pending = usePendingJoins();
   const [joining, setJoining] = useState(false);
-  // Wait for "my circles" so the organizer (or an existing member) isn't offered to join again.
-  if (refs === undefined) {
-    return (
-      <View style={styles.loadingRoot}>
-        <SpinningLogo label="بنفتح الجمعية بتاعتك…" />
-      </View>
-    );
-  }
+  // Wait for "my circles" so the organizer (or an existing member) isn't offered to join again —
+  // but never forever: after an error or a few seconds, go on without it.
+  const [gaveUp, setGaveUp] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setGaveUp(true), 8000);
+    return () => clearTimeout(t);
+  }, []);
+  const refs = liveRefs ?? (refsError || gaveUp ? [] : undefined);
+  if (refs === undefined) return <Loading onBack={onBack} />;
   const state = refs.some((r) => r.id === circle.id)
     ? 'member'
     : pending.some((p) => p.cid === circle.id)
