@@ -3,7 +3,7 @@
     "name": "دوري",
     "slug": "dory",
     "scheme": "dory",
-    "version": "2.51.0",
+    "version": "2.52.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -69,7 +69,8 @@
           "cameraPermission": "دوري محتاج الكاميرا علشان تصوّر إيصال تحويل القسط.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-iap"
     ],
     "experiments": {
       "typedRoutes": true

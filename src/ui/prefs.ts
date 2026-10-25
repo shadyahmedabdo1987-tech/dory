@@ -22,6 +22,8 @@ export interface Prefs {
   memberCodes?: Record<string, Record<string, string>>;
   /** App lock: a 4-digit code (stored hashed) and whether the fingerprint / face can open it. */
   lock?: { pin: string; bio: boolean };
+  /** Bought / trial start (cached, so the app opens offline too). */
+  license?: { full?: boolean; trialStart?: number };
 }
 
 function prefsFile() {
@@ -53,9 +55,9 @@ export function writePrefs(next: Prefs): boolean {
 export function clearSignInPrefs() {
   try {
     const f = prefsFile();
-    const { theme, lang, lock } = readPrefsSync();
+    const { theme, lang, lock, license } = readPrefsSync();
     if (!f.exists) return;
-    f.write(JSON.stringify({ ...(theme ? { theme } : {}), ...(lang ? { lang } : {}), ...(lock ? { lock } : {}) }));
+    f.write(JSON.stringify({ ...(theme ? { theme } : {}), ...(lang ? { lang } : {}), ...(lock ? { lock } : {}), ...(license ? { license } : {}) }));
   } catch {
     // ignore
   }

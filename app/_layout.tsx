@@ -14,6 +14,7 @@ import { DialogHost } from '@/ui/dialog';
 import { ErrorScreen } from '@/ui/feedback';
 import { IntroSplash } from '@/ui/IntroSplash';
 import { AppLock } from '@/ui/AppLock';
+import { Paywall } from '@/ui/Paywall';
 import { colors, fonts } from '@/ui/theme';
 import { isEn, tr } from '@/i18n';
 
@@ -79,6 +80,7 @@ function App({ session }: { session: ReturnType<typeof useSession> }) {
           <Stack.Screen name="circle/settings/[id]" options={{ title: tr('إعدادات الجمعية'), presentation: 'modal' }} />
         </Stack>
         <BusyHost />
+        <Paywall />
         <AppLock />
         <DialogHost />
       </SafeAreaProvider>
