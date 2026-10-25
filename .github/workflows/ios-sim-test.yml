@@ -1,0 +1,79 @@
+# iPhone simulator: builds the app (Release, same JS as the store build) and taps through
+# the screens with Maestro. Screenshots, video and results go to branch ios-sim-report.
+name: iOS simulator test
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-sim-test
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  sim:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - name: Newest Xcode
+        run: |
+          X=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          [ -n "$X" ] && sudo xcode-select -s "$X"
+          xcodebuild -version
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Build for the simulator
+        run: |
+          set -eo pipefail
+          npm install --no-audit --no-fund 2>&1 | tail -3
+          cp config/production.env .env
+          CI=1 npx expo prebuild --platform ios --clean 2>&1 | tail -5
+          WS=$(ls -d ios/*.xcworkspace | head -1); SCHEME=$(basename "$WS" .xcworkspace)
+          xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" -derivedDataPath build CODE_SIGNING_ALLOWED=NO build 2>&1 \
+            | tee "$RUNNER_TEMP/xc.log" | grep -E "error:|\*\* BUILD" | tail -20
+          APP=$(ls -d build/Build/Products/Release-iphonesimulator/*.app | head -1)
+          echo "APP=$APP" >> "$GITHUB_ENV"
+      - name: Boot an iPhone
+        run: |
+          xcrun simctl list runtimes | tail -3
+          DEV=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          ios=[k for k in d if 'iOS' in k]; ios.sort(key=lambda k:[int(x) for x in k.split('iOS-')[1].split('-')])
+          ds=[x for x in d[ios[-1]] if 'iPhone' in x['name'] and 'Pro' in x['name'] and 'Max' not in x['name']] or [x for x in d[ios[-1]] if 'iPhone' in x['name']]
+          print(ds[0]['udid'])")
+          echo "DEV=$DEV" >> "$GITHUB_ENV"
+          xcrun simctl boot "$DEV"; xcrun simctl bootstatus "$DEV" -b
+          xcrun simctl spawn "$DEV" defaults write -g AppleLanguages -array ar
+          xcrun simctl spawn "$DEV" defaults write -g AppleLocale ar_EG
+          xcrun simctl shutdown "$DEV"; xcrun simctl boot "$DEV"; xcrun simctl bootstatus "$DEV" -b
+          xcrun simctl install "$DEV" "$APP"
+      - name: Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Run the flows
+        continue-on-error: true
+        run: |
+          mkdir -p out
+          xcrun simctl io "$DEV" recordVideo --codec=h264 out/run.mp4 & REC=$!
+          for f in .maestro/*.yaml; do
+            n=$(basename "$f" .yaml)
+            maestro --device "$DEV" test "$f" --test-output-dir "out/$n" > "out/$n.log" 2>&1 && echo "PASS $n" >> out/summary.txt || echo "FAIL $n" >> out/summary.txt
+          done
+          kill -INT $REC; sleep 3
+          cat out/summary.txt
+      - name: Report (branch ios-sim-report)
+        if: always()
+        run: |
+          mkdir -p rep && cp -R out/. rep/ 2>/dev/null || true
+          find rep -name "*.png" | head -50
+          grep -E "error:" "$RUNNER_TEMP/xc.log" 2>/dev/null | head -30 > rep/build-errors.txt || true
+          xcrun simctl spawn "$DEV" log show --last 15m --predicate 'process == "Dory" OR process CONTAINS "dory"' --style compact 2>/dev/null | grep -iE "error|exception|fatal|warn" | tail -200 > rep/device-log.txt || true
+          cd rep && git init -q && git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -qm "sim report $(date -u)" && git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/ios-sim-report

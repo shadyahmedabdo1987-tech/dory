@@ -1,0 +1,25 @@
+appId: com.alabdo.dory
+name: Organizer sign-in screen -> forgot password sheet -> close -> back
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "أنا صاحب جمعية"
+    timeout: 60000
+- tapOn: "أنا صاحب جمعية"
+- waitForAnimationToEnd
+- takeScreenshot: 09-auth
+- runFlow:
+    when:
+      visible: "نسيت الرقم السري"
+    commands:
+      - tapOn: "نسيت الرقم السري"
+      - waitForAnimationToEnd
+      - takeScreenshot: 10-forgot
+      - tapOn: "إغلاق"
+      - waitForAnimationToEnd
+- takeScreenshot: 11-auth-again
+- tapOn:
+    point: "90%,7%"
+- waitForAnimationToEnd
+- takeScreenshot: 12-home
+- assertVisible: "عندي كود دعوة"

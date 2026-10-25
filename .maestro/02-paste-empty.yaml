@@ -1,0 +1,31 @@
+appId: com.alabdo.dory
+name: Invite code -> paste with nothing copied -> dialog closes -> back
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "عندي كود دعوة"
+    timeout: 60000
+- tapOn: "عندي كود دعوة"
+- extendedWaitUntil:
+    visible: "ادخل كود الدعوة"
+    timeout: 15000
+- tapOn: "الصق الكود"
+- runFlow:
+    when:
+      visible: "Allow Paste"
+    commands:
+      - tapOn: "Allow Paste"
+- waitForAnimationToEnd
+- takeScreenshot: 06-paste-dialog
+- runFlow:
+    when:
+      visible: "تمام"
+    commands:
+      - tapOn: "تمام"
+- waitForAnimationToEnd
+- takeScreenshot: 07-after-dialog
+- tapOn:
+    point: "90%,7%"
+- waitForAnimationToEnd
+- takeScreenshot: 08-back-home
+- assertVisible: "أنا صاحب جمعية"

@@ -1,0 +1,35 @@
+appId: com.alabdo.dory
+name: Welcome -> invite code -> back (button), twice, then swipe back
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "عندي كود دعوة"
+    timeout: 60000
+- takeScreenshot: 01-welcome
+- tapOn: "عندي كود دعوة"
+- extendedWaitUntil:
+    visible: "ادخل كود الدعوة"
+    timeout: 15000
+- takeScreenshot: 02-join
+- tapOn:
+    point: "90%,7%"
+- waitForAnimationToEnd
+- takeScreenshot: 03-after-back
+- assertVisible: "أنا صاحب جمعية"
+- tapOn: "عندي كود دعوة"
+- extendedWaitUntil:
+    visible: "ادخل كود الدعوة"
+    timeout: 15000
+- tapOn: "مثلًا: K7QX2M"
+- inputText: "ZZZZ99"
+- tapOn: "افتح الجمعية"
+- extendedWaitUntil:
+    notVisible: "بنفتح الجمعية بتاعتك…"
+    timeout: 30000
+- takeScreenshot: 04-bad-code
+- tapOn:
+    point: "90%,7%"
+- waitForAnimationToEnd
+- takeScreenshot: 05-after-back-2
+- assertVisible: "أنا صاحب جمعية"
