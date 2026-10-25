@@ -508,15 +508,6 @@ service cloud.firestore {
       allow delete: if isAccount() && resource.data.uid == request.auth.uid;
     }
 
-    // Android free trial: when it started on a phone (server time, written once, never changed).
-    match /trials/{id} {
-      allow get: if signedIn();
-      allow create: if signedIn()
-        && id.matches('^a-[A-Za-z0-9]{4,40}$')
-        && request.resource.data.keys().hasOnly(['platform', 'at'])
-        && request.resource.data.at == request.time;
-    }
-
     match /{document=**} {
       allow read, write: if false;
     }
