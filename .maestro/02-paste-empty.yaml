@@ -25,7 +25,7 @@ name: Invite code -> paste with nothing copied -> dialog closes -> back
 - waitForAnimationToEnd
 - takeScreenshot: 07-after-dialog
 - tapOn:
-    point: "94%,9%"
+    id: "header-back"
 - waitForAnimationToEnd
 - takeScreenshot: 08-back-home
 - assertVisible: "أنا صاحب جمعية"

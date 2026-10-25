@@ -13,7 +13,7 @@ name: Welcome -> invite code -> back (button), twice, then swipe back
     timeout: 15000
 - takeScreenshot: 02-join
 - tapOn:
-    point: "94%,9%"
+    id: "header-back"
 - waitForAnimationToEnd
 - takeScreenshot: 03-after-back
 - assertVisible: "أنا صاحب جمعية"
@@ -29,7 +29,16 @@ name: Welcome -> invite code -> back (button), twice, then swipe back
     timeout: 30000
 - takeScreenshot: 04-bad-code
 - tapOn:
-    point: "94%,9%"
+    id: "header-back"
 - waitForAnimationToEnd
 - takeScreenshot: 05-after-back-2
 - assertVisible: "أنا صاحب جمعية"
+- tapOn: "عندي كود دعوة"
+- extendedWaitUntil:
+    visible: "ادخل كود الدعوة"
+    timeout: 15000
+- swipe:
+    start: "2%,50%"
+    end: "80%,50%"
+- waitForAnimationToEnd
+- takeScreenshot: 05b-after-swipe

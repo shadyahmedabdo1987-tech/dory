@@ -14,6 +14,7 @@ import { DialogHost } from '@/ui/dialog';
 import { ErrorScreen } from '@/ui/feedback';
 import { IntroSplash } from '@/ui/IntroSplash';
 import { AppLock } from '@/ui/AppLock';
+import { AppHeader, type AppHeaderProps } from '@/ui/AppHeader';
 import { colors, fonts } from '@/ui/theme';
 import { isEn, tr } from '@/i18n';
 
@@ -74,6 +75,8 @@ function App({ session }: { session: ReturnType<typeof useSession> }) {
             // iOS: just the back arrow, never the previous screen's route name.
             headerBackButtonDisplayMode: 'minimal',
             contentStyle: { backgroundColor: colors.bg },
+            // iOS: our own header (the system back button could stop responding — screen stuck).
+            ...(Platform.OS === 'ios' ? { header: (p: unknown) => <AppHeader {...(p as AppHeaderProps)} /> } : {}),
           }}
         >
           <Stack.Screen name="index" options={{ headerShown: false }} />
