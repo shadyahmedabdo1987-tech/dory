@@ -17,6 +17,7 @@ import {
 import { Platform } from 'react-native';
 
 import { setupAppCheck } from './appCheck';
+import { PROD_FIREBASE } from './prodConfig';
 
 /**
  * Firebase config is read from EXPO_PUBLIC_* variables (see .env.example).
@@ -24,12 +25,12 @@ import { setupAppCheck } from './appCheck';
  * talks to the same production project — no setup on their side.
  */
 const config = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || PROD_FIREBASE.apiKey,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || PROD_FIREBASE.authDomain,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || PROD_FIREBASE.projectId,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || PROD_FIREBASE.storageBucket,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || PROD_FIREBASE.messagingSenderId,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || PROD_FIREBASE.appId,
 };
 
 const emulatorHost = process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST; // e.g. "192.168.1.10"

@@ -1,6 +1,7 @@
 import type { FirebaseApp } from 'firebase/app';
 import { CustomProvider, initializeAppCheck } from 'firebase/app-check';
 import { Platform } from 'react-native';
+import { PROD_APP_CHECK } from './prodConfig';
 
 /**
  * Firebase App Check: proves requests come from the genuine Dory app
@@ -66,7 +67,7 @@ function expiryOf(token: string): number {
 }
 
 export function setupAppCheck(app: FirebaseApp) {
-  if (Platform.OS === 'web' || process.env.EXPO_PUBLIC_APP_CHECK === 'off') return;
+  if (Platform.OS === 'web' || (process.env.EXPO_PUBLIC_APP_CHECK || PROD_APP_CHECK) === 'off') return;
   initializeAppCheck(app, {
     isTokenAutoRefreshEnabled: true,
     provider: new CustomProvider({
@@ -84,7 +85,7 @@ export function setupAppCheck(app: FirebaseApp) {
 let lastFailure = 0;
 /** A token for direct requests — but never wait more than a moment for it. */
 export async function quickAppCheckToken(): Promise<string | null> {
-  if (Platform.OS === 'web' || process.env.EXPO_PUBLIC_APP_CHECK === 'off') return null;
+  if (Platform.OS === 'web' || (process.env.EXPO_PUBLIC_APP_CHECK || PROD_APP_CHECK) === 'off') return null;
   if (Date.now() - lastFailure < 10 * 60 * 1000) return null;
   try {
     const nativeAppCheck = await Promise.race([loadNative(), new Promise<null>((r) => setTimeout(() => r(null), 2000))]);

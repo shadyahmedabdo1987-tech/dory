@@ -11,8 +11,9 @@
 import { AppError, MESSAGES } from './errors';
 import { firebaseAuth } from './firebase';
 import { quickAppCheckToken } from './appCheck';
+import { PROD_FIREBASE } from './prodConfig';
 
-const PROJECT = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+const PROJECT = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || PROD_FIREBASE.projectId;
 const ROOT = `projects/${PROJECT}/databases/(default)/documents`;
 const BASE = `https://firestore.googleapis.com/v1/${ROOT}`;
 
