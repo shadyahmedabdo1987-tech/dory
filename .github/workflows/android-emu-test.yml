@@ -60,12 +60,15 @@ jobs:
         with:
           api-level: 34
           arch: x86_64
-          target: google_apis
+          target: default
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
             mkdir -p out .maestro-all && cp .maestro/*.yaml .maestro-emu/*.yaml .maestro-all/ && cp -R .maestro/lib .maestro-all/
+            adb wait-for-device; sleep 45
+            adb shell settings put global hide_error_dialogs 1 || true
+            adb shell am force-stop com.google.android.apps.nexuslauncher || true
             adb install -r android/app/build/outputs/apk/release/app-release.apk
             adb shell settings put system system_locales ar-EG || true
             adb shell screenrecord --time-limit 180 /sdcard/run.mp4 & sleep 1
@@ -79,5 +82,5 @@ jobs:
         run: |
           mkdir -p rep && cp -R out/. rep/ 2>/dev/null || true
           tail -40 emu.log > rep/emulator.log 2>/dev/null || true
-          cd rep && git init -q && git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          find rep -type f -size +90M -delete; cd rep && git init -q && git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A && git commit -qm "android report $(date -u)" && git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/android-sim-report
