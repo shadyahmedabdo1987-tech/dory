@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { extractInviteCode, FREQUENCY_LABEL, formatDate, formatMoney, formatNumber, normalizePayAccount, normalizePhone, MIN_PASSWORD } from '@/core';
 import {
@@ -139,7 +139,12 @@ function EnterCode({
   error?: string;
   onSubmit: () => void;
 }) {
-  const onChange = (t: string) => setCode(extractInviteCode(t) ?? t.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6));
+  const onChange = (t: string) => {
+    const next = extractInviteCode(t) ?? t.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    setCode(next);
+    // The whole code is in: put the keyboard away so "افتح الجمعية" is in sight.
+    if (next.length === 6) Keyboard.dismiss();
+  };
   const paste = async () => {
     const text = await Clipboard.getStringAsync().catch(() => '');
     const found = extractInviteCode(text ?? '');
@@ -166,6 +171,8 @@ function EnterCode({
             autoCapitalize="characters"
             autoCorrect={false}
             placeholder="مثلًا: K7QX2M"
+            returnKeyType="go"
+            onSubmitEditing={() => code.length >= 6 && onSubmit()}
             error={error}
             style={{ letterSpacing: 4, textAlign: 'center', fontSize: 22 }}
           />

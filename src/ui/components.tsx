@@ -51,12 +51,15 @@ export function Text({
 }: TextProps & { variant?: Variant; weight?: Weight; color?: string; center?: boolean }) {
   const resolvedWeight: Weight =
     weight ?? (variant === 'title' || variant === 'number' ? 'bold' : variant === 'heading' ? 'semibold' : 'regular');
+  // iOS shrinks multi-line text far past minimumFontScale (labels came out tiny): there it wraps instead.
+  const iosNoShrink = Platform.OS === 'ios' && rest.adjustsFontSizeToFit && rest.numberOfLines !== 1;
   return (
     <RNText
       maxFontSizeMultiplier={1.15}
       // Big amounts stay on one line and shrink a little if they must.
       {...(variant === 'number' ? { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.6 } : null)}
       {...rest}
+      {...(iosNoShrink ? { adjustsFontSizeToFit: false } : null)}
       style={[
         styles.text,
         variants[variant],

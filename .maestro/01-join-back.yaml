@@ -23,6 +23,9 @@ name: Welcome -> invite code -> back (button), twice, then swipe back
     timeout: 15000
 - tapOn: "مثلًا: K7QX2M"
 - inputText: "ZZZZ99"
+- waitForAnimationToEnd
+- takeScreenshot: 03b-code-typed
+- assertVisible: "افتح الجمعية"
 - tapOn: "افتح الجمعية"
 - extendedWaitUntil:
     notVisible: "بنفتح الجمعية بتاعتك…"
