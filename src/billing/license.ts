@@ -72,15 +72,18 @@ function remember(full: boolean, trialStart?: number) {
 
 const ownsFull = (ps: Purchase[]) => ps.some((p) => p.productId === FULL_SKU);
 
-/** Android: when the trial started on this phone (created on first run, kept on the server). */
-async function androidTrialStart(): Promise<number | null> {
-  const id = Application.getAndroidId();
-  if (!id) return null;
+/**
+ * When the trial started on this phone (created on first run, kept on the server).
+ * Android always; iPhone only when Apple's free trial item can't be used (store not ready).
+ */
+async function deviceTrialStart(): Promise<number | null> {
+  const raw = Platform.OS === 'ios' ? await Application.getIosIdForVendorAsync().catch(() => null) : Application.getAndroidId();
+  if (!raw) return null;
   await ensureSignedIn();
-  const path = `trials/a-${id.replace(/[^A-Za-z0-9]/g, '').slice(0, 40)}`;
+  const path = `trials/a-${raw.replace(/[^A-Za-z0-9]/g, '').slice(0, 40)}`;
   let doc = await restGet(path);
   if (!doc) {
-    await restCommit([{ set: path, data: { platform: 'android' }, serverTime: ['at'] }]).catch(() => {});
+    await restCommit([{ set: path, data: { platform: Platform.OS }, serverTime: ['at'] }]).catch(() => {});
     doc = await restGet(path);
   }
   const at = doc?.at;
@@ -114,9 +117,14 @@ export async function refreshLicense(): Promise<License> {
     let start: number | null = null;
     if (Platform.OS === 'ios') {
       const t = purchases.find((p) => p.productId === TRIAL_SKU_IOS);
-      start = t ? t.transactionDate : null;
+      start = t ? t.transactionDate : readPrefsSync().license?.trialStart ?? null;
+      if (!start) {
+        // Apple's free trial item isn't offered (store setup not finished): use the phone's trial instead.
+        const items = await fetchProducts({ skus: [TRIAL_SKU_IOS], type: 'in-app' }).catch(() => null);
+        if (!items || items.length === 0) start = await deviceTrialStart();
+      }
     } else {
-      start = await androidTrialStart();
+      start = await deviceTrialStart();
     }
     if (start) {
       remember(false, start);
@@ -131,13 +139,36 @@ export async function refreshLicense(): Promise<License> {
   return store.license;
 }
 
+/** The trial kept for this phone (used when Apple's trial item can't be bought). */
+async function phoneTrial() {
+  const start = await deviceTrialStart().catch(() => null);
+  const at = start ?? Date.now();
+  remember(false, at);
+  set({ license: trialFrom(at) });
+}
+
+/** While starting the trial, a store error falls back quietly instead of showing "purchase failed". */
+let trialAttempt = false;
+
 async function buy(sku: string) {
   await connect();
   await requestPurchase({ request: { apple: { sku }, google: { skus: [sku] } }, type: 'in-app' });
 }
 
-/** iPhone: starts the free 30-day trial (Apple shows its own confirmation, price 0). */
-export const startTrial = () => buy(TRIAL_SKU_IOS);
+/**
+ * iPhone: starts the free 30-day trial (Apple shows its own confirmation, price 0).
+ * If the store can't sell the trial item, the trial starts on the phone instead — nobody is blocked.
+ */
+export async function startTrial() {
+  trialAttempt = true;
+  try {
+    await buy(TRIAL_SKU_IOS);
+  } catch {
+    await phoneTrial();
+  } finally {
+    setTimeout(() => (trialAttempt = false), 1500);
+  }
+}
 export const buyFull = () => buy(FULL_SKU);
 export const restorePurchases = () => refreshLicense();
 
@@ -156,6 +187,10 @@ export function listenToPurchases(onError: (message: string) => void) {
   });
   const b = purchaseErrorListener((e: { code?: string; message?: string }) => {
     if (String(e.code ?? '').toLowerCase().includes('cancel')) return;
+    if (trialAttempt) {
+      phoneTrial();
+      return;
+    }
     onError('الشراء ما كملش. جرّب تاني، أو اتأكد من حسابك في المتجر.');
   });
   refreshLicense();
