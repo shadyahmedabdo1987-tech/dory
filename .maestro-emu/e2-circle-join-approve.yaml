@@ -1,0 +1,175 @@
+appId: com.alabdo.dory
+name: Organizer makes a circle, a member joins with the code, organizer approves, both sign out
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "أنا صاحب جمعية"
+    timeout: 60000
+# organizer signs in (account made by flow 01)
+- tapOn: "أنا صاحب جمعية"
+- tapOn: "عندي حساب"
+- tapOn: "01xxxxxxxxx"
+- inputText: "01000000077"
+- tapOn:
+    below: "الرقم السري"
+    index: 0
+- inputText: "test1234"
+- hideKeyboard
+- tapOn: "دخول"
+- extendedWaitUntil:
+    visible: "جمعية جديدة"
+    timeout: 45000
+# new circle
+- tapOn: "جمعية جديدة"
+- extendedWaitUntil:
+    visible: "اسم الجمعية"
+    timeout: 15000
+- tapOn: "مثلًا: جمعية الشغل"
+- inputText: "Test Circle"
+- tapOn: "1000"
+- inputText: "1000"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "عدد الأعضاء المطلوب (معاك إنت)"
+    direction: DOWN
+- tapOn:
+    below: "عدد الأعضاء المطلوب (معاك إنت)"
+    index: 0
+- eraseText: 3
+- inputText: "3"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "ابدأ الجمعية"
+    direction: DOWN
+- runFlow:
+    when:
+      visible: "رقم الموبايل أو name@instapay"
+    commands:
+      - tapOn: "رقم الموبايل أو name@instapay"
+      - inputText: "01000000077"
+      - hideKeyboard
+- takeScreenshot: e10-new-circle
+- tapOn: "ابدأ الجمعية"
+- extendedWaitUntil:
+    visible: "كود الدعوة"
+    timeout: 45000
+- takeScreenshot: e11-circle-members
+- tapOn: "انسخ الكود"
+- tapOn:
+    id: "header-back"
+- extendedWaitUntil:
+    visible: "جمعيات بديرها"
+    timeout: 15000
+- takeScreenshot: e12-home-with-circle
+# organizer signs out
+- tapOn: "حسابي"
+- scrollUntilVisible:
+    element: "تسجيل الخروج"
+    direction: DOWN
+- tapOn: "تسجيل الخروج"
+- tapOn: "خروج"
+- extendedWaitUntil:
+    visible: "عندي كود دعوة"
+    timeout: 30000
+# member joins with the code
+- tapOn: "عندي كود دعوة"
+- extendedWaitUntil:
+    visible: "ادخل كود الدعوة"
+    timeout: 15000
+- tapOn: "الصق الكود"
+- runFlow:
+    when:
+      visible: "Allow Paste"
+    commands:
+      - tapOn: "Allow Paste"
+- waitForAnimationToEnd
+- takeScreenshot: e13-code-pasted
+- tapOn: "افتح الجمعية"
+- extendedWaitUntil:
+    visible: "ادخل الجمعية"
+    timeout: 30000
+- takeScreenshot: e14-found-circle
+- tapOn: "ادخل الجمعية"
+- tapOn: "01xxxxxxxxx"
+- inputText: "01000000088"
+- hideKeyboard
+- tapOn: "متابعة"
+- extendedWaitUntil:
+    visible: "ابعت طلب الانضمام"
+    timeout: 30000
+- tapOn: "الاسم اللي صاحب الجمعية هيشوفه"
+- inputText: "Test Member"
+- tapOn:
+    below: "الباسورد"
+    index: 0
+- inputText: "member1234"
+- tapOn:
+    below: "اكتب الباسورد تاني"
+    index: 0
+- inputText: "member1234"
+- hideKeyboard
+- takeScreenshot: e15-join-form
+- tapOn: "ابعت طلب الانضمام"
+- extendedWaitUntil:
+    visible: "طلبك وصل لصاحب الجمعية"
+    timeout: 30000
+- takeScreenshot: e16-waiting
+- tapOn: "تمام"
+- extendedWaitUntil:
+    visible: "طلبات مستنية موافقة"
+    timeout: 15000
+- takeScreenshot: e17-member-home
+# member signs out
+- tapOn: "حسابي"
+- scrollUntilVisible:
+    element: "تسجيل الخروج"
+    direction: DOWN
+- tapOn: "تسجيل الخروج"
+- tapOn: "خروج"
+- extendedWaitUntil:
+    visible: "أنا صاحب جمعية"
+    timeout: 30000
+- takeScreenshot: e18-member-signed-out
+# organizer approves
+- tapOn: "أنا صاحب جمعية"
+- tapOn: "عندي حساب"
+- tapOn: "01xxxxxxxxx"
+- inputText: "01000000077"
+- tapOn:
+    below: "الرقم السري"
+    index: 0
+- inputText: "test1234"
+- hideKeyboard
+- tapOn: "دخول"
+- extendedWaitUntil:
+    visible: "Test Circle"
+    timeout: 45000
+- tapOn: "Test Circle"
+- extendedWaitUntil:
+    visible: "الأعضاء"
+    timeout: 30000
+- tapOn: "الأعضاء"
+- scrollUntilVisible:
+    element: "موافقة"
+    direction: DOWN
+- takeScreenshot: e19-request
+- tapOn: "موافقة"
+- waitForAnimationToEnd
+- takeScreenshot: e20-approved
+- runFlow:
+    when:
+      visible: "تمام"
+    commands:
+      - tapOn: "تمام"
+- tapOn:
+    id: "header-back"
+- tapOn: "حسابي"
+- scrollUntilVisible:
+    element: "تسجيل الخروج"
+    direction: DOWN
+- tapOn: "تسجيل الخروج"
+- tapOn: "خروج"
+- extendedWaitUntil:
+    visible: "أنا صاحب جمعية"
+    timeout: 30000
+- takeScreenshot: e21-done
