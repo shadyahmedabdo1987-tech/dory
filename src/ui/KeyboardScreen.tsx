@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, type StyleProp, type ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, Platform, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Height of the stack header under the status bar (Android/iOS default). */
@@ -25,7 +25,9 @@ export function KeyboardScreen({
     <KeyboardAvoidingView
       style={[{ flex: 1 }, style]}
       behavior="padding"
-      keyboardVerticalOffset={header ? insets.top + HEADER : 0}
+      // iOS measures this view's position on the whole screen, so the header is already counted
+      // (adding it again left an empty band above the keyboard).
+      keyboardVerticalOffset={header && Platform.OS !== 'ios' ? insets.top + HEADER : 0}
     >
       {children}
     </KeyboardAvoidingView>

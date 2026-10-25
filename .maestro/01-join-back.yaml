@@ -22,7 +22,10 @@ name: Welcome -> invite code -> back (button), twice, then swipe back
     visible: "ادخل كود الدعوة"
     timeout: 15000
 - tapOn: "مثلًا: K7QX2M"
-- inputText: "ZZZZ99"
+- inputText: "ZZZ"
+- waitForAnimationToEnd
+- takeScreenshot: 03a-keyboard-open
+- inputText: "Z99"
 - waitForAnimationToEnd
 - takeScreenshot: 03b-code-typed
 - assertVisible: "افتح الجمعية"
