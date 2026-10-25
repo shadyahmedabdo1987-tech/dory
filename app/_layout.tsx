@@ -1,5 +1,5 @@
 import { Cairo_400Regular, Cairo_600SemiBold, Cairo_700Bold, useFonts } from '@expo-google-fonts/cairo';
-import { Stack } from 'expo-router';
+import { router, Stack, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
@@ -29,6 +29,26 @@ if (Platform.OS !== 'web' && I18nManager.isRTL === isEn) {
 }
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+/**
+ * Last line of defence: if a screen ever throws, show a way back instead of a blank page or a crash.
+ */
+export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+  return (
+    <ErrorScreen
+      message="حصلت مشكلة في الشاشة دي. دوس «جرّب تاني» وهترجع للبداية."
+      onRetry={() => {
+        try {
+          if (router.canDismiss()) router.dismissAll();
+          router.replace('/');
+        } catch {
+          // fall through to retry
+        }
+        retry();
+      }}
+    />
+  );
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({ Cairo_400Regular, Cairo_600SemiBold, Cairo_700Bold });

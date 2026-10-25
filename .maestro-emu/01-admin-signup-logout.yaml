@@ -1,0 +1,86 @@
+appId: com.alabdo.dory
+name: Organizer - sign up, open screens, sign out, sign in again, sign out
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "أنا صاحب جمعية"
+    timeout: 60000
+- tapOn: "أنا صاحب جمعية"
+- extendedWaitUntil:
+    visible: "إنشاء الحساب"
+    timeout: 15000
+- tapOn: "مثلًا: شادي"
+- inputText: "Test Admin"
+- tapOn: "01xxxxxxxxx"
+- inputText: "01000000077"
+- tapOn:
+    below: "الرقم السري"
+    index: 0
+- inputText: "test1234"
+- tapOn: "name@gmail.com"
+- inputText: "admin-test@example.com"
+- hideKeyboard
+- takeScreenshot: e01-signup-filled
+- tapOn: "إنشاء الحساب"
+- extendedWaitUntil:
+    visible: "جمعية جديدة"
+    timeout: 45000
+- takeScreenshot: e02-admin-home
+- tapOn: "عندي كود دعوة"
+- extendedWaitUntil:
+    visible: "ادخل كود الدعوة"
+    timeout: 15000
+- tapOn:
+    id: "header-back"
+- extendedWaitUntil:
+    visible: "جمعية جديدة"
+    timeout: 15000
+- tapOn: "حسابي"
+- extendedWaitUntil:
+    visible: "تسجيل الخروج"
+    timeout: 15000
+- scrollUntilVisible:
+    element: "تسجيل الخروج"
+    direction: DOWN
+- takeScreenshot: e03-account
+- tapOn: "تسجيل الخروج"
+- extendedWaitUntil:
+    visible: "خروج"
+    timeout: 10000
+- takeScreenshot: e04-logout-confirm
+- tapOn: "خروج"
+- extendedWaitUntil:
+    visible: "أنا صاحب جمعية"
+    timeout: 30000
+- takeScreenshot: e05-after-logout
+- tapOn: "أنا صاحب جمعية"
+- extendedWaitUntil:
+    visible: "عندي حساب"
+    timeout: 15000
+- tapOn: "عندي حساب"
+- tapOn: "01xxxxxxxxx"
+- inputText: "01000000077"
+- tapOn:
+    below: "الرقم السري"
+    index: 0
+- inputText: "test1234"
+- hideKeyboard
+- tapOn: "دخول"
+- extendedWaitUntil:
+    visible: "جمعية جديدة"
+    timeout: 45000
+- takeScreenshot: e06-signed-in-again
+- tapOn: "حسابي"
+- scrollUntilVisible:
+    element: "تسجيل الخروج"
+    direction: DOWN
+- tapOn: "تسجيل الخروج"
+- extendedWaitUntil:
+    visible: "خروج"
+    timeout: 10000
+- tapOn: "خروج"
+- extendedWaitUntil:
+    visible: "أنا صاحب جمعية"
+    timeout: 30000
+- takeScreenshot: e07-after-second-logout

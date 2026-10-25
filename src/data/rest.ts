@@ -15,7 +15,8 @@ import { PROD_FIREBASE } from './prodConfig';
 
 const PROJECT = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || PROD_FIREBASE.projectId;
 const ROOT = `projects/${PROJECT}/databases/(default)/documents`;
-const BASE = `https://firestore.googleapis.com/v1/${ROOT}`;
+const EMULATOR = process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST;
+const BASE = EMULATOR ? `http://${EMULATOR}:8080/v1/${ROOT}` : `https://firestore.googleapis.com/v1/${ROOT}`;
 
 type Value =
   | { stringValue: string }

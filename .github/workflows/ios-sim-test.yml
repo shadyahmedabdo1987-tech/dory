@@ -8,6 +8,9 @@ on:
       reuse_run:
         description: "Run id whose built app to reuse (skips the 20-minute build)"
         default: ""
+      backend:
+        description: "prod = real server (no sign-in tests); emulator = local test server with sign-up/sign-out tests"
+        default: "emulator"
 
 concurrency:
   group: ios-sim-test
@@ -38,13 +41,30 @@ jobs:
         run: |
           gh run download "${{ inputs.reuse_run }}" -R "${{ github.repository }}" -n dory-sim-app -D simapp
           APP=$(ls -d simapp/*.app | head -1); echo "APP=$GITHUB_WORKSPACE/$APP" >> "$GITHUB_ENV"
+      - uses: actions/setup-java@v5
+        if: ${{ inputs.backend == 'emulator' }}
+        with:
+          distribution: temurin
+          java-version: 21
       - name: Build for the simulator
         if: ${{ inputs.reuse_run == '' }}
         run: |
           set -eo pipefail
           npm install --no-audit --no-fund 2>&1 | tail -3
-          cp config/production.env .env
+          if [ "${{ inputs.backend }}" = "emulator" ]; then
+            printf '%s\n' EXPO_PUBLIC_FIREBASE_API_KEY=demo-key EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=demo-dory.firebaseapp.com \
+              EXPO_PUBLIC_FIREBASE_PROJECT_ID=demo-dory EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=demo-dory.appspot.com \
+              EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=1 EXPO_PUBLIC_FIREBASE_APP_ID=1:1:ios:1 \
+              EXPO_PUBLIC_FIREBASE_EMULATOR_HOST=localhost EXPO_PUBLIC_APP_CHECK=off > .env
+          else
+            cp config/production.env .env
+          fi
           CI=1 npx expo prebuild --platform ios --clean 2>&1 | tail -5
+          if [ "${{ inputs.backend }}" = "emulator" ]; then
+            PL=$(ls ios/*/Info.plist | grep -v Pods | head -1)
+            /usr/libexec/PlistBuddy -c "Delete :NSAppTransportSecurity" "$PL" || true
+            /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$PL"
+          fi
           WS=$(ls -d ios/*.xcworkspace | head -1); SCHEME=$(basename "$WS" .xcworkspace)
           xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator \
             -destination "generic/platform=iOS Simulator" -derivedDataPath build CODE_SIGNING_ALLOWED=NO build 2>&1 \
@@ -73,6 +93,13 @@ jobs:
           xcrun simctl spawn "$DEV" defaults write -g AppleLocale ar_EG
           xcrun simctl shutdown "$DEV"; xcrun simctl boot "$DEV"; xcrun simctl bootstatus "$DEV" -b
           xcrun simctl install "$DEV" "$APP"
+      - name: Local test server (Firebase emulators)
+        if: ${{ inputs.backend == 'emulator' }}
+        run: |
+          npm install --no-audit --no-fund >/dev/null 2>&1 || true
+          nohup npx firebase emulators:start --only auth,firestore --project demo-dory > emu.log 2>&1 &
+          for i in $(seq 1 60); do curl -s localhost:8080 >/dev/null && curl -s localhost:9099 >/dev/null && break; sleep 3; done
+          curl -s localhost:9099 | head -c 200; echo; tail -5 emu.log
       - name: Maestro
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | bash
@@ -84,7 +111,8 @@ jobs:
           mkdir -p out
           xcrun simctl io "$DEV" recordVideo --codec=h264 out/run.mp4 & REC=$!
           export MAESTRO_DRIVER_STARTUP_TIMEOUT=900000 MAESTRO_CLI_NO_ANALYTICS=1
-          maestro --device "$DEV" test .maestro --test-output-dir out/flows --format junit --output out/junit.xml > out/maestro.log 2>&1 && echo "ALL PASS" > out/summary.txt || echo "SOME FAILED" > out/summary.txt
+          if [ "${{ inputs.backend }}" = "emulator" ]; then mkdir -p .maestro-all && cp .maestro/*.yaml .maestro-emu/*.yaml .maestro-all/; else mkdir -p .maestro-all && cp .maestro/*.yaml .maestro-all/; fi
+          maestro --device "$DEV" test .maestro-all --test-output-dir out/flows --format junit --output out/junit.xml > out/maestro.log 2>&1 && echo "ALL PASS" > out/summary.txt || echo "SOME FAILED" > out/summary.txt
           grep -E "testcase|failure" out/junit.xml >> out/summary.txt 2>/dev/null || true
           maestro --device "$DEV" test .maestro-probe/join.yaml > out/probe.log 2>&1 || true
           maestro --device "$DEV" hierarchy > out/hier-join.json 2>out/hier.err || true
@@ -97,6 +125,7 @@ jobs:
           mkdir -p rep && cp -R out/. rep/ 2>/dev/null || true
           find rep -name "*.png" | head -50
           grep -E "error:" "$RUNNER_TEMP/xc.log" 2>/dev/null | head -30 > rep/build-errors.txt || true
+          tail -60 emu.log > rep/emulator.log 2>/dev/null || true
           xcrun simctl spawn "$DEV" log show --last 15m --predicate 'process == "Dory" OR process CONTAINS "dory"' --style compact 2>/dev/null | grep -iE "error|exception|fatal|warn" | tail -200 > rep/device-log.txt || true
           cd rep && git init -q && git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A && git commit -qm "sim report $(date -u)" && git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/ios-sim-report

@@ -53,6 +53,8 @@ export default function Account() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePw, setDeletePw] = useState('');
 
   // Admins: show the account their circles already use.
   useEffect(() => {
@@ -72,6 +74,7 @@ export default function Account() {
       .catch(() => setNotif('unknown'));
   }, []);
 
+  // Every hook above this line: after signing out `user` is null, and React needs the same hooks each time.
   if (!user) return null;
 
   const admin = refs?.filter((r) => r.role === 'admin').length ?? 0;
@@ -120,20 +123,18 @@ export default function Account() {
     );
 
   /** Applies a new language / look right away: the app restarts itself on the same screen. */
-  // After signing out: start the app over on the welcome screen (no half-closed screens left behind).
+  // After signing out: back to the start screen (welcome), nothing half-closed left behind.
   const backToStart = () => {
-    setTimeout(async () => {
-      try {
-        await Updates.reloadAsync();
-      } catch {
-        try {
-          if (router.canDismiss()) router.dismissAll();
-          router.replace('/');
-        } catch {
-          // already on the start screen
-        }
-      }
-    }, 150);
+    try {
+      if (router.canDismiss()) router.dismissAll();
+    } catch {
+      // nothing to close
+    }
+    try {
+      router.replace('/');
+    } catch {
+      // already there
+    }
   };
 
   const restartNow = async (title: string, icon: 'moon' | 'sunny' | 'language') => {
@@ -167,8 +168,6 @@ export default function Account() {
   };
 
   // App Store / Google Play: the account (and everything in it) can be deleted from inside the app.
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deletePw, setDeletePw] = useState('');
   const deleteAccount = async () => {
     const ok = await confirm(
       'حذف الحساب نهائيًا؟',

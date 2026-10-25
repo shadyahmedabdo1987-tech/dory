@@ -72,6 +72,7 @@ jobs:
       - run: npx expo install --check
         continue-on-error: true
       - run: npm run typecheck
+      - run: node scripts/check-hooks.mjs
       - name: Bundle the app (catches import / Metro errors)
         run: npx expo export --platform android --output-dir dist
         env:
