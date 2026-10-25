@@ -11,8 +11,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
 - tapOn: "01xxxxxxxxx"
 - inputText: "01000000077"
 - tapOn:
-    below: "الرقم السري"
-    index: 0
+    id: "auth-password"
 - inputText: "test1234"
 - tapOn: "رقم الموبايل"
 - tapOn: "دخول"
@@ -33,8 +32,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
     element: "عدد الأعضاء المطلوب (معاك إنت)"
     direction: DOWN
 - tapOn:
-    below: "عدد الأعضاء المطلوب (معاك إنت)"
-    index: 0
+    id: "circle-slots"
 - eraseText: 3
 - inputText: "3"
 - tapOn: "عدد الأعضاء"
@@ -100,12 +98,10 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
 - tapOn: "الاسم اللي صاحب الجمعية هيشوفه"
 - inputText: "Test Member"
 - tapOn:
-    below: "الباسورد"
-    index: 0
+    id: "join-password"
 - inputText: "member1234"
 - tapOn:
-    below: "اكتب الباسورد تاني"
-    index: 0
+    id: "join-password2"
 - inputText: "member1234"
 - tapOn: "اسمك"
 - takeScreenshot: e15-join-form
@@ -136,8 +132,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
 - tapOn: "01xxxxxxxxx"
 - inputText: "01000000077"
 - tapOn:
-    below: "الرقم السري"
-    index: 0
+    id: "auth-password"
 - inputText: "test1234"
 - tapOn: "رقم الموبايل"
 - tapOn: "دخول"

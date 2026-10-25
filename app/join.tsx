@@ -490,6 +490,7 @@ function JoinSheet({
             }}
             keyboardType="phone-pad"
             autoComplete="tel"
+            testID="join-phone"
             maxLength={16}
             placeholder="01xxxxxxxxx"
             error={phone.trim() && !phoneOk ? 'اكتب رقم موبايل صحيح.' : undefined}
@@ -637,6 +638,7 @@ function JoinSheet({
                 label="الباسورد"
                 value={password}
                 onChangeText={setPassword}
+                testID="join-password"
                 secureTextEntry
                 autoCapitalize="none"
                 error={passwordShort ? '٦ حروف أو أكتر' : undefined}
@@ -645,6 +647,7 @@ function JoinSheet({
                 label="اكتب الباسورد تاني"
                 value={password2}
                 onChangeText={setPassword2}
+                testID="join-password2"
                 secureTextEntry
                 autoCapitalize="none"
                 error={mismatch ? 'الباسورد مش زي اللي فوق' : undefined}

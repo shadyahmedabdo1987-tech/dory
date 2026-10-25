@@ -15,13 +15,15 @@ name: Organizer - sign up, open screens, sign out, sign in again, sign out
 - tapOn: "01xxxxxxxxx"
 - inputText: "01000000077"
 - tapOn:
-    below: "الرقم السري"
-    index: 0
+    id: "auth-password"
 - inputText: "test1234"
-- tapOn: "name@gmail.com"
+- takeScreenshot: e00-password-typed
+- tapOn:
+    id: "auth-email"
 - inputText: "admin-test@example.com"
 - tapOn: "رقم الموبايل"
 - takeScreenshot: e01-signup-filled
+- assertVisible: "admin-test@example.com"
 - tapOn: "إنشاء الحساب"
 - extendedWaitUntil:
     visible: "جمعية جديدة"
@@ -62,8 +64,7 @@ name: Organizer - sign up, open screens, sign out, sign in again, sign out
 - tapOn: "01xxxxxxxxx"
 - inputText: "01000000077"
 - tapOn:
-    below: "الرقم السري"
-    index: 0
+    id: "auth-password"
 - inputText: "test1234"
 - tapOn: "رقم الموبايل"
 - tapOn: "دخول"

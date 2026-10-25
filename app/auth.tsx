@@ -69,13 +69,14 @@ export default function AuthScreen() {
           ]}
         />
         <Card>
-          {mode === 'signup' && <Field label="اسمك" value={name} onChangeText={setName} placeholder="مثلًا: شادي" />}
+          {mode === 'signup' && <Field label="اسمك" value={name} onChangeText={setName} placeholder="مثلًا: شادي" testID="auth-name" />}
           <Field
             label="رقم الموبايل"
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
             autoComplete="tel"
+            testID="auth-phone"
             placeholder="01xxxxxxxxx"
             style={{ textAlign: 'left', writingDirection: 'ltr' }}
           />
@@ -84,7 +85,9 @@ export default function AuthScreen() {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+            // Not "new-password": iOS would swap in its own generated password the owner never sees.
+            autoComplete="current-password"
+            testID="auth-password"
             hint={mode === 'signup' ? '٦ حروف أو أرقام أو أكتر' : undefined}
           />
           {mode === 'signup' && (
@@ -95,6 +98,7 @@ export default function AuthScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
+              testID="auth-email"
               placeholder="name@gmail.com"
               hint="مش هتدخل بيه. لو نسيت الرقم السري هنبعتلك عليه لينك تغيّره منه."
               error={email.trim() && !emailOk ? 'الإيميل مكتوب غلط' : undefined}

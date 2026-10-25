@@ -283,6 +283,7 @@ export function CircleForm({
             label="عدد الأعضاء المطلوب (معاك إنت)"
             value={slotsText}
             onChangeText={setSlotsText}
+            testID="circle-slots"
             keyboardType="number-pad"
             maxLength={3}
             error={has('slots') ? ERRORS.slots : undefined}
