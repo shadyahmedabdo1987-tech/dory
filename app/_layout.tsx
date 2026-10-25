@@ -17,6 +17,10 @@ import { AppLock } from '@/ui/AppLock';
 import { colors, fonts } from '@/ui/theme';
 import { isEn, tr } from '@/i18n';
 
+// iOS: a native modal screen can't show our dialogs on top of it (the confirm never appears and
+// the screen looks frozen, e.g. sign-out), so there these screens slide in as regular pages.
+const SHEET = Platform.OS === 'ios' ? ('card' as const) : ('modal' as const);
+
 // Arabic: right-to-left; English: left-to-right (takes effect from the next launch).
 if (Platform.OS !== 'web' && I18nManager.isRTL === isEn) {
   I18nManager.allowRTL(!isEn);
@@ -73,12 +77,12 @@ function App({ session }: { session: ReturnType<typeof useSession> }) {
           }}
         >
           <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="auth" options={{ title: tr('حساب صاحب الجمعية'), presentation: 'modal' }} />
-          <Stack.Screen name="account" options={{ title: tr('حسابي'), presentation: 'modal' }} />
-          <Stack.Screen name="join" options={{ title: tr('كود الدعوة'), presentation: 'modal' }} />
-          <Stack.Screen name="new" options={{ title: tr('جمعية جديدة'), presentation: 'modal' }} />
+          <Stack.Screen name="auth" options={{ title: tr('حساب صاحب الجمعية'), presentation: SHEET }} />
+          <Stack.Screen name="account" options={{ title: tr('حسابي'), presentation: SHEET }} />
+          <Stack.Screen name="join" options={{ title: tr('كود الدعوة'), presentation: SHEET }} />
+          <Stack.Screen name="new" options={{ title: tr('جمعية جديدة'), presentation: SHEET }} />
           <Stack.Screen name="circle/[id]" options={{ title: '' }} />
-          <Stack.Screen name="circle/settings/[id]" options={{ title: tr('إعدادات الجمعية'), presentation: 'modal' }} />
+          <Stack.Screen name="circle/settings/[id]" options={{ title: tr('إعدادات الجمعية'), presentation: SHEET }} />
         </Stack>
         <BusyHost />
         <AppLock />
