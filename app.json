@@ -3,7 +3,7 @@
     "name": "دوري",
     "slug": "dory",
     "scheme": "dory",
-    "version": "2.50.0",
+    "version": "2.51.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -79,6 +79,9 @@
       "forcesRTL": true
     },
     "icon": "./assets/icon.png",
-    "owner": "shady87"
+    "owner": "shady87",
+    "updates": {
+      "enabled": false
+    }
   }
 }

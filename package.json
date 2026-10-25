@@ -1,6 +1,6 @@
 {
   "name": "dory",
-  "version": "2.50.0",
+  "version": "2.51.0",
   "private": true,
   "description": "دوري — the savings-circle (جمعية) app: admin control panel and a bank-style account for every member.",
   "main": "expo-router/entry",
@@ -43,6 +43,7 @@
     "expo-router": "~6.0.10",
     "expo-splash-screen": "~31.0.10",
     "expo-status-bar": "~3.0.8",
+    "expo-updates": "~29.0.20",
     "firebase": "^12.4.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",

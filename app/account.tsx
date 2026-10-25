@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -118,18 +119,19 @@ export default function Account() {
       { success: `بعتنا رابط تأكيد على ${newEmail.trim()}. افتحه من الإيميل الجديد، وبعدها تدخل بيه.` },
     );
 
-  const restartPrompt = (title: string, icon: 'moon' | 'sunny' | 'language') =>
-    alert(
-      title,
-      'هيتطبق على كل الشاشات لما تفتح البرنامج تاني.',
-      [
+  /** Applies a new language / look right away: the app restarts itself on the same screen. */
+  const restartNow = async (title: string, icon: 'moon' | 'sunny' | 'language') => {
+    try {
+      await Updates.reloadAsync();
+    } catch {
+      alert(title, 'هيتطبق على كل الشاشات لما تفتح البرنامج تاني.', [
         ...(Platform.OS === 'android'
           ? [{ text: 'اقفل البرنامج دلوقتي', icon: 'power' as const, onPress: () => BackHandler.exitApp() }]
           : []),
         { text: 'بعدين', style: 'cancel' as const },
-      ],
-      { icon, tone: 'success' },
-    );
+      ], { icon, tone: 'success' });
+    }
+  };
 
   const chooseLanguage = (l: Lang) => {
     setLanguage(l);
@@ -138,24 +140,14 @@ export default function Account() {
       I18nManager.allowRTL(l === 'ar');
       I18nManager.forceRTL(l === 'ar');
     }
-    if (l !== currentLang) restartPrompt(l === 'en' ? 'Language changed ✓' : 'اللغة اتغيّرت ✓', 'language');
+    if (l !== currentLang) restartNow(l === 'en' ? 'Language changed ✓' : 'اللغة اتغيّرت ✓', 'language');
   };
 
   const chooseTheme = (t: ThemeMode) => {
     setTheme(t);
     writePrefs({ theme: t });
     if (t === themeMode) return;
-    alert(
-      'الوضع اتغيّر ✓',
-      'هيتطبق على كل الشاشات لما تفتح البرنامج تاني.',
-      [
-        ...(Platform.OS === 'android'
-          ? [{ text: 'اقفل البرنامج دلوقتي', icon: 'power' as const, onPress: () => BackHandler.exitApp() }]
-          : []),
-        { text: 'بعدين', style: 'cancel' as const },
-      ],
-      { icon: t === 'dark' ? 'moon' : 'sunny', tone: 'success' },
-    );
+    restartNow('الوضع اتغيّر ✓', t === 'dark' ? 'moon' : 'sunny');
   };
 
   const logout = async () => {
