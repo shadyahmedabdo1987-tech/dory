@@ -18,8 +18,7 @@ name: Organizer sign-in screen -> forgot password sheet -> close -> back
       - tapOn: "إغلاق"
       - waitForAnimationToEnd
 - takeScreenshot: 11-auth-again
-- tapOn:
-    id: "header-back"
+- runFlow: lib/back.yaml
 - waitForAnimationToEnd
 - takeScreenshot: 12-home
 - assertVisible: "عندي كود دعوة"

@@ -1,0 +1,83 @@
+# Android emulator: builds the app against a local test server (Firebase emulators) and taps
+# through sign-up, sign-out, circle, join and approval with Maestro. Report: branch android-sim-report.
+name: Android emulator test
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: android-emu-test
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  emu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Build (test server config)
+        run: |
+          set -eo pipefail
+          npm install --no-audit --no-fund 2>&1 | tail -3
+          printf '%s\n' EXPO_PUBLIC_FIREBASE_API_KEY=demo-key EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=demo-dory.firebaseapp.com \
+            EXPO_PUBLIC_FIREBASE_PROJECT_ID=demo-dory EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=demo-dory.appspot.com \
+            EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=1 EXPO_PUBLIC_FIREBASE_APP_ID=1:1:android:1 \
+            EXPO_PUBLIC_FIREBASE_EMULATOR_HOST=10.0.2.2 EXPO_PUBLIC_APP_CHECK=off > .env
+          CI=1 npx expo prebuild --platform android --no-install --clean 2>&1 | tail -3
+          sed -i 's/<application /<application android:usesCleartextTraffic="true" /' android/app/src/main/AndroidManifest.xml
+          cd android && ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=x86_64 2>&1 | tail -15
+          ls -lh app/build/outputs/apk/release/
+        env:
+          NODE_ENV: production
+          GRADLE_OPTS: -Xmx4g -Dorg.gradle.jvmargs=-Xmx4g
+      - name: Local test server (Firebase emulators)
+        run: |
+          nohup npx firebase emulators:start --only auth,firestore --project demo-dory > emu.log 2>&1 &
+          for i in $(seq 1 60); do curl -s localhost:8080 >/dev/null && curl -s localhost:9099 >/dev/null && break; sleep 3; done
+          tail -3 emu.log
+      - name: Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Run the flows on an Android emulator
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            mkdir -p out .maestro-all && cp .maestro/*.yaml .maestro-emu/*.yaml .maestro-all/ && cp -R .maestro/lib .maestro-all/
+            adb install -r android/app/build/outputs/apk/release/app-release.apk
+            adb shell settings put system system_locales ar-EG || true
+            adb shell screenrecord --time-limit 180 /sdcard/run.mp4 & sleep 1
+            MAESTRO_CLI_NO_ANALYTICS=1 maestro test .maestro-all --test-output-dir out/flows --format junit --output out/junit.xml > out/maestro.log 2>&1 && echo "ALL PASS" > out/summary.txt || echo "SOME FAILED" > out/summary.txt
+            grep -E "testcase|failure" out/junit.xml >> out/summary.txt 2>/dev/null || true
+            adb logcat -d -s ReactNativeJS:V AndroidRuntime:E '*:F' | tail -300 > out/logcat.txt || true
+            adb pull /sdcard/run.mp4 out/run.mp4 || true
+            cat out/summary.txt
+      - name: Report (branch android-sim-report)
+        if: always()
+        run: |
+          mkdir -p rep && cp -R out/. rep/ 2>/dev/null || true
+          tail -40 emu.log > rep/emulator.log 2>/dev/null || true
+          cd rep && git init -q && git config user.name "github-actions[bot]" && git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -qm "android report $(date -u)" && git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/android-sim-report

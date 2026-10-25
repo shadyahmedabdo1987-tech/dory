@@ -33,8 +33,7 @@ name: Organizer - sign up, open screens, sign out, sign in again, sign out
 - extendedWaitUntil:
     visible: "ادخل كود الدعوة"
     timeout: 15000
-- tapOn:
-    id: "header-back"
+- runFlow: lib/back.yaml
 - extendedWaitUntil:
     visible: "جمعية جديدة"
     timeout: 15000

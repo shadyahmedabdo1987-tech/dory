@@ -53,8 +53,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
     timeout: 45000
 - takeScreenshot: e11-circle-members
 - tapOn: "انسخ الكود"
-- tapOn:
-    id: "header-back"
+- runFlow: lib/back.yaml
 - extendedWaitUntil:
     visible: "جمعيات بديرها"
     timeout: 15000
@@ -156,8 +155,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
       visible: "تمام"
     commands:
       - tapOn: "تمام"
-- tapOn:
-    id: "header-back"
+- runFlow: lib/back.yaml
 - tapOn: "حسابي"
 - scrollUntilVisible:
     element: "تسجيل الخروج"

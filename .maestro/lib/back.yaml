@@ -1,0 +1,13 @@
+appId: com.alabdo.dory
+---
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: "header-back"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back

@@ -12,8 +12,7 @@ name: Welcome -> invite code -> back (button), twice, then swipe back
     visible: "ادخل كود الدعوة"
     timeout: 15000
 - takeScreenshot: 02-join
-- tapOn:
-    id: "header-back"
+- runFlow: lib/back.yaml
 - waitForAnimationToEnd
 - takeScreenshot: 03-after-back
 - assertVisible: "أنا صاحب جمعية"
@@ -34,8 +33,7 @@ name: Welcome -> invite code -> back (button), twice, then swipe back
     notVisible: "بنفتح الجمعية بتاعتك…"
     timeout: 30000
 - takeScreenshot: 04-bad-code
-- tapOn:
-    id: "header-back"
+- runFlow: lib/back.yaml
 - waitForAnimationToEnd
 - takeScreenshot: 05-after-back-2
 - assertVisible: "أنا صاحب جمعية"

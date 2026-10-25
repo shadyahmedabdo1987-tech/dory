@@ -24,8 +24,7 @@ name: Invite code -> paste with nothing copied -> dialog closes -> back
       - tapOn: "تمام"
 - waitForAnimationToEnd
 - takeScreenshot: 07-after-dialog
-- tapOn:
-    id: "header-back"
+- runFlow: lib/back.yaml
 - waitForAnimationToEnd
 - takeScreenshot: 08-back-home
 - assertVisible: "أنا صاحب جمعية"

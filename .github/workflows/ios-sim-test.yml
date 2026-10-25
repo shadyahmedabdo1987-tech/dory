@@ -111,7 +111,7 @@ jobs:
           mkdir -p out
           xcrun simctl io "$DEV" recordVideo --codec=h264 out/run.mp4 & REC=$!
           export MAESTRO_DRIVER_STARTUP_TIMEOUT=900000 MAESTRO_CLI_NO_ANALYTICS=1
-          if [ "${{ inputs.backend }}" = "emulator" ]; then mkdir -p .maestro-all && cp .maestro/*.yaml .maestro-emu/*.yaml .maestro-all/; else mkdir -p .maestro-all && cp .maestro/*.yaml .maestro-all/; fi
+          if [ "${{ inputs.backend }}" = "emulator" ]; then mkdir -p .maestro-all && cp .maestro/*.yaml .maestro-emu/*.yaml .maestro-all/; else mkdir -p .maestro-all && cp .maestro/*.yaml .maestro-all/; fi; cp -R .maestro/lib .maestro-all/
           maestro --device "$DEV" test .maestro-all --test-output-dir out/flows --format junit --output out/junit.xml > out/maestro.log 2>&1 && echo "ALL PASS" > out/summary.txt || echo "SOME FAILED" > out/summary.txt
           grep -E "testcase|failure" out/junit.xml >> out/summary.txt 2>/dev/null || true
           maestro --device "$DEV" test .maestro-probe/join.yaml > out/probe.log 2>&1 || true
