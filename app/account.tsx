@@ -15,7 +15,6 @@ import { Badge, Button, Card, Field, Row, Segmented, Text } from '@/ui/component
 import { alert } from '@/ui/dialog';
 import { confirm, useAction } from '@/ui/feedback';
 import { KeyboardScreen } from '@/ui/KeyboardScreen';
-import { LicenseCard } from '@/features/LicenseCard';
 import { LockCard } from '@/features/LockCard';
 import { clearSignInPrefs, readPrefsSync, writePrefs, type Lang, type ThemeMode } from '@/ui/prefs';
 import { lang as currentLang } from '@/i18n';
@@ -306,7 +305,6 @@ export default function Account() {
           )}
         </Card>
 
-        <LicenseCard />
 
         <LockCard />
 
