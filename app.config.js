@@ -46,7 +46,8 @@ module.exports = ({ config }) => {
           '-keep class expo.modules.** { *; }',
         ].join('\n'),
       },
-      ...(nativeFirebase ? { ios: { useFrameworks: 'static' } } : {}),
+      // ML Kit text recognition needs iOS 15.5+.
+      ios: { deploymentTarget: '15.5', ...(nativeFirebase ? { useFrameworks: 'static' } : {}) },
     },
   ]);
 
@@ -65,7 +66,12 @@ module.exports = ({ config }) => {
       })(),
       googleServicesFile: androidFile || (fs.existsSync('./config/google-services.json') ? './config/google-services.json' : undefined),
     },
-    ios: { ...config.ios, ...(iosFile && { googleServicesFile: iosFile }) },
+    ios: {
+      ...config.ios,
+      // App Store Connect needs a bigger build number for every upload (set by the CI run).
+      ...(process.env.IOS_BUILD_NUMBER && { buildNumber: String(process.env.IOS_BUILD_NUMBER) }),
+      ...(iosFile && { googleServicesFile: iosFile }),
+    },
     extra: {
       ...config.extra,
       // Expo project (push notification tokens). Env overrides for other projects.

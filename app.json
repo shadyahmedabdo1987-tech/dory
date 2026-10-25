@@ -11,12 +11,13 @@
     "backgroundColor": "#F6F3EC",
     "ios": {
       "bundleIdentifier": "com.alabdo.dory",
-      "supportsTablet": true,
+      "supportsTablet": false,
       "infoPlist": {
         "CFBundleDevelopmentRegion": "ar",
         "LSApplicationQueriesSchemes": [
           "whatsapp"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -49,7 +50,9 @@
       "expo-localization",
       [
         "expo-local-authentication",
-        { "faceIDPermission": "دوري بيستخدم بصمة الوش علشان يقفل التطبيق ويفتحه ليك إنت بس." }
+        {
+          "faceIDPermission": "دوري بيستخدم بصمة الوش علشان يقفل التطبيق ويفتحه ليك إنت بس."
+        }
       ],
       [
         "expo-notifications",
