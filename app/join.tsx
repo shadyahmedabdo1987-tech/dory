@@ -237,7 +237,7 @@ function FoundCircle({
           state={state}
           onJoin={() => setJoining(true)}
           onOpen={() => {
-            router.dismissAll();
+            if (router.canDismiss()) router.dismissAll();
             router.push({ pathname: '/circle/[id]', params: { id: circle.id } });
           }}
         />
@@ -354,7 +354,7 @@ function JoinSheet({
   }, [circle?.id]);
 
   const open = (cid: string) => {
-    router.dismissAll();
+    if (router.canDismiss()) router.dismissAll();
     router.push({ pathname: '/circle/[id]', params: { id: cid } });
   };
 
@@ -672,7 +672,7 @@ function WaitingForApproval({ cid, uid, circleName, name }: { cid: string; uid: 
   useEffect(() => {
     if (status !== 'approved') return;
     removePendingJoin(cid);
-    router.dismissAll();
+    if (router.canDismiss()) router.dismissAll();
     router.push({ pathname: '/circle/[id]', params: { id: cid } });
   }, [status, cid]);
 
