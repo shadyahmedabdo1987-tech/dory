@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, StyleSheet } from 'react-native';
+import { Animated, StyleSheet } from 'react-native';
+
+import { Layer } from './dialog';
+import { useNoSheetOpen } from './layers';
 
 import { SpinningLogo } from './SpinningLogo';
 
@@ -31,7 +34,8 @@ export async function endBusy(): Promise<void> {
 }
 
 /** Mount once at the app root. */
-export function BusyHost() {
+export function BusyHost({ inline, active = true }: { inline?: boolean; active?: boolean } = {}) {
+  const noSheet = useNoSheetOpen();
   const [on, setOn] = useState(false);
   const fade = useRef(new Animated.Value(0)).current;
 
@@ -50,12 +54,13 @@ export function BusyHost() {
   }, [on, fade]);
 
   if (!on) return null;
+  if (inline ? !active : !noSheet) return null;
   return (
-    <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={() => {}}>
+    <Layer inline={inline} onRequestClose={() => {}}>
       <Animated.View style={[styles.backdrop, { opacity: fade }]}>
         <SpinningLogo size={110} />
       </Animated.View>
-    </Modal>
+    </Layer>
   );
 }
 

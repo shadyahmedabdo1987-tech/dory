@@ -31,6 +31,7 @@ import { colors, radius, space } from '@/ui/theme';
 import { pickReceipt, type PickedReceipt } from './receiptImage';
 import { readReceiptText } from './receiptOcr';
 import { alert } from '@/ui/dialog';
+import { inlineLayers } from '@/ui/layers';
 
 /** Brand-ish accent per payment method (cash green, InstaPay purple, Vodafone red). */
 export const METHOD_COLOR: Record<PaymentMethod, string> = {
@@ -431,15 +432,29 @@ function ReceiptResult({
     Animated.spring(scale, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true }).start();
   }, [visible, scale]);
 
-  if (!visible || !verdict) return null;
   const ok = verdict === 'ok';
   const reasons: string[] = [];
-  if (!ok) {
+  if (verdict && !ok) {
     if (rc.duplicate) reasons.push('الإيصال ده اتستخدم قبل كده في الجمعية');
     if (rc.dateOk === false) reasons.push('تاريخ الإيصال قديم — مش بتاع القسط ده');
     if (rc.auto && !rc.auto.amount) reasons.push(`المبلغ المحوّل لازم يكون ${formatMoney(amount)} بالظبط`);
     if (rc.auto && !rc.auto.account) reasons.push(`لازم يكون محوّل على ${target ?? receiverLabel}`);
   }
+  // iOS can't stack this popup over the open sheet: show it as the app's dialog instead.
+  useEffect(() => {
+    if (!inlineLayers || !visible || !verdict) return;
+    setShown(key);
+    alert(
+      ok ? 'الإيصال صحيح ✓' : 'الإيصال مش مطابق',
+      ok
+        ? `المبلغ ${formatMoney(amount)}\nمحوّل على ${target ?? receiverLabel}\nاتضاف للطلب — دوس "ابعت" علشان يوصل.`
+        : `${reasons.map((r) => `✗ ${r}`).join('\n')}\n\nالإيصال مش هيتضاف. ارفع الإيصال الصح.`,
+      undefined,
+      { tone: ok ? 'success' : 'danger', icon: ok ? 'checkmark-circle' : 'close-circle' },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, key]);
+  if (!visible || !verdict || inlineLayers) return null;
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShown(key)}>
       <View style={styles.resultBackdrop}>

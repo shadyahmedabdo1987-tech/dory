@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Text } from './components';
 import { colors, fonts, radius, space } from './theme';
+import { useNoSheetOpen } from './layers';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -67,7 +68,9 @@ function guessTone(d: DialogRequest): DialogTone {
 }
 
 /** Mount once at the app root. */
-export function DialogHost() {
+/** Mount once at the app root; on iOS a sheet also mounts one inside itself (`inline`). */
+export function DialogHost({ inline, active = true }: { inline?: boolean; active?: boolean } = {}) {
+  const noSheet = useNoSheetOpen();
   const [items, setItems] = useState<DialogRequest[]>(queue);
   const current = items[0];
   const anim = useRef(new Animated.Value(0)).current;
@@ -97,6 +100,7 @@ export function DialogHost() {
   const dismiss = () => close(cancelButton ?? (current?.buttons.length === 1 ? current.buttons[0] : undefined));
 
   if (!current) return null;
+  if (inline ? !active : !noSheet) return null;
 
   const tone = TONES[guessTone(current)];
   const icon = current.icon ?? tone.icon;
@@ -109,7 +113,7 @@ export function DialogHost() {
     actions.length + (cancelButton ? 1 : 0) === 2 && [...actions, ...(cancelButton ? [cancelButton] : [])].every((b) => b.text.length <= 12);
 
   return (
-    <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={dismiss}>
+    <Layer inline={inline} onRequestClose={dismiss}>
       <Animated.View style={[styles.backdrop, { opacity: anim }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={cancelButton ? dismiss : undefined} accessibilityLabel="إغلاق" />
         <Animated.View
@@ -151,7 +155,7 @@ export function DialogHost() {
           ) : null}
         </Animated.View>
       </Animated.View>
-    </Modal>
+    </Layer>
   );
 }
 
@@ -277,3 +281,19 @@ const styles = StyleSheet.create({
   optionIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   cancelLink: { paddingVertical: space.sm, paddingHorizontal: space.xl, marginTop: space.xs },
 });
+
+/** A native modal, or (inside a sheet on iOS) a full-size overlay. */
+export function Layer({ inline, onRequestClose, children }: { inline?: boolean; onRequestClose: () => void; children: ReactNode }) {
+  if (inline) {
+    return (
+      <View style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]} pointerEvents="box-none">
+        {children}
+      </View>
+    );
+  }
+  return (
+    <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={onRequestClose}>
+      {children}
+    </Modal>
+  );
+}

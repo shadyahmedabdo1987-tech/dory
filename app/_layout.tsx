@@ -68,6 +68,8 @@ function App({ session }: { session: ReturnType<typeof useSession> }) {
             headerTintColor: colors.white,
             headerTitleStyle: { fontFamily: fonts.bold, fontSize: 18 },
             headerShadowVisible: false,
+            // iOS: just the back arrow, never the previous screen's route name.
+            headerBackButtonDisplayMode: 'minimal',
             contentStyle: { backgroundColor: colors.bg },
           }}
         >

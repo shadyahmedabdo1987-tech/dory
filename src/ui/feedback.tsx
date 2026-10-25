@@ -7,8 +7,9 @@ import { arabicError, errorCode } from '@/data/errors';
 
 import { Button, Text } from './components';
 import { colors, radius, space } from './theme';
-import { beginBusy, endBusy } from './busy';
-import { alert } from './dialog';
+import { beginBusy, BusyHost, endBusy } from './busy';
+import { alert, DialogHost } from './dialog';
+import { inlineLayers, useSheetLayer } from './layers';
 
 /**
  * Runs an async action with a busy flag and friendly Arabic errors.
@@ -63,6 +64,7 @@ export function Sheet({
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const top = useSheetLayer(visible);
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       {/* Full-window modal, so no header offset: the sheet rides up with the keyboard. */}
@@ -80,6 +82,12 @@ export function Sheet({
           <View style={styles.body}>{children}</View>
         </View>
       </KeyboardAvoidingView>
+      {inlineLayers ? (
+        <>
+          <BusyHost inline active={top} />
+          <DialogHost inline active={top} />
+        </>
+      ) : null}
     </Modal>
   );
 }
@@ -119,3 +127,14 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md, padding: space.xl, backgroundColor: colors.bg },
 });
+
+/** For full-screen modals of our own: on iOS, dialogs and the busy overlay show inside them. */
+export function useModalHosts(visible: boolean) {
+  const top = useSheetLayer(visible);
+  return inlineLayers ? (
+    <>
+      <BusyHost inline active={top} />
+      <DialogHost inline active={top} />
+    </>
+  ) : null;
+}

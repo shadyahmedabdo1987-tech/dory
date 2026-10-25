@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { useModalHosts } from '@/ui/feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { arabicError } from '@/data';
@@ -28,6 +29,7 @@ export function ReceiptViewer({
   footer?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const hosts = useModalHosts(!!source);
   const [image, setImage] = useState<string | null>(null);
   const [error, setError] = useState<string>();
 
@@ -79,6 +81,7 @@ export function ReceiptViewer({
         </View>
         {footer ? <View style={styles.footer}>{footer}</View> : null}
       </View>
+      {hosts}
     </Modal>
   );
 }

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Modal, Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useModalHosts } from '@/ui/feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle as SvgCircle, Path, Polygon } from 'react-native-svg';
 
@@ -80,6 +81,7 @@ export function DrawWheel({
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const hosts = useModalHosts(visible);
   const { width } = useWindowDimensions();
   const size = Math.min(width - space.xl * 2, 340);
   const r = size / 2 - 8;
@@ -336,6 +338,7 @@ export function DrawWheel({
           </View>
         )}
       </View>
+      {hosts}
     </Modal>
   );
 }
