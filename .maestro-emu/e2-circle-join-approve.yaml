@@ -14,6 +14,9 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
     id: "auth-password"
 - inputText: "test1234"
 - tapOn: "رقم الموبايل"
+- scrollUntilVisible:
+    element: "دخول"
+    direction: DOWN
 - tapOn: "دخول"
 - extendedWaitUntil:
     visible: "جمعية جديدة"
@@ -104,6 +107,9 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
 - inputText: "member1234"
 - tapOn: "اسمك"
 - takeScreenshot: e15-join-form
+- scrollUntilVisible:
+    element: "ابعت طلب الانضمام"
+    direction: DOWN
 - tapOn: "ابعت طلب الانضمام"
 - extendedWaitUntil:
     visible: "طلبك وصل لصاحب الجمعية"
@@ -134,6 +140,9 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
     id: "auth-password"
 - inputText: "test1234"
 - tapOn: "رقم الموبايل"
+- scrollUntilVisible:
+    element: "دخول"
+    direction: DOWN
 - tapOn: "دخول"
 - extendedWaitUntil:
     visible: "Test Circle"

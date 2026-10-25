@@ -18,12 +18,19 @@ name: Organizer - sign up, open screens, sign out, sign in again, sign out
     id: "auth-password"
 - inputText: "test1234"
 - takeScreenshot: e00-password-typed
+- scrollUntilVisible:
+    element:
+      id: "auth-email"
+    direction: DOWN
 - tapOn:
     id: "auth-email"
 - inputText: "admin-test@example.com"
 - tapOn: "رقم الموبايل"
 - takeScreenshot: e01-signup-filled
 - assertVisible: "admin-test@example.com"
+- scrollUntilVisible:
+    element: "إنشاء الحساب"
+    direction: DOWN
 - tapOn: "إنشاء الحساب"
 - extendedWaitUntil:
     visible: "جمعية جديدة"
@@ -66,6 +73,9 @@ name: Organizer - sign up, open screens, sign out, sign in again, sign out
     id: "auth-password"
 - inputText: "test1234"
 - tapOn: "رقم الموبايل"
+- scrollUntilVisible:
+    element: "دخول"
+    direction: DOWN
 - tapOn: "دخول"
 - extendedWaitUntil:
     visible: "جمعية جديدة"
