@@ -1,3 +1,4 @@
+import { useAppSession } from '@/data/session';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
@@ -18,6 +19,7 @@ type Mode = 'signin' | 'signup';
  * The email is asked once at sign-up and only used for the "forgot password" link.
  */
 export default function AuthScreen() {
+  const { refresh } = useAppSession();
   const [mode, setMode] = useState<Mode>('signup');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -37,7 +39,10 @@ export default function AuthScreen() {
       writePrefs({ myPhone: phone.trim() });
       return true;
     });
-    if (ok) router.back();
+    if (ok) {
+      refresh();
+      router.back();
+    }
     else setPassword(''); // nothing kept from a failed try
   };
 

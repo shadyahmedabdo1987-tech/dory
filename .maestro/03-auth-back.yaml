@@ -1,7 +1,8 @@
 appId: com.alabdo.dory
 name: Organizer sign-in screen -> forgot password sheet -> close -> back
 ---
-- launchApp
+- launchApp:
+    clearState: true
 - extendedWaitUntil:
     visible: "أنا صاحب جمعية"
     timeout: 60000

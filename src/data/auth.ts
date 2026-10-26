@@ -3,6 +3,7 @@ import {
   EmailAuthProvider,
   linkWithCredential,
   onAuthStateChanged,
+  onIdTokenChanged,
   sendPasswordResetEmail,
   signInAnonymously,
   signInWithEmailAndPassword,
@@ -36,10 +37,22 @@ export function useSession(): Session {
 
   useEffect(() => {
     if (!isFirebaseConfigured) return;
-    return onAuthStateChanged(firebaseAuth(), (u) => {
+    const a = firebaseAuth();
+    const offState = onAuthStateChanged(a, (u) => {
       setUser(u);
       setLoading(false);
     });
+    // Turning the silent (anonymous) session into the organizer's account keeps the same user
+    // object, so onAuthStateChanged stays quiet — the new token is what tells us. Without this the
+    // app kept showing the welcome screen right after a successful sign-up.
+    const offToken = onIdTokenChanged(a, (u) => {
+      setUser(u);
+      setTick((t) => t + 1);
+    });
+    return () => {
+      offState();
+      offToken();
+    };
   }, []);
 
   return { user, loading, isAccount: !!user && !user.isAnonymous, refresh: () => setTick((t) => t + 1) };

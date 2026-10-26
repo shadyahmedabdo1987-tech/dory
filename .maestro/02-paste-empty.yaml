@@ -1,7 +1,8 @@
 appId: com.alabdo.dory
 name: Invite code -> paste with nothing copied -> dialog closes -> back
 ---
-- launchApp
+- launchApp:
+    clearState: true
 - extendedWaitUntil:
     visible: "عندي كود دعوة"
     timeout: 60000

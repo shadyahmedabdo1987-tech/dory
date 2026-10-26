@@ -14,11 +14,6 @@ name: Organizer - sign up, open screens, sign out, sign in again, sign out
 - inputText: "Test Admin"
 - tapOn: "01xxxxxxxxx"
 - inputText: "01000000077"
-- tapOn:
-    id: "auth-password"
-- waitForAnimationToEnd
-- inputText: "test1234"
-- takeScreenshot: e00-password-typed
 - scrollUntilVisible:
     element:
       id: "auth-email"
@@ -27,6 +22,11 @@ name: Organizer - sign up, open screens, sign out, sign in again, sign out
     id: "auth-email"
 - waitForAnimationToEnd
 - inputText: "admin-test@example.com"
+- tapOn:
+    id: "auth-password"
+- waitForAnimationToEnd
+- inputText: "test1234"
+- takeScreenshot: e00-password-typed
 - tapOn: "رقم الموبايل"
 - takeScreenshot: e01-signup-filled
 - assertVisible: "admin-test@example.com"
