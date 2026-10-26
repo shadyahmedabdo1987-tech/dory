@@ -12,6 +12,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
 - inputText: "01000000077"
 - tapOn:
     id: "auth-password"
+- waitForAnimationToEnd
 - inputText: "test1234"
 - tapOn: "رقم الموبايل"
 - scrollUntilVisible:
@@ -101,9 +102,11 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
 - inputText: "Test Member"
 - tapOn:
     id: "join-password"
+- waitForAnimationToEnd
 - inputText: "member1234"
 - tapOn:
     id: "join-password2"
+- waitForAnimationToEnd
 - inputText: "member1234"
 - tapOn: "اسمك"
 - takeScreenshot: e15-join-form
@@ -138,6 +141,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
 - inputText: "01000000077"
 - tapOn:
     id: "auth-password"
+- waitForAnimationToEnd
 - inputText: "test1234"
 - tapOn: "رقم الموبايل"
 - scrollUntilVisible:

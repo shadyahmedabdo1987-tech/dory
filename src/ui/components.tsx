@@ -254,7 +254,7 @@ export function Field({
         placeholderTextColor={colors.muted}
         {...input}
         // Automated UI tests only (test builds): the iOS simulator can't type into hidden-text fields.
-        {...(E2E ? { secureTextEntry: false, autoComplete: 'off' as const } : null)}
+        {...(E2E ? { secureTextEntry: false, autoComplete: 'off' as const, textContentType: 'none' as const } : null)}
         placeholder={tr(input.placeholder)}
         style={[styles.input, error ? { borderColor: colors.danger } : null, style]}
       />

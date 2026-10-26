@@ -30,10 +30,11 @@ jobs:
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Install (incl. the local test server tools)
+        run: npm install --no-audit --no-fund 2>&1 | tail -3
       - name: Build (test server config)
         run: |
           set -eo pipefail
-          npm install --no-audit --no-fund 2>&1 | tail -3
           printf '%s\n' EXPO_PUBLIC_FIREBASE_API_KEY=demo-key EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=demo-dory.firebaseapp.com \
             EXPO_PUBLIC_FIREBASE_PROJECT_ID=demo-dory EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=demo-dory.appspot.com \
             EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=1 EXPO_PUBLIC_FIREBASE_APP_ID=1:1:android:1 \
