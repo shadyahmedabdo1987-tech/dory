@@ -123,20 +123,6 @@ export default function Account() {
     );
 
   /** Applies a new language / look right away: the app restarts itself on the same screen. */
-  // After signing out: back to the start screen (welcome), nothing half-closed left behind.
-  const backToStart = () => {
-    try {
-      if (router.canDismiss()) router.dismissAll();
-    } catch {
-      // nothing to close
-    }
-    try {
-      router.replace('/');
-    } catch {
-      // already there
-    }
-  };
-
   const restartNow = async (title: string, icon: 'moon' | 'sunny' | 'language') => {
     try {
       await Updates.reloadAsync();
@@ -194,7 +180,6 @@ export default function Account() {
     if (!done) return;
     setDeleteOpen(false);
     setDeletePw('');
-    backToStart();
   };
 
   const logout = async () => {
@@ -223,7 +208,6 @@ export default function Account() {
       await clearPendingJoins();
       await signOut();
     });
-    backToStart();
   };
 
   return (

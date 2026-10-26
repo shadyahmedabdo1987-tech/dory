@@ -211,8 +211,24 @@ export async function ensureSignedIn(): Promise<User> {
   return cred.user;
 }
 
+/** Bumped on every sign-out: the app root restarts its screens from scratch on it. */
+let signOutEpoch = 0;
+const signOutListeners = new Set<(n: number) => void>();
+export function useSignOutEpoch(): number {
+  const [n, setN] = useState(signOutEpoch);
+  useEffect(() => {
+    signOutListeners.add(setN);
+    return () => {
+      signOutListeners.delete(setN);
+    };
+  }, []);
+  return n;
+}
+
 export async function signOut(): Promise<void> {
   await fbSignOut(firebaseAuth());
+  signOutEpoch++;
+  signOutListeners.forEach((l) => l(signOutEpoch));
   // Fresh database connection for whoever signs in next — the old one can stay
   // tied to the previous account and hold the next sign-in's writes for a while.
   await resetFirestore().catch(() => {});
