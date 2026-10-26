@@ -91,14 +91,6 @@ jobs:
           xcrun simctl boot "$DEV"; xcrun simctl bootstatus "$DEV" -b
           xcrun simctl spawn "$DEV" defaults write -g AppleLanguages -array ar
           xcrun simctl spawn "$DEV" defaults write -g AppleLocale ar_EG
-          # One plain keyboard for the typing robot (the app stays in Arabic): no layout switching,
-          # no suggestions, no autocorrect, no password AutoFill bar.
-          xcrun simctl spawn "$DEV" defaults write -g AppleKeyboards -array "en_US@sw=QWERTY;hw=Automatic"
-          xcrun simctl spawn "$DEV" defaults write -g AppleKeyboardsExpanded -int 1
-          xcrun simctl spawn "$DEV" defaults write com.apple.Preferences KeyboardAutocorrection -bool NO
-          xcrun simctl spawn "$DEV" defaults write com.apple.Preferences KeyboardPrediction -bool NO
-          xcrun simctl spawn "$DEV" defaults write com.apple.Preferences KeyboardShowPredictionBar -bool NO
-          xcrun simctl spawn "$DEV" defaults write com.apple.Preferences AutoFillPasswords -bool NO || true
           xcrun simctl shutdown "$DEV"; xcrun simctl boot "$DEV"; xcrun simctl bootstatus "$DEV" -b
           xcrun simctl install "$DEV" "$APP"
       - name: Local test server (Firebase emulators)
