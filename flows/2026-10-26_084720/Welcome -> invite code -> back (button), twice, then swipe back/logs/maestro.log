@@ -1,0 +1,198 @@
+08:52:27.636 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Define variables RUNNING
+08:52:27.637 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Define variables COMPLETED
+08:52:27.639 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Apply configuration RUNNING
+08:52:27.640 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Apply configuration COMPLETED
+08:52:27.640 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Launch app "com.alabdo.dory" with clear state RUNNING
+08:52:27.641 [ INFO] maestro.Maestro.clearAppState$lambda$8: Clearing app state com.alabdo.dory
+08:52:43.132 [ INFO] maestro.Maestro.launchApp$lambda$5: Launching app com.alabdo.dory
+08:52:43.146 [ INFO] maestro.Maestro.launchApp$lambda$5: Stopping com.alabdo.dory app during launch
+08:52:44.279 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Launch app "com.alabdo.dory" with clear state COMPLETED
+08:52:44.280 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Assert that "عندي كود دعوة" is visible RUNNING
+08:53:18.892 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Assert that "عندي كود دعوة" is visible COMPLETED
+08:53:18.988 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Take screenshot 01-welcome RUNNING
+08:53:19.014 [ INFO] maestro.Maestro.takeScreenshot: Taking screenshot
+08:53:19.017 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:19.289 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Take screenshot 01-welcome COMPLETED
+08:53:19.293 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Tap on "عندي كود دعوة" RUNNING
+08:53:19.656 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=عندي كود دعوة, title=, value=, text=, hintText=, resource-id=, bounds=[24,764][378,816], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=24, y=764, width=354, height=52))
+08:53:20.020 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tap aimed via trusted pre-wait hierarchy (null settle, no recent scroll)
+08:53:20.022 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (201, 790) using hierarchy based logic for wait
+08:53:20.023 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:20.023 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:21.194 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+08:53:21.194 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Tap on "عندي كود دعوة" COMPLETED
+08:53:21.194 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Assert that "ادخل كود الدعوة" is visible RUNNING
+08:53:22.530 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Assert that "ادخل كود الدعوة" is visible COMPLETED
+08:53:22.530 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Take screenshot 02-join RUNNING
+08:53:22.531 [ INFO] maestro.Maestro.takeScreenshot: Taking screenshot
+08:53:22.532 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:22.709 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Take screenshot 02-join COMPLETED
+08:53:22.709 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Run lib/back.yaml RUNNING
+08:53:22.710 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Apply configuration RUNNING
+08:53:22.710 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Apply configuration COMPLETED
+08:53:22.710 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Run flow when Platform is IOS RUNNING
+08:53:22.711 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Tap on id: header-back RUNNING
+08:53:23.014 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=رجوع, title=, value=, text=, hintText=, resource-id=header-back, bounds=[350,66][394,110], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=350, y=66, width=44, height=44))
+08:53:23.342 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tap aimed via trusted pre-wait hierarchy (null settle, no recent scroll)
+08:53:23.344 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (372, 88) using hierarchy based logic for wait
+08:53:23.345 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:23.346 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:24.356 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+08:53:24.358 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Tap on id: header-back COMPLETED
+08:53:24.358 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Run flow when Platform is IOS COMPLETED
+08:53:24.360 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Run flow when Platform is ANDROID RUNNING
+08:53:24.376 [ INFO] maestro.orchestra.Orchestra.executeSubflowCommands: [Command execution subflow] CommandSkipped: null
+08:53:24.377 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Run flow when Platform is ANDROID SKIPPED
+08:53:24.377 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Run lib/back.yaml COMPLETED
+08:53:24.377 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Wait for animation to end RUNNING
+08:53:24.378 [ INFO] maestro.Maestro.waitForAnimationToEnd$lambda$53: Waiting for animation to end with timeout 15000
+08:53:24.389 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:24.390 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:25.401 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:25.401 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:28.401 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:28.402 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:29.574 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:29.575 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:31.269 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Wait for animation to end COMPLETED
+08:53:31.271 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Take screenshot 03-after-back RUNNING
+08:53:31.275 [ INFO] maestro.Maestro.takeScreenshot: Taking screenshot
+08:53:31.315 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:31.497 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Take screenshot 03-after-back COMPLETED
+08:53:31.498 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Assert that "أنا صاحب جمعية" is visible RUNNING
+08:53:31.863 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Assert that "أنا صاحب جمعية" is visible COMPLETED
+08:53:31.863 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Tap on "عندي كود دعوة" RUNNING
+08:53:32.146 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=عندي كود دعوة, title=, value=, text=, hintText=, resource-id=, bounds=[24,764][378,816], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=24, y=764, width=354, height=52))
+08:53:32.530 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tap aimed via trusted pre-wait hierarchy (null settle, no recent scroll)
+08:53:32.537 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (201, 790) using hierarchy based logic for wait
+08:53:32.538 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:32.538 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:34.503 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+08:53:34.504 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Tap on "عندي كود دعوة" COMPLETED
+08:53:34.505 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Assert that "ادخل كود الدعوة" is visible RUNNING
+08:53:34.822 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Assert that "ادخل كود الدعوة" is visible COMPLETED
+08:53:34.826 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Tap on "مثلًا: K7QX2M" RUNNING
+08:53:35.176 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=, title=, value=, text=, hintText=مثلًا: K7QX2M, resource-id=, bounds=[34,363][368,411], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=34, y=363, width=334, height=48))
+08:53:35.479 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tap aimed via trusted pre-wait hierarchy (null settle, no recent scroll)
+08:53:35.482 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (201, 387) using hierarchy based logic for wait
+08:53:35.509 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:35.510 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:36.536 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+08:53:36.536 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Tap on "مثلًا: K7QX2M" COMPLETED
+08:53:36.674 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Input text ZZZ RUNNING
+08:53:36.984 [ INFO] maestro.Maestro.inputText: Inputting text: ZZZ
+08:53:46.247 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Input text ZZZ COMPLETED
+08:53:46.343 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Wait for animation to end RUNNING
+08:53:46.360 [ INFO] maestro.Maestro.waitForAnimationToEnd$lambda$53: Waiting for animation to end with timeout 15000
+08:53:46.365 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:46.366 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:46.831 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:46.831 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:48.299 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:48.299 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:48.698 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:48.698 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:50.114 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:50.117 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:50.451 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:50.452 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:51.730 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:51.732 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:52.026 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:52.028 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:52.819 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Wait for animation to end COMPLETED
+08:53:52.827 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Take screenshot 03a-keyboard-open RUNNING
+08:53:52.830 [ INFO] maestro.Maestro.takeScreenshot: Taking screenshot
+08:53:52.830 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:53.048 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Take screenshot 03a-keyboard-open COMPLETED
+08:53:53.048 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Input text Z99 RUNNING
+08:53:53.049 [ INFO] maestro.Maestro.inputText: Inputting text: Z99
+08:53:56.504 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Input text Z99 COMPLETED
+08:53:56.510 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Wait for animation to end RUNNING
+08:53:56.510 [ INFO] maestro.Maestro.waitForAnimationToEnd$lambda$53: Waiting for animation to end with timeout 15000
+08:53:56.512 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:56.512 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:56.688 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:56.688 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:57.444 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:57.444 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:57.648 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:57.648 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:58.289 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:58.289 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:58.503 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:53:58.504 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:59.059 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Wait for animation to end COMPLETED
+08:53:59.060 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Take screenshot 03b-code-typed RUNNING
+08:53:59.060 [ INFO] maestro.Maestro.takeScreenshot: Taking screenshot
+08:53:59.061 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:53:59.201 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Take screenshot 03b-code-typed COMPLETED
+08:53:59.202 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Assert that "افتح الجمعية" is visible RUNNING
+08:54:05.885 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Assert that "افتح الجمعية" is visible COMPLETED
+08:54:06.047 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Tap on "افتح الجمعية" RUNNING
+08:54:06.394 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=افتح الجمعية, title=, value=, text=, hintText=, resource-id=, bounds=[33,488][369,540], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=33, y=488, width=336, height=52))
+08:54:06.673 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tap aimed via trusted pre-wait hierarchy (null settle, no recent scroll)
+08:54:06.674 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (201, 514) using hierarchy based logic for wait
+08:54:06.675 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:54:06.675 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:54:15.117 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+08:54:15.126 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Tap on "افتح الجمعية" COMPLETED
+08:54:15.139 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Assert that "بنفتح الجمعية بتاعتك…" is not visible RUNNING
+08:54:16.359 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Assert that "بنفتح الجمعية بتاعتك…" is not visible COMPLETED
+08:54:16.360 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Take screenshot 04-bad-code RUNNING
+08:54:16.363 [ INFO] maestro.Maestro.takeScreenshot: Taking screenshot
+08:54:16.364 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:54:16.588 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Take screenshot 04-bad-code COMPLETED
+08:54:16.589 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Run lib/back.yaml RUNNING
+08:54:16.597 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Apply configuration RUNNING
+08:54:16.598 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Apply configuration COMPLETED
+08:54:16.601 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Run flow when Platform is IOS RUNNING
+08:54:16.602 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Tap on id: header-back RUNNING
+08:54:16.988 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=رجوع, title=, value=, text=, hintText=, resource-id=header-back, bounds=[350,66][394,110], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=350, y=66, width=44, height=44))
+08:54:17.377 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tap aimed via trusted pre-wait hierarchy (null settle, no recent scroll)
+08:54:17.382 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (372, 88) using hierarchy based logic for wait
+08:54:17.383 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:54:17.383 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:54:18.898 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+08:54:18.931 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Tap on id: header-back COMPLETED
+08:54:18.947 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Run flow when Platform is IOS COMPLETED
+08:54:18.948 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Run flow when Platform is ANDROID RUNNING
+08:54:18.951 [ INFO] maestro.orchestra.Orchestra.executeSubflowCommands: [Command execution subflow] CommandSkipped: null
+08:54:18.951 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Run flow when Platform is ANDROID SKIPPED
+08:54:18.951 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Run lib/back.yaml COMPLETED
+08:54:18.951 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Wait for animation to end RUNNING
+08:54:18.952 [ INFO] maestro.Maestro.waitForAnimationToEnd$lambda$53: Waiting for animation to end with timeout 15000
+08:54:18.952 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:54:18.952 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:54:19.324 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:54:19.324 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:54:20.611 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Wait for animation to end COMPLETED
+08:54:20.612 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Take screenshot 05-after-back-2 RUNNING
+08:54:20.614 [ INFO] maestro.Maestro.takeScreenshot: Taking screenshot
+08:54:20.616 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:54:20.841 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Take screenshot 05-after-back-2 COMPLETED
+08:54:20.841 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Assert that "أنا صاحب جمعية" is visible RUNNING
+08:54:21.196 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Assert that "أنا صاحب جمعية" is visible COMPLETED
+08:54:21.196 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Tap on "عندي كود دعوة" RUNNING
+08:54:21.565 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=عندي كود دعوة, title=, value=, text=, hintText=, resource-id=, bounds=[24,764][378,816], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=24, y=764, width=354, height=52))
+08:54:21.944 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tap aimed via trusted pre-wait hierarchy (null settle, no recent scroll)
+08:54:21.945 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (201, 790) using hierarchy based logic for wait
+08:54:21.946 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:54:21.946 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:54:23.954 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+08:54:23.955 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Tap on "عندي كود دعوة" COMPLETED
+08:54:23.955 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Assert that "ادخل كود الدعوة" is visible RUNNING
+08:54:24.479 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Assert that "ادخل كود الدعوة" is visible COMPLETED
+08:54:24.523 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Swipe from (2%,50%) to (80%,50%) in 400 ms RUNNING
+08:54:26.614 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Swipe from (2%,50%) to (80%,50%) in 400 ms COMPLETED
+08:54:26.615 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Wait for animation to end RUNNING
+08:54:26.617 [ INFO] maestro.Maestro.waitForAnimationToEnd$lambda$53: Waiting for animation to end with timeout 15000
+08:54:26.617 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:54:26.617 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:54:26.985 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+08:54:26.990 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:54:28.265 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Wait for animation to end COMPLETED
+08:54:28.272 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Take screenshot 05b-after-swipe RUNNING
+08:54:28.278 [ INFO] maestro.Maestro.takeScreenshot: Taking screenshot
+08:54:28.278 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+08:54:28.563 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Take screenshot 05b-after-swipe COMPLETED

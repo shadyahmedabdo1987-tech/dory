@@ -1,0 +1,11 @@
+SOME FAILED
+  <testsuite name="Test Suite" device="iPhone 17 Pro - iOS 26.5 - E839A11B-51B4-4AD3-ACF4-A53B95B7C957" tests="5" failures="2" time="723.763" timestamp="2026-10-26T08:48:28">
+    <testcase id="Organizer sign-in screen -> forgot password sheet -> close -> back" name="Organizer sign-in screen -> forgot password sheet -> close -> back" classname="Organizer sign-in screen -> forgot password sheet -> close -> back" file=".maestro-all/03-auth-back.yaml" time="238.927" timestamp="2026-10-26T08:48:28" status="SUCCESS"/>
+    <testcase id="Welcome -> invite code -> back (button), twice, then swipe back" name="Welcome -> invite code -> back (button), twice, then swipe back" classname="Welcome -> invite code -> back (button), twice, then swipe back" file=".maestro-all/01-join-back.yaml" time="122.201" timestamp="2026-10-26T08:52:27" status="SUCCESS"/>
+    <testcase id="Invite code -> paste with nothing copied -> dialog closes -> back" name="Invite code -> paste with nothing copied -> dialog closes -> back" classname="Invite code -> paste with nothing copied -> dialog closes -> back" file=".maestro-all/02-paste-empty.yaml" time="84.24" timestamp="2026-10-26T08:54:29" status="SUCCESS"/>
+    <testcase id="Organizer - sign up, open screens, sign out, sign in again, sign out" name="Organizer - sign up, open screens, sign out, sign in again, sign out" classname="Organizer - sign up, open screens, sign out, sign in again, sign out" file=".maestro-all/e1-admin-signup-logout.yaml" time="141.109" timestamp="2026-10-26T08:55:54" status="ERROR">
+      <failure>Assertion is false: "جمعية جديدة" is visible</failure>
+    </testcase>
+    <testcase id="Organizer makes a circle, a member joins with the code, organizer approves, both sign out" name="Organizer makes a circle, a member joins with the code, organizer approves, both sign out" classname="Organizer makes a circle, a member joins with the code, organizer approves, both sign out" file=".maestro-all/e2-circle-join-approve.yaml" time="137.019" timestamp="2026-10-26T08:58:15" status="ERROR">
+      <failure>Assertion is false: "جمعية جديدة" is visible</failure>
+    </testcase>

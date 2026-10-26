@@ -1,0 +1,7 @@
+Running on iPhone 17 Pro - iOS 26.5 - E839A11B-51B4-4AD3-ACF4-A53B95B7C957
+ > Flow join
+Launch app "com.alabdo.dory"... COMPLETED
+Assert that "عندي كود دعوة" is visible... COMPLETED
+Tap on "عندي كود دعوة"... COMPLETED
+Assert that "ادخل كود الدعوة" is visible... COMPLETED
+Wait for animation to end... COMPLETED

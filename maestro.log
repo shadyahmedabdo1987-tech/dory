@@ -1,0 +1,10 @@
+
+Waiting for flows to complete...
+[Passed] Organizer sign-in screen -> forgot password sheet -> close -> back (3m 59s)
+[Passed] Welcome -> invite code -> back (button), twice, then swipe back (2m 2s)
+[Passed] Invite code -> paste with nothing copied -> dialog closes -> back (1m 24s)
+[Failed] Organizer - sign up, open screens, sign out, sign in again, sign out (2m 21s) (Assertion is false: "جمعية جديدة" is visible)
+[Failed] Organizer makes a circle, a member joins with the code, organizer approves, both sign out (2m 17s) (Assertion is false: "جمعية جديدة" is visible)
+
+2/5 Flows Failed
+
