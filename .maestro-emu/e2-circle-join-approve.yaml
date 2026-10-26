@@ -59,8 +59,11 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
 - takeScreenshot: e10-new-circle
 - tapOn: "ابدأ الجمعية"
 - extendedWaitUntil:
-    visible: "كود الدعوة"
+    visible: "الأعضاء"
     timeout: 45000
+- scrollUntilVisible:
+    element: "انسخ الكود"
+    direction: DOWN
 - takeScreenshot: e11-circle-members
 - tapOn: "انسخ الكود"
 - runFlow: lib/back.yaml
