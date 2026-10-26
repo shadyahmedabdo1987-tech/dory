@@ -1,0 +1,10 @@
+
+Waiting for flows to complete...
+[Failed] Organizer - sign up, open screens, sign out, sign in again, sign out (1m 35s) (Assertion is false: "خروج" is visible)
+[Passed] Organizer sign-in screen -> forgot password sheet -> close -> back (19s)
+[Passed] Invite code -> paste with nothing copied -> dialog closes -> back (24s)
+[Passed] Welcome -> invite code -> back (button), twice, then swipe back (35s)
+[Failed] Organizer makes a circle, a member joins with the code, organizer approves, both sign out (2m 54s) (Element not found: Id matching regex: join-password2)
+
+2/5 Flows Failed
+

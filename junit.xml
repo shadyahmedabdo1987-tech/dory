@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="Test Suite" device="test" tests="5" failures="2" time="346.303" timestamp="2026-10-26T10:06:01">
+    <testcase id="Organizer - sign up, open screens, sign out, sign in again, sign out" name="Organizer - sign up, open screens, sign out, sign in again, sign out" classname="Organizer - sign up, open screens, sign out, sign in again, sign out" file=".maestro-all/e1-admin-signup-logout.yaml" time="94.751" timestamp="2026-10-26T10:06:02" status="ERROR">
+      <failure>Assertion is false: "خروج" is visible</failure>
+    </testcase>
+    <testcase id="Organizer sign-in screen -> forgot password sheet -> close -> back" name="Organizer sign-in screen -> forgot password sheet -> close -> back" classname="Organizer sign-in screen -> forgot password sheet -> close -> back" file=".maestro-all/03-auth-back.yaml" time="18.756" timestamp="2026-10-26T10:07:36" status="SUCCESS"/>
+    <testcase id="Invite code -> paste with nothing copied -> dialog closes -> back" name="Invite code -> paste with nothing copied -> dialog closes -> back" classname="Invite code -> paste with nothing copied -> dialog closes -> back" file=".maestro-all/02-paste-empty.yaml" time="24.166" timestamp="2026-10-26T10:07:55" status="SUCCESS"/>
+    <testcase id="Welcome -> invite code -> back (button), twice, then swipe back" name="Welcome -> invite code -> back (button), twice, then swipe back" classname="Welcome -> invite code -> back (button), twice, then swipe back" file=".maestro-all/01-join-back.yaml" time="34.645" timestamp="2026-10-26T10:08:19" status="SUCCESS"/>
+    <testcase id="Organizer makes a circle, a member joins with the code, organizer approves, both sign out" name="Organizer makes a circle, a member joins with the code, organizer approves, both sign out" classname="Organizer makes a circle, a member joins with the code, organizer approves, both sign out" file=".maestro-all/e2-circle-join-approve.yaml" time="173.924" timestamp="2026-10-26T10:08:54" status="ERROR">
+      <failure>Element not found: Id matching regex: join-password2</failure>
+    </testcase>
+  </testsuite>
+</testsuites>
