@@ -40,7 +40,7 @@ export default function AuthScreen() {
       return true;
     });
     if (ok) {
-      refresh();
+      refresh?.();
       router.back();
     }
     else setPassword(''); // nothing kept from a failed try

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { I18nManager, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { isFirebaseConfigured, useSession, useSignOutEpoch } from '@/data';
+import { isFirebaseConfigured, useSession } from '@/data';
 import { SessionProvider } from '@/data/session';
 import { useNotificationRouting } from '@/notifications';
 import { BusyHost } from '@/ui/busy';
@@ -78,9 +78,6 @@ export default function RootLayout() {
 }
 
 function App({ session }: { session: ReturnType<typeof useSession> }) {
-  // After signing out, every screen starts over from the welcome screen — nothing left half-open
-  // from the previous account (that left a blank page on Android).
-  const signOuts = useSignOutEpoch();
   if (!isFirebaseConfigured) {
     return <ErrorScreen message="التطبيق مش متوصل بالسيرفر. لو إنت المطوّر: انسخ ‎.env.example‎ لـ ‎.env‎ وحط مفاتيح Firebase." />;
   }
@@ -90,7 +87,6 @@ function App({ session }: { session: ReturnType<typeof useSession> }) {
       <SafeAreaProvider>
         <StatusBar style="light" />
         <Stack
-          key={`s${signOuts}`}
           screenOptions={{
             headerStyle: { backgroundColor: colors.primary },
             headerTintColor: colors.white,

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import * as Notifications from 'expo-notifications';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { BackHandler, I18nManager, Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -75,7 +75,7 @@ export default function Account() {
   }, []);
 
   // Every hook above this line: after signing out `user` is null, and React needs the same hooks each time.
-  if (!user) return null;
+  if (!user) return <Redirect href="/" />;
 
   const admin = refs?.filter((r) => r.role === 'admin').length ?? 0;
   const member = refs?.filter((r) => r.role === 'member').length ?? 0;
@@ -123,6 +123,20 @@ export default function Account() {
     );
 
   /** Applies a new language / look right away: the app restarts itself on the same screen. */
+  // After signing out: back to the start screen (welcome), nothing half-closed left behind.
+  const backToStart = () => {
+    try {
+      if (router.canDismiss()) router.dismissAll();
+    } catch {
+      // nothing to close
+    }
+    try {
+      router.replace('/');
+    } catch {
+      // already there
+    }
+  };
+
   const restartNow = async (title: string, icon: 'moon' | 'sunny' | 'language') => {
     try {
       await Updates.reloadAsync();
@@ -180,6 +194,7 @@ export default function Account() {
     if (!done) return;
     setDeleteOpen(false);
     setDeletePw('');
+    backToStart();
   };
 
   const logout = async () => {
@@ -208,6 +223,7 @@ export default function Account() {
       await clearPendingJoins();
       await signOut();
     });
+    backToStart();
   };
 
   return (
