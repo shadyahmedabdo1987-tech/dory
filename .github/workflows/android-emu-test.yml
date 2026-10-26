@@ -75,7 +75,7 @@ jobs:
             adb shell screenrecord --time-limit 180 /sdcard/run.mp4 & sleep 1
             MAESTRO_CLI_NO_ANALYTICS=1 maestro test .maestro-all --test-output-dir out/flows --format junit --output out/junit.xml > out/maestro.log 2>&1 && echo "ALL PASS" > out/summary.txt || echo "SOME FAILED" > out/summary.txt
             grep -E "testcase|failure" out/junit.xml >> out/summary.txt 2>/dev/null || true
-            adb logcat -d -s ReactNativeJS:V AndroidRuntime:E '*:F' | tail -300 > out/logcat.txt || true
+            adb logcat -d ReactNativeJS:V ReactNative:V AndroidRuntime:E '*:S' | tail -400 > out/logcat.txt || true
             adb pull /sdcard/run.mp4 out/run.mp4 || true
             cat out/summary.txt
       - name: Report (branch android-sim-report)

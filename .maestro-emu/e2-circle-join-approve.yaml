@@ -11,6 +11,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
 - tapOn: "عندي حساب"
 - tapOn: "01xxxxxxxxx"
 - inputText: "01000000077"
+- tapOn: "رقم الموبايل"
 - tapOn:
     id: "auth-password"
 - waitForAnimationToEnd
@@ -144,6 +145,7 @@ name: Organizer makes a circle, a member joins with the code, organizer approves
 - tapOn: "عندي حساب"
 - tapOn: "01xxxxxxxxx"
 - inputText: "01000000077"
+- tapOn: "رقم الموبايل"
 - tapOn:
     id: "auth-password"
 - waitForAnimationToEnd

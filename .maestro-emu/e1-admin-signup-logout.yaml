@@ -14,6 +14,7 @@ name: Organizer - sign up, open screens, sign out, sign in again, sign out
 - inputText: "Test Admin"
 - tapOn: "01xxxxxxxxx"
 - inputText: "01000000077"
+- tapOn: "رقم الموبايل"
 - scrollUntilVisible:
     element:
       id: "auth-email"
@@ -47,9 +48,7 @@ name: Organizer - sign up, open screens, sign out, sign in again, sign out
     visible: "جمعية جديدة"
     timeout: 15000
 - tapOn: "حسابي"
-- extendedWaitUntil:
-    visible: "تسجيل الخروج"
-    timeout: 15000
+- waitForAnimationToEnd
 - scrollUntilVisible:
     element: "تسجيل الخروج"
     direction: DOWN
@@ -71,6 +70,7 @@ name: Organizer - sign up, open screens, sign out, sign in again, sign out
 - tapOn: "عندي حساب"
 - tapOn: "01xxxxxxxxx"
 - inputText: "01000000077"
+- tapOn: "رقم الموبايل"
 - tapOn:
     id: "auth-password"
 - waitForAnimationToEnd
