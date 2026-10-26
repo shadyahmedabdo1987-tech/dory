@@ -38,7 +38,13 @@ export function useSession(): Session {
   useEffect(() => {
     if (!isFirebaseConfigured) return;
     const a = firebaseAuth();
+    // Never stay on the opening screen: if the saved sign-in is slow to load, go on with what we have.
+    const fallback = setTimeout(() => {
+      setUser(a.currentUser);
+      setLoading(false);
+    }, 6000);
     const offState = onAuthStateChanged(a, (u) => {
+      clearTimeout(fallback);
       setUser(u);
       setLoading(false);
     });
@@ -50,6 +56,7 @@ export function useSession(): Session {
       setTick((t) => t + 1);
     });
     return () => {
+      clearTimeout(fallback);
       offState();
       offToken();
     };

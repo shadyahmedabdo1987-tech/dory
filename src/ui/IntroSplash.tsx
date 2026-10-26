@@ -35,9 +35,10 @@ export function IntroSplash({ ready, onShown, onDone }: { ready: boolean; onShow
 
   useEffect(() => {
     if (!ready || leaving.current) return;
-    leaving.current = true;
     const wait = Math.max(0, MIN_MS - (Date.now() - mountedAt));
     const t = setTimeout(() => {
+      // Marked only once it really starts: a re-run in between must not leave the intro up forever.
+      leaving.current = true;
       Animated.timing(exit, { toValue: 1, duration: 520, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => onDone());
     }, wait);
     return () => clearTimeout(t);
