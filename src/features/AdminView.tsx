@@ -98,6 +98,8 @@ import {
   rotateInviteCode,
   unlinkMember,
   updatePayInfo,
+  issueJoinCode,
+  JOIN_CODE_MINUTES,
 } from '@/data';
 import { ActionTile, Badge, Button, Card, Field, IconButton, ProgressBar, Row, Segmented, Text, tap } from "@/ui/components";
 import { confirm, Sheet, useAction } from '@/ui/feedback';
@@ -1899,13 +1901,26 @@ function InviteCard({ circle, joined, others }: { circle: Circle; joined: number
     setPhone('');
   };
 
-  const send = (via: 'sms' | 'whatsapp', numbers: string[]) => {
-    const url = via === 'sms' ? smsUrl(numbers, message, Platform.OS) : whatsappUrl(numbers[0], message);
-    RNLinking.openURL(url)
-      .then(() => remember(numbers))
-      .catch(() =>
-        alert(via === 'sms' ? 'مقدرناش نفتح الرسائل' : 'واتساب مش متاح', 'جرّب الطريقة التانية، أو انسخ الرسالة وابعتها بنفسك.'),
-      );
+  // Every number gets its own one-time code (3 minutes): only that number can ask to join with it.
+  const send = (via: 'sms' | 'whatsapp', numbers: string[]) =>
+    run(async () => {
+      const n = numbers[0];
+      const otp = await issueJoinCode(circle.id, n);
+      const text = `${message}\n\nكود التأكيد بتاعك: ${otp}\n(للرقم ده بس، وصالح ${JOIN_CODE_MINUTES} دقايق)`;
+      const url = via === 'sms' ? smsUrl([n], text, Platform.OS) : whatsappUrl(n, text);
+      await RNLinking.openURL(url)
+        .then(() => remember([n]))
+        .catch(() =>
+          alert(via === 'sms' ? 'مقدرناش نفتح الرسائل' : 'واتساب مش متاح', 'جرّب الطريقة التانية.'),
+        );
+    });
+
+  const forget = async (n: string) => {
+    const shown = n.startsWith('20') ? `0${n.slice(2)}` : n;
+    if (!(await confirm('تشيل الرقم ده من القائمة؟', `${shown} هيتشال من «اتبعتلهم دعوة» على موبايلك بس.`, 'شيله', true))) return;
+    const next = sent.filter((x) => x !== n);
+    setSent(next);
+    AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {});
   };
 
   return (
@@ -1975,15 +1990,18 @@ function InviteCard({ circle, joined, others }: { circle: Circle; joined: number
             اتبعتلهم دعوة ({formatNumber(sent.length)})
           </Text>
           {sent.map((n) => (
-            <Row key={n} gap={space.sm}>
-              <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-              <Text style={{ flex: 1 }}>{n.startsWith('20') ? `0${n.slice(2)}` : n}</Text>
-              <IconButton icon="chatbubble-ellipses-outline" label="ابعت SMS تاني" onPress={() => send('sms', [n])} />
-            </Row>
+            <Pressable key={n} onLongPress={() => forget(n)} delayLongPress={450} accessibilityHint="دوسة طويلة تشيله من القائمة">
+              <Row gap={space.sm}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                <Text style={{ flex: 1 }}>{n.startsWith('20') ? `0${n.slice(2)}` : n}</Text>
+                <IconButton icon="logo-whatsapp" label="ابعت كود جديد واتساب" onPress={() => send('whatsapp', [n])} />
+                <IconButton icon="chatbubble-ellipses-outline" label="ابعت كود جديد SMS" onPress={() => send('sms', [n])} />
+              </Row>
+            </Pressable>
           ))}
-          {sent.length > 1 ? (
-            <Button label="ابعت SMS للكل مرة واحدة" icon="people-outline" variant="secondary" onPress={() => send('sms', sent)} />
-          ) : null}
+          <Text variant="caption">
+            كل رقم بيوصله كود تأكيد خاص بيه صالح {formatNumber(JOIN_CODE_MINUTES)} دقايق. لو خلص قبل ما يسجّل، ابعتله كود جديد من هنا. دوسة طويلة على الرقم تشيله من القائمة.
+          </Text>
         </View>
       ) : null}
 

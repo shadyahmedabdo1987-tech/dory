@@ -203,15 +203,21 @@ describe('directory', () => {
 });
 
 describe('join requests (picked from the directory, approved in the app)', () => {
+  const KEY = `j-${'a'.repeat(40)}`;
+  const OLD = `j-${'b'.repeat(40)}`;
   const openListing = async (open = true) =>
-    env.withSecurityRulesDisabled((ctx) =>
-      setDoc(doc(ctx.firestore(), 'directory', CID), { name: 'جمعية الشغل', open, memberCount: 2 }),
-    );
+    env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'directory', CID), { name: 'جمعية الشغل', open, memberCount: 2 });
+      await setDoc(doc(db, 'circles', CID, 'joinCodes', KEY), { phone: '201077777777', createdAt: new Date() });
+      await setDoc(doc(db, 'circles', CID, 'joinCodes', OLD), { phone: '201077777777', createdAt: new Date(Date.now() - 5 * 60_000) });
+    });
   const request = (db, uid, overrides = {}) =>
     setDoc(doc(db, 'circles', CID, 'joinRequests', uid), {
       uid,
       name: 'سارة',
       phone: '201077777777',
+      joinKey: KEY,
       proof: 'a'.repeat(64),
       payAccount: 'sara@instapay',
       createdAt: serverTimestamp(),
@@ -222,6 +228,10 @@ describe('join requests (picked from the directory, approved in the app)', () =>
     await openListing();
     await assertSucceeds(request(anon('u1'), 'u1'));
     await assertSucceeds(request(anon('u5'), 'u5', { payAccount: '201055555555' }));
+    // Only with the organizer's one-time code for this number, within 3 minutes.
+    await assertFails(request(anon('u6'), 'u6', { joinKey: `j-${'f'.repeat(40)}` }));
+    await assertFails(request(anon('u6'), 'u6', { joinKey: OLD }));
+    await assertFails(request(anon('u6'), 'u6', { phone: '201066666666' }));
     await assertFails(request(anon('u1'), 'u2'));
     await assertFails(request(anon('u3'), 'u3', { name: '' }));
     await assertFails(request(anon('u3'), 'u3', { payAccount: 'not valid' }));
@@ -231,6 +241,20 @@ describe('join requests (picked from the directory, approved in the app)', () =>
     await assertFails(
       setDoc(doc(anon('u3'), 'circles', CID, 'joinRequests', 'u3'), { uid: 'u3', name: 'سارة', createdAt: serverTimestamp() }),
     );
+  });
+
+  it('lets only the organizer make join codes; the member clears theirs after asking', async () => {
+    await openListing();
+    const code = (db, id = `j-${'d'.repeat(40)}`, data = {}) =>
+      setDoc(doc(db, 'circles', CID, 'joinCodes', id), { phone: '201088888888', createdAt: serverTimestamp(), ...data });
+    await assertSucceeds(code(admin()));
+    await assertFails(code(anon('u1'), `j-${'e'.repeat(40)}`));
+    await assertFails(code(admin(), 'not-a-key'));
+    await assertFails(code(admin(), `j-${'e'.repeat(40)}`, { phone: 'abc' }));
+    await assertFails(getDocs(collection(anon('u1'), 'circles', CID, 'joinCodes')));
+    await assertFails(deleteDoc(doc(anon('u7'), 'circles', CID, 'joinCodes', KEY)));
+    await assertSucceeds(request(anon('u7'), 'u7'));
+    await assertSucceeds(deleteDoc(doc(anon('u7'), 'circles', CID, 'joinCodes', KEY)));
   });
 
   it('needs the password to sign back in once the member has one', async () => {

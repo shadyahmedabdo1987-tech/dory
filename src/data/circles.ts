@@ -1209,7 +1209,7 @@ export async function isPhoneRegistered(cid: string, rawPhone: string): Promise<
 /** Member: ask to join a circle from the directory with my own details. */
 export async function requestJoin(
   cid: string,
-  input: { name: string; phone: string; password: string; payAccount?: string },
+  input: { name: string; phone: string; password: string; payAccount?: string; otp: string },
   uid: string,
 ): Promise<{ joined: boolean }> {
   const db = firestore();
@@ -1226,19 +1226,27 @@ export async function requestJoin(
 
   const existing = await retry(() => getDoc(membershipRef(db, cid, uid)));
   if (existing.exists()) return { joined: true };
+  const joinKey = await checkJoinCode(cid, phone, input.otp);
 
   await withTimeout(
     setDoc(doc(joinRequestsCol(db, cid), uid), {
       uid,
       name,
       phone,
+      joinKey,
       proof: passwordProof(cid, phone, input.password),
       ...(payAccount ? { payAccount } : {}),
       ...(myPushToken() ? { pushToken: myPushToken() } : {}),
       createdAt: serverTimestamp(),
     }),
     15_000,
-  );
+  ).catch((e) => {
+    // The rules check the code again (and its 3 minutes, by the server's clock).
+    if (errorCode(e) === 'permission-denied') throw new AppError('dory/join-code-expired', JOIN_CODE_EXPIRED);
+    throw e;
+  });
+  // Used once: nobody else can ask to join with it.
+  void deleteDoc(doc(joinCodesCol(db, cid), joinKey)).catch(() => {});
   void (async () => {
     try {
       const card = await getDoc(directoryRef(db, cid));
@@ -1253,6 +1261,52 @@ export async function requestJoin(
     }
   })();
   return { joined: false };
+}
+
+// ---------------------------------------------------------------------------
+// Join codes (OTP): a new member can only ask to join with a one-time code the
+// organizer sent to *that* number. 6 digits, good for 3 minutes, one number only.
+// Stored only as a fingerprint in the document name (like the sign-in codes), so
+// knowing the circle code alone isn't enough; the security rules check it too.
+// ---------------------------------------------------------------------------
+
+export const JOIN_CODE_MINUTES = 3;
+const joinCodeKey = (cid: string, phone: string, otp: string) => `j-${sha256(`dory:join:v1:${cid}:${phone}:${otp}`).slice(0, 40)}`;
+const joinCodesCol = (db: Firestore, cid: string) => collection(db, 'circles', cid, 'joinCodes');
+
+/** Organizer: a fresh code for this number (older codes for it stop working). */
+export async function issueJoinCode(cid: string, rawPhone: string): Promise<string> {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) throw new AppError('dory/invalid-phone', arabicError({ code: 'dory/invalid-phone' }));
+  const bytes = new Uint32Array(1);
+  globalThis.crypto?.getRandomValues?.(bytes);
+  const otp = String(100000 + ((bytes[0] || Math.floor(Math.random() * 2 ** 32)) % 900000));
+  const db = firestore();
+  const old = await withTimeout(getDocs(query(joinCodesCol(db, cid), where('phone', '==', phone))), 8_000)
+    .then((snap) => snap.docs.map((d) => d.id))
+    .catch(() => [] as string[]);
+  const batch = writeBatch(db);
+  for (const id of old) batch.delete(doc(joinCodesCol(db, cid), id));
+  batch.set(doc(joinCodesCol(db, cid), joinCodeKey(cid, phone, otp)), { phone, createdAt: serverTimestamp() });
+  await withTimeout(batch.commit(), 15_000);
+  return otp;
+}
+
+const JOIN_CODE_WRONG = `كود التأكيد مش صح. اتأكد من الكود اللي وصلك من صاحب الجمعية على نفس رقم الموبايل ده.`;
+const JOIN_CODE_EXPIRED = `كود التأكيد خلصت صلاحيته (${JOIN_CODE_MINUTES} دقايق). اطلب من صاحب الجمعية يبعتلك كود جديد.`;
+
+/** New member: checks the code for this number and returns its key (for the request). */
+async function checkJoinCode(cid: string, phone: string, typed: string): Promise<string> {
+  const otp = toAsciiDigits(typed).replace(/\D/g, '');
+  if (otp.length !== 6) throw new AppError('dory/join-code-wrong', JOIN_CODE_WRONG);
+  const key = joinCodeKey(cid, phone, otp);
+  const found = await restGet(`circles/${cid}/joinCodes/${key}`);
+  if (!found || String(found.phone) !== phone) throw new AppError('dory/join-code-wrong', JOIN_CODE_WRONG);
+  const created = Date.parse(String(found.createdAt ?? ''));
+  if (Number.isFinite(created) && Date.now() - created > JOIN_CODE_MINUTES * 60_000 + 30_000) {
+    throw new AppError('dory/join-code-expired', JOIN_CODE_EXPIRED);
+  }
+  return key;
 }
 
 /** Member: watch my own pending request ('pending' | 'approved' | 'gone'). */

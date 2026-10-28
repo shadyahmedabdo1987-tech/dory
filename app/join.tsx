@@ -339,6 +339,7 @@ function JoinSheet({
   const [password2, setPassword2] = useState('');
   const [fromCode, setFromCode] = useState(false);
   const [loginCode, setLoginCode] = useState('');
+  const [joinOtp, setJoinOtp] = useState('');
   const [name, setName] = useState(user?.displayName ?? '');
   const { busy, run } = useAction();
   const phoneOk = !!normalizePhone(phone);
@@ -470,7 +471,7 @@ function JoinSheet({
       // So the admin's approval reaches this phone as a notification.
       await ensurePushToken().catch(() => null);
       // The mobile number is also the InstaPay / Vodafone Cash number they get paid on.
-      const result = await requestJoin(circle.id, { name, phone, password, payAccount: phone }, uid);
+      const result = await requestJoin(circle.id, { name, phone, password, payAccount: phone, otp: joinOtp }, uid);
       writePrefs({ myPhone: phone.trim(), myInstapay: phone.trim() });
       if (result.joined) return open(circle.id);
       await addPendingJoin({ cid: circle.id, circleName: circle.name, name: name.trim() });
@@ -623,7 +624,7 @@ function JoinSheet({
               <View style={styles.firstTime}>
                 <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
                 <Text variant="caption" color={colors.text} style={{ flex: 1 }}>
-                  أول مرة تدخل الجمعية دي. اكتب اسمك واختار باسورد، وصاحب الجمعية هيوافق على طلبك. بعد كده تدخل بالكود ورقمك والباسورد.
+                  أول مرة تدخل الجمعية دي. اكتب اسمك، وكود التأكيد اللي صاحب الجمعية بعتهولك على رقمك ده (صالح ٣ دقايق)، واختار باسورد. صاحب الجمعية هيوافق على طلبك، وبعد كده تدخل بالكود ورقمك والباسورد.
                 </Text>
               </View>
               <Field
@@ -633,6 +634,17 @@ function JoinSheet({
                 maxLength={60}
                 autoComplete="name"
                 placeholder="الاسم اللي صاحب الجمعية هيشوفه"
+              />
+              <Field
+                label="كود التأكيد (OTP)"
+                value={joinOtp}
+                onChangeText={(t) => setJoinOtp(t.replace(/[^0-9٠-٩]/g, '').replace(/[٠-٩]/g, (c) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c))).slice(0, 6))}
+                keyboardType="number-pad"
+                maxLength={6}
+                testID="join-otp"
+                placeholder="123456"
+                hint="وصلك مع كود الجمعية في رسالة صاحب الجمعية. لو خلصت صلاحيته اطلب منه كود جديد."
+                style={{ writingDirection: 'ltr', textAlign: 'center', letterSpacing: 6, fontSize: 20 }}
               />
               <Field
                 label="الباسورد"
@@ -656,7 +668,7 @@ function JoinSheet({
                 label="ابعت طلب الانضمام"
                 icon="send"
                 loading={busy}
-                disabled={!name.trim() || !phoneOk || password.length < MIN_PASSWORD || password !== password2}
+                disabled={!name.trim() || !phoneOk || joinOtp.length !== 6 || password.length < MIN_PASSWORD || password !== password2}
                 onPress={submit}
               />
             </>

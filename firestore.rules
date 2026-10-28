@@ -242,7 +242,12 @@ service cloud.firestore {
         allow list: if isAdmin(cid);
         allow create, update: if signedIn()
           && request.auth.uid == rid
-          && request.resource.data.keys().hasOnly(['uid', 'name', 'phone', 'payAccount', 'pushToken', 'createdAt', 'proof'])
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'phone', 'payAccount', 'pushToken', 'createdAt', 'proof', 'joinKey'])
+          // Only with the one-time code the organizer sent to this very number, within 3 minutes.
+          && request.resource.data.joinKey is string
+          && exists(/databases/$(database)/documents/circles/$(cid)/joinCodes/$(request.resource.data.joinKey))
+          && get(/databases/$(database)/documents/circles/$(cid)/joinCodes/$(request.resource.data.joinKey)).data.phone == request.resource.data.phone
+          && get(/databases/$(database)/documents/circles/$(cid)/joinCodes/$(request.resource.data.joinKey)).data.createdAt + duration.value(3, 'm') > request.time
           && request.resource.data.proof is string && request.resource.data.proof.matches('^[0-9a-f]{64}$')
           // Mobile number (international digits). A number already registered in
           // the circle can't ask again — that member signs back in with it instead.
@@ -257,6 +262,21 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/directory/$(cid)).data.open == true
           && request.resource.data.createdAt == request.time;
         allow delete: if signedIn() && (request.auth.uid == rid || isAdmin(cid));
+      }
+
+      // ---------- one-time join codes (OTP per number; the name is the code's fingerprint) ----------
+      match /joinCodes/{key} {
+        allow get: if signedIn();
+        allow list: if isAdmin(cid);
+        allow create: if isAdmin(cid)
+          && key.matches('^j-[0-9a-f]{40}$')
+          && request.resource.data.keys().hasOnly(['phone', 'createdAt'])
+          && request.resource.data.phone is string
+          && request.resource.data.phone.matches('^[0-9]{8,15}$')
+          && request.resource.data.createdAt == request.time;
+        // The organizer clears old codes; the new member clears theirs once the request is in.
+        allow delete: if isAdmin(cid)
+          || (signedIn() && exists(/databases/$(database)/documents/circles/$(cid)/joinRequests/$(request.auth.uid)));
       }
 
       // ---------- push tokens per circle (server-less notifications) ----------
